@@ -121,3 +121,50 @@ test('extra-import: cancel is a no-op; a chosen strip adds a named extra', async
   expect(r.row).toBe(1);
   expect(r.species.find((s) => s.slug === 'bearded-dragon').extras.map((e) => e.name)).toEqual(['headbob', 'wave']);
 });
+
+test('forge: role → species round-trips, validates, and notifies', async () => {
+  let notified = 0;
+  handlers = {};
+  registerPetIpc({
+    ipcMain: { handle: (name, fn) => { handlers[name] = fn; } }, dialog: { showOpenDialog: async () => picked },
+    nativeImage: {}, pets: svc, mutate: (fn) => fn(), petSnapshot: () => ({}), savePetConfig: (p) => calls.saved.push(p),
+    reloadPetWindows: () => {}, borderById, onRolesChanged: () => { notified++; },
+  });
+  const s0 = await invoke('forge-get');
+  expect(s0.roles).toEqual(expect.arrayContaining(['management', 'lead', 'worker', 'inspector']));
+  expect(s0.map).toEqual({});
+  expect(s0.species.map((x) => x.slug)).toContain('retro-robot');
+  const s1 = await invoke('forge-set', 'worker', 'retro-robot');
+  expect(s1.map).toEqual({ worker: 'retro-robot' });
+  expect(calls.saved.at(-1)).toEqual({ roleSpecies: { worker: 'retro-robot' } });
+  expect(notified).toBe(1);
+  const s2 = await invoke('forge-set', 'worker', '');       // blank clears
+  expect(s2.map).toEqual({});
+  await expect(invoke('forge-set', 'worker', 'nope')).rejects.toThrow(/Unknown species/);
+  await expect(invoke('forge-set', 'wizard', 'orc')).rejects.toThrow(/Unknown Firm role/);
+});
+
+test('projects: list, edit (frame/env validated against the catalogs), forget; changes notify', async () => {
+  let notified = 0;
+  const { BORDERS } = require('../lib/borders');
+  handlers = {};
+  registerPetIpc({
+    ipcMain: { handle: (name, fn) => { handlers[name] = fn; } }, dialog: { showOpenDialog: async () => picked },
+    nativeImage: {}, pets: svc, mutate: (fn) => fn(), petSnapshot: () => ({}), savePetConfig: () => {},
+    reloadPetWindows: () => {}, borderById, frames: BORDERS, onProjectsChanged: () => { notified++; },
+  });
+  svc.projects.resolve('cwd:/w/peon-pet', 'peon-pet');
+  const s0 = await invoke('projects-get');
+  expect(s0.projects).toHaveLength(1);
+  expect(s0.frames.map((f) => f.id)).toEqual(expect.arrayContaining(['default', 'gold']));
+  expect(s0.environs.map((e) => e.id)).toContain('dungeon');
+
+  const s1 = await invoke('projects-update', 'cwd:/w/peon-pet', { name: 'Peon Pet', emoji: '🐾', hue: 200, frame: 'gold', env: 'dungeon' });
+  expect(s1.projects[0]).toMatchObject({ name: 'Peon Pet', hue: 200, frame: 'gold', env: 'dungeon' });
+  expect(notified).toBe(1);
+  await expect(invoke('projects-update', 'cwd:/w/peon-pet', { frame: 'bogus' })).rejects.toThrow(/Unknown frame/);
+  await expect(invoke('projects-update', 'cwd:/w/peon-pet', { env: 'mars' })).rejects.toThrow(/Unknown environment/);
+  await expect(invoke('projects-update', 'nope', { name: 'x' })).rejects.toThrow(/Unknown project/);
+  const s2 = await invoke('projects-forget', 'cwd:/w/peon-pet');
+  expect(s2.projects).toEqual([]);
+});

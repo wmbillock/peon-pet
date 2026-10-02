@@ -53,3 +53,20 @@ describe('poller', () => {
     expect(p.state).toMatchObject({ available: false, error: 'refused' });
   });
 });
+
+describe('project titles', () => {
+  test('client reads /api/projects; poller exposes an id → title map and tolerates a missing endpoint', async () => {
+    const calls = [];
+    const client = createFirmClient({ fetchImpl: async (url) => { calls.push(url); return { ok: true, json: async () => [{ id: 'p1', title: 'Pricing CLI' }, { id: 'p2', name: 'Euphonia' }, { nope: 1 }] }; } });
+    expect(await client.projects()).toEqual([{ id: 'p1', title: 'Pricing CLI' }, { id: 'p2', title: 'Euphonia' }]);
+    expect(calls).toEqual(['http://127.0.0.1:8420/api/projects']);
+
+    const p = createFirmPoller({ client: { threads: async () => [normalizeThread(RAW)], projects: async () => [{ id: 'p1', title: 'Pricing CLI' }] }, intervalMs: 1e9 });
+    await p.refresh();
+    expect(p.state.projects).toEqual({ p1: 'Pricing CLI' });
+
+    const q = createFirmPoller({ client: { threads: async () => [normalizeThread(RAW)], projects: async () => { throw new Error('404'); } }, intervalMs: 1e9 });
+    await q.refresh();
+    expect(q.state).toMatchObject({ available: true, projects: {} });
+  });
+});

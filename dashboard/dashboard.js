@@ -252,3 +252,12 @@ onSnap((snap) => renderUnlessEditing(borderCards, () => {
 }));
 
 document.getElementById('grid-btn').addEventListener('click', () => window.dashBridge.openGrid());
+
+// --- Corner window switch (Overview page) ---
+const cornerSeg = document.getElementById('corner-seg');
+const markCornerView = (v) => { for (const b of cornerSeg.querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === v); };
+for (const b of cornerSeg.querySelectorAll('button')) {
+  b.addEventListener('click', () => { window.dashBridge.setCornerView(b.dataset.v); markCornerView(b.dataset.v); });
+}
+window.dashBridge.onCornerView(markCornerView);
+window.dashBridge.getCornerView().then(markCornerView);

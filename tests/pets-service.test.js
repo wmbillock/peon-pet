@@ -106,29 +106,26 @@ test('snapshot has everything the UI renders', () => {
 describe('assign: roots, children and instance tints', () => {
   const agent = (id, extra = {}) => ({ id, rootId: id, isRoot: true, cwd: '/w', agent: 'claude', hot: true, lastActive: 1, rank: 0, order: 0, ...extra });
 
-  test('an agent\'s sub-agents inherit its pet look and tint', () => {
+  test('an agent\'s sub-agents keep its pet and name, but not its colour wash', () => {
     svc.createPets({ species: 'bearded-dragon', name: 'Spike' });
     const spike = svc.roster.list().find((p) => p.name === 'Spike');
     svc.roster.update(spike.id, { tint: 'violet', assignment: { type: 'session', value: 'lead' } });
     svc.refresh();
     const m = svc.assign([agent('lead', { order: 0 }), agent('w1', { isRoot: false, rootId: 'lead', order: 1 }), agent('w2', { isRoot: false, rootId: 'lead', order: 2 })]);
     expect(m.get('lead')).toMatchObject({ name: 'Spike', tint: 'violet' });
-    expect(m.get('w1')).toMatchObject({ name: 'Spike', tint: 'violet', species: 'bearded-dragon', sub: true });
+    expect(m.get('w1')).toMatchObject({ name: 'Spike', species: 'bearded-dragon', sub: true, tint: 'none', tintAlpha: 0 });
     expect(m.get('w2').petId).toBe(m.get('lead').petId);
     expect(m.get('lead').sub).toBeUndefined();
   });
 
-  test('more root agents than pets: extra instances get distinct, stable tinted copies', () => {
+  test('more root agents than pets: extra instances are numbered copies, stable across reorders', () => {
     const roots = ['a', 'b', 'c', 'd'].map((id, i) => agent(id, { order: i }));
     const m1 = svc.assign(roots);                    // roster has one pet
     const looks = roots.map((r) => m1.get(r.id));
     expect(looks[0].virtual).toBeUndefined();
-    expect(looks.slice(1).every((l) => l.virtual)).toBe(true);
-    expect(new Set(looks.map((l) => l.tint)).size).toBe(4);          // every instance is distinguishable
-    expect(looks[1].name).toBe(`${looks[0].name} 2`);
-    expect(looks[2].name).toBe(`${looks[0].name} 3`);
+    expect(looks.slice(1).every((l) => l.virtual && l.tint === 'none')).toBe(true);
+    expect(looks.map((l) => l.name)).toEqual([looks[0].name, `${looks[0].name} 2`, `${looks[0].name} 3`, `${looks[0].name} 4`]);
     expect(looks[1].petId).toBe(`${looks[0].petId}~2`);
-    // stable when asked again, even if the input order flips
     const m2 = svc.assign([...roots].reverse());
     for (const r of roots) expect(m2.get(r.id)).toEqual(m1.get(r.id));
   });
@@ -136,5 +133,24 @@ describe('assign: roots, children and instance tints', () => {
   test('rows without graph fields still work as roots (backwards compatible)', () => {
     const m = svc.assign([{ id: 'x', cwd: '/w', agent: 'claude', hot: true, lastActive: 1 }]);
     expect(m.get('x')).toBeTruthy();
+  });
+
+  test('role → species: sub-agents of a role wear that species but keep their root\'s name', () => {
+    svc.setRoleSpecies({ worker: 'retro-robot' });
+    const m = svc.assign([
+      agent('lead', { firmRole: 'lead', order: 0 }),
+      agent('w', { isRoot: false, rootId: 'lead', firmRole: 'worker', order: 1 }),
+      agent('i', { isRoot: false, rootId: 'lead', firmRole: 'inspector', order: 2 }),
+    ]);
+    expect(m.get('w')).toMatchObject({ species: 'retro-robot', speciesDisplay: 'Retro Robot', sub: true, name: m.get('lead').name, tint: 'none' });
+    expect(m.get('i').species).toBe(m.get('lead').species);              // no mapping for inspectors: inherits
+    expect(m.get('w').petId).toBe(m.get('lead').petId);
+  });
+
+  test('setRoleSpecies validates roles and species, and drops blanks', () => {
+    expect(svc.setRoleSpecies({ worker: 'retro-robot', plan: '', scout: null })).toEqual({ worker: 'retro-robot' });
+    expect(() => svc.setRoleSpecies({ wizard: 'orc' })).toThrow(/Unknown Firm role/);
+    expect(() => svc.setRoleSpecies({ worker: 'nope' })).toThrow(/Unknown species/);
+    expect(svc.roleSpeciesMap()).toEqual({ worker: 'retro-robot' });       // a failed update leaves the old map
   });
 });

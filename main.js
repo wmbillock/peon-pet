@@ -16,8 +16,10 @@ const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
 const { registerPetIpc } = require('./lib/ipc-pets');
 const { readSessionRegistry, transcriptFor } = require('./lib/live-agents');
-const { createFirmClient, createFirmPoller } = require('./lib/firm-client');
+const { createFirmClient, createFirmPoller, parseBaseUrl } = require('./lib/firm-client');
 const { buildAgents } = require('./lib/agent-graph');
+const { applyMarks } = require('./lib/marks');
+const { BORDERS } = require('./lib/borders');
 const { computeCornerBounds } = require('./lib/corner-window');
 const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawDots } = require('./lib/pixoo');
@@ -84,7 +86,11 @@ function initPets() {
     ipcMain, dialog, nativeImage, pets, mutate, petSnapshot, savePetConfig, reloadPetWindows, borderById,
     getParentWindow: () => dashWin || undefined,
     clearThumbs: () => thumbCache.clear(),
+    onRolesChanged: () => sendSessionUpdate(Date.now()),
+    onProjectsChanged: () => sendSessionUpdate(Date.now()),
+    frames: BORDERS,
   });
+  try { pets.setRoleSpecies(loadPetConfig().roleSpecies || {}); } catch (e) { console.error('[forge] ignoring stale role map:', e.message); }
 }
 
 const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { ...opts, border: loadPetConfig().border });
@@ -177,10 +183,39 @@ function setSessionTitle(id, title, kind) {
 }
 
 let sessionUpdateTimer = null;
+let firmPoller = null;
+// (Re)connect to The Firm per the saved settings. Read-only and optional.
+function startFirm() {
+  if (firmPoller) { firmPoller.stop(); firmPoller = null; }
+  const cfg = loadPetConfig();
+  firmState = { available: false, threads: [], error: null };
+  firmUrl = cfg.firmUrl || 'http://127.0.0.1:8420';
+  if (cfg.firm === false) { scheduleSessionUpdate(); return; }
+  try {
+    firmPoller = createFirmPoller({
+      client: createFirmClient({ baseUrl: firmUrl }),
+      onChange: (st) => { firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
+      onTransition: (st) => console.log(st.available ? `[firm] connected (${st.threads.length} agents)` : `[firm] unreachable: ${st.error}`),
+    });
+    firmPoller.start();
+  } catch (e) {
+    firmState = { available: false, threads: [], error: e.message };
+    console.error('[firm] disabled:', e.message);
+  }
+}
+
+ipcMain.handle('firm-set', (_e, { enabled, url }) => {
+  const clean = String(url || '').trim();
+  if (clean) parseBaseUrl(clean);   // throws a readable error for anything but a localhost http URL
+  savePetConfig({ firm: !!enabled, firmUrl: clean || undefined });
+  startFirm();
+  return firmSummary();
+});
+
 function firmSummary() {
   const byRole = {};
   for (const t of firmState.threads) byRole[t.role] = (byRole[t.role] || 0) + 1;
-  return { available: firmState.available, url: firmUrl, error: firmState.error, total: firmState.threads.length, byRole };
+  return { enabled: loadPetConfig().firm !== false, available: firmState.available, url: firmUrl, error: firmState.error, total: firmState.threads.length, byRole };
 }
 ipcMain.handle('firm-get', () => firmSummary());
 
@@ -350,6 +385,7 @@ function sendSessionUpdate(now) {
       cwd,
       name: cwd ? path.basename(cwd) : null,
       title: t ? t.title : null,
+      titleKind: t ? t.kind : null,
       role,
       status: busyIds.has(s.id) ? 'busy' : liveIds.has(s.id) ? 'idle' : null,
       live: liveIds.has(s.id),
@@ -367,9 +403,15 @@ function sendSessionUpdate(now) {
     lastSessionSig = sig;
     console.log(`[sessions] ${sig} ${agents.map((r) => `${r.isRoot ? (r.role === 'master' ? 'M:' : 'R:') : ' ·'}${(r.title || r.name || '?').slice(0, 16)}${r.hot ? '*' : r.warm ? '~' : '.'}`).join(' ')}`);
   }
-  const looks = pets ? pets.assign(agents) : new Map();
+  const baseLooks = pets ? pets.assign(agents) : new Map();
+  // Project identity (emoji, colour family, frame, environment) and per-type shades.
+  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n) => pets.projects.resolve(k, n), titles: firmState.projects || {} }) : new Map();
+  const looks = new Map([...marks].map(([id, m]) => [id, m.look]).filter(([, l]) => l));
   latestLooks = looks;
-  const payload = { sessions: agents.map(r => ({ ...r, pet: looks.get(r.id) || null })), firm: { available: firmState.available, url: firmUrl } };
+  const payload = {
+    sessions: agents.map((r) => ({ ...r, pet: looks.get(r.id) || null, project: (marks.get(r.id) || {}).project || null, mark: (marks.get(r.id) || {}).mark || null })),
+    firm: { available: firmState.available, url: firmUrl },
+  };
   latestSessions = payload;
   if (gridWin && !gridWin.isDestroyed()) gridWin.webContents.send('grid-sessions', payload);
   if (pixooConfig().enabled) schedulePixooSync();
@@ -452,21 +494,7 @@ function startPolling() {
   refreshLive();
   setInterval(refreshLive, 4000);
 
-  // The Firm: who its agents are (role, workstream) so its workers and leads join the dashboard and
-  // share their lead's tint. Read-only and optional: without it everything still works.
-  if (cfg.firm !== false) {
-    try {
-      firmUrl = cfg.firmUrl || 'http://127.0.0.1:8420';
-      const poller = createFirmPoller({
-        client: createFirmClient({ baseUrl: firmUrl }),
-        onChange: (st) => { firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
-        onTransition: (st) => console.log(st.available ? `[firm] connected (${st.threads.length} agents)` : `[firm] unreachable: ${st.error}`),
-      });
-      poller.start();
-    } catch (e) {
-      console.error('[firm] disabled:', e.message);
-    }
-  }
+  startFirm();
 
   // Heartbeat: refresh session hot/warm status so the pet correctly decays.
   // Sessions with pending tools are kept hot so the pet stays awake during long tool runs.
@@ -594,6 +622,7 @@ function setCornerView(v, from) {
   cornerView = v;
   savePetConfig({ cornerView: v });
   if (win && !win.isDestroyed() && win.webContents !== from) win.webContents.send('corner-view', v);
+  if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('corner-view', v);
   refreshMenus();
 }
 
@@ -607,6 +636,7 @@ function resizeCorner(w, h) {
 }
 
 ipcMain.on('corner-set-view', (e, v) => setCornerView(v, e.sender));
+ipcMain.handle('corner-get', () => cornerView);
 ipcMain.on('corner-resize', (e, size) => { if (win && e.sender === win.webContents && size) resizeCorner(size.w, size.h); });
 
 const cornerMenu = () => ({

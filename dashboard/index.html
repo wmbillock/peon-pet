@@ -7,43 +7,113 @@
   <link rel="stylesheet" href="panel.css">
 </head>
 <body>
-  <header>
-    <h1>Peon Pet</h1>
-    <nav id="tabs">
-      <button data-tab="control" class="on">Control</button>
-      <button data-tab="pets">Pets</button>
-      <button data-tab="species">Species &amp; art</button>
+<div id="app">
+  <aside id="side">
+    <div class="brand">Peon Pet</div>
+    <nav id="nav">
+      <h4>Agents</h4>
+      <button data-page="overview"><i>◎</i> Overview</button>
+      <h4>Pets</h4>
+      <button data-page="pets"><i>🐾</i> Roster</button>
+      <button data-page="species"><i>🎨</i> Species &amp; art</button>
+      <button data-page="environs"><i>🏞</i> Environments</button>
+      <h4>Look &amp; sound</h4>
+      <button data-page="display"><i>▣</i> Frames &amp; Pixoo</button>
+      <button data-page="sound"><i>♪</i> Voice &amp; sound</button>
+      <h4>The Firm</h4>
+      <button data-page="firm"><i>⚑</i> Connection</button>
+      <button data-page="forge"><i>⚒</i> Agent Forge</button>
     </nav>
-    <span class="spacer"></span>
-    <button id="grid-btn" title="Open the zoom grid of all active agents">Grid</button>
-    <button id="mute">Mute sounds</button>
-  </header>
-  <div id="error"></div>
+  </aside>
 
-  <!-- ============ Control ============ -->
-  <main id="tab-control" class="tab">
+  <div id="content">
+    <header>
+      <button id="burger" title="Menu">☰</button>
+      <h1 id="page-title">Overview</h1>
+      <span class="spacer"></span>
+      <button id="grid-btn" title="Open the big agent dashboard">Dashboard</button>
+      <button id="mute">Mute sounds</button>
+    </header>
+    <div id="error"></div>
+
+    <!-- ============ Overview ============ -->
+    <main id="page-overview" class="page">
+      <section class="card">
+        <h2 class="first">Corner window</h2>
+        <div class="seg" id="corner-seg">
+          <button data-v="pet">Pet</button>
+          <button data-v="grid">Grid</button>
+          <button data-v="speaker">Speaker</button>
+          <button data-v="presenter">Presenter</button>
+        </div>
+        <div class="help">The small window on your desktop. Hover it for the same switch, or click the pet to step through the views.</div>
+      </section>
+    <h2>Agents <span id="count" class="dim"></span></h2>
+    <table>
+      <thead><tr><th>Session</th><th>Pet</th><th>Status</th><th>Last active</th><th>Voice</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty">No active Claude Code or Codex sessions.</div>
+    </main>
+
+    <!-- ============ Pets ============ -->
+    <main id="page-pets" class="page" hidden>
+    <section class="card">
+      <h2 class="first">Add pets</h2>
+      <div class="row">
+        <select id="add-species"></select>
+        <input type="text" id="add-name" placeholder="Name (optional)" maxlength="32">
+        <label class="inline">×</label>
+        <input type="number" id="add-count" value="1" min="1" max="24" style="width:56px">
+        <button id="add-btn">Add</button>
+      </div>
+      <div class="help">Several of one species get different translucent tints automatically, so you can tell them apart.</div>
+    </section>
+    <div id="pet-list"></div>
+    </main>
+
+    <!-- ============ Species & art ============ -->
+    <main id="page-species" class="page" hidden>
+    <section class="card">
+      <h2 class="first">New species</h2>
+      <div class="row">
+        <input type="text" id="new-sp-name" placeholder="Name, e.g. Jazz Trumpet" maxlength="40" style="flex:1">
+        <button id="new-sp-btn">Create draft</button>
+      </div>
+      <textarea id="new-sp-brief" rows="3" placeholder="Describe the character: what it looks like, its personality…"></textarea>
+      <div class="help">A draft holds the description and generates the prompt to feed an image model. Import the sheet when you have it.</div>
+    </section>
+    <div id="sp-list" class="cards"></div>
+    <div id="sp-detail"></div>
+
+    </main>
+
+    <!-- ============ Environments ============ -->
+    <main id="page-environs" class="page" hidden>
+    <section class="card" id="env-card">
+      <h2 class="first">Environments</h2>
+      <div class="help" style="margin:0 0 8px">Backgrounds are separate from characters. <b>Cutout</b> species (transparent sheets) stand on one; <b>baked</b> sheets paint their own scene.</div>
+      <div id="env-list" class="cards"></div>
+      <div id="env-detail"></div>
+      <h2>New environment</h2>
+      <div class="row">
+        <input type="text" id="env-name" placeholder="Name, e.g. Smoky jazz club" maxlength="40" style="flex:1">
+        <button id="env-import-btn">Import image…</button>
+      </div>
+      <textarea id="env-desc" rows="2" placeholder="Describe the place (used for the prompt and kept as a note)…"></textarea>
+      <div class="row" style="margin-top:6px"><button id="env-prompt-btn">Make prompt</button></div>
+      <div id="env-prompt-box" hidden>
+        <textarea id="env-prompt" rows="9" readonly></textarea>
+        <button class="copy" data-copy="env-prompt">Copy prompt</button>
+      </div>
+    </section>
+    </main>
+
+    <!-- ============ Frames & Pixoo ============ -->
+    <main id="page-display" class="page" hidden>
     <section class="card" id="look">
       <h2 class="first">Frame style</h2>
       <div id="border-cards" class="cards"></div>
-    </section>
-
-    <section class="card" id="global">
-      <div class="row">
-        <label for="global-pack">Global voice</label>
-        <select id="global-pack"></select>
-        <button id="audition" class="play" title="Audition this voice">▶</button>
-        <button id="global-apply">Set as global</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <label for="volume">Volume</label>
-        <input type="range" id="volume" min="0" max="100" step="1" style="flex:1">
-        <span id="volume-val" class="val">50%</span>
-      </div>
-      <label class="check"><input type="checkbox" id="global-all" checked> Also switch all open sessions now</label>
-      <div id="global-note"></div>
-      <h2>Sound categories</h2>
-      <div id="categories"></div>
-      <label class="check"><input type="checkbox" id="notif"> Desktop notification popups</label>
     </section>
 
     <section class="card" id="pixoo">
@@ -66,66 +136,69 @@
       <div class="help">IP is in the Divoom app: Device Settings → Device Info. Same Wi-Fi network required. Color match 0 = raw colors; higher pulls the LED look toward your screen.</div>
     </section>
 
-    <h2>Agents <span id="count" class="dim"></span></h2>
-    <table>
-      <thead><tr><th>Session</th><th>Pet</th><th>Status</th><th>Last active</th><th>Voice</th></tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
-    <div id="empty">No active Claude Code or Codex sessions.</div>
-  </main>
+    </main>
 
-  <!-- ============ Pets ============ -->
-  <main id="tab-pets" class="tab" hidden>
-    <section class="card">
-      <h2 class="first">Add pets</h2>
+    <!-- ============ Voice & sound ============ -->
+    <main id="page-sound" class="page" hidden>
+    <section class="card" id="global">
       <div class="row">
-        <select id="add-species"></select>
-        <input type="text" id="add-name" placeholder="Name (optional)" maxlength="32">
-        <label class="inline">×</label>
-        <input type="number" id="add-count" value="1" min="1" max="24" style="width:56px">
-        <button id="add-btn">Add</button>
+        <label for="global-pack">Global voice</label>
+        <select id="global-pack"></select>
+        <button id="audition" class="play" title="Audition this voice">▶</button>
+        <button id="global-apply">Set as global</button>
       </div>
-      <div class="help">Several of one species get different translucent tints automatically, so you can tell them apart.</div>
+      <div class="row" style="margin-top:8px">
+        <label for="volume">Volume</label>
+        <input type="range" id="volume" min="0" max="100" step="1" style="flex:1">
+        <span id="volume-val" class="val">50%</span>
+      </div>
+      <label class="check"><input type="checkbox" id="global-all" checked> Also switch all open sessions now</label>
+      <div id="global-note"></div>
+      <h2>Sound categories</h2>
+      <div id="categories"></div>
+      <label class="check"><input type="checkbox" id="notif"> Desktop notification popups</label>
     </section>
-    <div id="pet-list"></div>
-  </main>
 
-  <!-- ============ Species & art ============ -->
-  <main id="tab-species" class="tab" hidden>
-    <section class="card">
-      <h2 class="first">New species</h2>
-      <div class="row">
-        <input type="text" id="new-sp-name" placeholder="Name, e.g. Jazz Trumpet" maxlength="40" style="flex:1">
-        <button id="new-sp-btn">Create draft</button>
-      </div>
-      <textarea id="new-sp-brief" rows="3" placeholder="Describe the character: what it looks like, its personality…"></textarea>
-      <div class="help">A draft holds the description and generates the prompt to feed an image model. Import the sheet when you have it.</div>
-    </section>
-    <div id="sp-list" class="cards"></div>
-    <div id="sp-detail"></div>
+    </main>
 
-    <section class="card" id="env-card">
-      <h2 class="first">Environments</h2>
-      <div class="help" style="margin:0 0 8px">Backgrounds are separate from characters. <b>Cutout</b> species (transparent sheets) stand on one; <b>baked</b> sheets paint their own scene.</div>
-      <div id="env-list" class="cards"></div>
-      <div id="env-detail"></div>
-      <h2>New environment</h2>
-      <div class="row">
-        <input type="text" id="env-name" placeholder="Name, e.g. Smoky jazz club" maxlength="40" style="flex:1">
-        <button id="env-import-btn">Import image…</button>
-      </div>
-      <textarea id="env-desc" rows="2" placeholder="Describe the place (used for the prompt and kept as a note)…"></textarea>
-      <div class="row" style="margin-top:6px"><button id="env-prompt-btn">Make prompt</button></div>
-      <div id="env-prompt-box" hidden>
-        <textarea id="env-prompt" rows="9" readonly></textarea>
-        <button class="copy" data-copy="env-prompt">Copy prompt</button>
-      </div>
-    </section>
-  </main>
+    <!-- ============ The Firm ============ -->
+    <main id="page-firm" class="page" hidden>
+      <section class="card">
+        <h2 class="first">Connection</h2>
+        <div class="row">
+          <span id="firm-status" class="chip">checking…</span>
+          <input type="text" id="firm-url" placeholder="http://127.0.0.1:8420" spellcheck="false">
+          <label class="inline"><input type="checkbox" id="firm-on"> Connect</label>
+          <button id="firm-save">Save</button>
+        </div>
+        <div class="help">Read-only. Peon Pet asks The Firm's local backend which agents exist (management, leads, workers, inspectors…) and which workstream each belongs to, so they appear on the dashboard and share their lead's tint. Localhost only.</div>
+        <div id="firm-roles" class="cards" style="margin-top:10px"></div>
+      </section>
+    </main>
+
+    <!-- ============ Agent Forge ============ -->
+    <main id="page-forge" class="page" hidden>
+      <section class="card">
+        <h2 class="first">Agent types</h2>
+        <div class="help" style="margin:0 0 8px">Choose which species stands for each Firm role. Sub-agents always share their lead's tint, so a robot worker still tells you which workstream it belongs to.</div>
+        <table id="forge-table">
+          <thead><tr><th>Role</th><th>What it does</th><th>Species</th></tr></thead>
+          <tbody id="forge-rows"></tbody>
+        </table>
+      </section>
+      <section class="card">
+        <h2 class="first">Next: build agent types together in The Firm</h2>
+        <div class="help" style="margin:0">Pets, species, environments and prompt generation are designed to move into The Firm's Agent Forge, where an agent type (its look, personality and role) can be defined and shared. This page is the seed of that: today it maps roles to looks.</div>
+      </section>
+    </main>
+  </div>
+</div>
 
   <script src="common.js"></script>
   <script src="dashboard.js"></script>
   <script src="pets-tab.js"></script>
   <script src="species-tab.js"></script>
+  <script src="firm-tab.js"></script>
+  <script src="forge-tab.js"></script>
 </body>
 </html>
