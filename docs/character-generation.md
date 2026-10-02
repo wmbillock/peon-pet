@@ -21,3 +21,5 @@
 Row order (fixed by the renderer): sleeping, waking, typing, alarmed, celebrate, annoyed — 6 frames each.
 The scene is baked into the atlas, so the background must be opaque. Keep the top ~10% of each cell calm: the
 session dots are drawn there.
+
+See the [retro robot generation record](characters/retro-robot.md) for a checked-in 3072×3072 atlas, its prompt, and a nearest-neighbor resize recipe.
