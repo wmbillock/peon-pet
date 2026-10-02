@@ -36,3 +36,33 @@ test('cleanType carries validated permissions', () => {
   expect(t).toMatchObject({ allow: [], deny: ['comment'] });
   expect(() => cleanType({ slug: 'a', name: 'A', category: 'inspector', species: 'orc', allow: ['edit-code'] })).toThrow(/only narrow/);
 });
+
+describe('bounds and the ledger', () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const { cleanBounds, withinBounds } = require('../lib/permissions');
+  const { createLedger } = require('../lib/ledger');
+
+  test('bounds validate and report what was exceeded; blank means unlimited', () => {
+    expect(cleanBounds({ directLoc: '150', maxAgents: '', timeoutMin: null })).toEqual({ directLoc: 150, maxAgents: null, timeoutMin: null });
+    expect(() => cleanBounds({ directLoc: 0 })).toThrow(/whole number/);
+    expect(() => cleanBounds({ maxAgents: 1.5 })).toThrow(/whole number/);
+    expect(withinBounds({ directLoc: 150, maxAgents: 3, timeoutMin: null }, { loc: 200, agents: 2, minutes: 999 })).toEqual({ ok: false, exceeded: ['directLoc'] });
+    expect(withinBounds({ directLoc: 150 }, {})).toEqual({ ok: true, exceeded: [] });
+  });
+
+  test('ledger keeps credits and violations separate, survives a torn line, and compacts', () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'led-')), 'ledger.jsonl');
+    let t = 0;
+    const l = createLedger({ file, now: () => ++t });
+    l.record({ type: 'forge-hand', kind: 'credit', note: 'fixed it' });
+    l.record({ type: 'forge-hand', kind: 'violation', action: 'review', agentId: 'a1', note: 'reviewed its own change' });
+    l.record({ type: 'forge-hand', kind: 'credit' });
+    fs.appendFileSync(file, '{"at":9,"type":"forge-ha');   // crash mid-write
+    const s = l.summary().get('forge-hand');
+    expect(s).toMatchObject({ credits: 2, violations: 1 });
+    expect(s.recent.at(-1).kind).toBe('credit');
+    expect(() => l.record({ type: 'x', kind: 'bonus' })).toThrow(/kind/);
+    expect(() => l.record({ type: ' ', kind: 'credit' })).toThrow(/agent type/);
+    expect(l.compact()).toBe(false);
+  });
+});

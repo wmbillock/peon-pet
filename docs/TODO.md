@@ -38,7 +38,8 @@ Identity model (decided 2026-10-02):
 ## Agent Forge / The Firm
 
 - [x] Kinds of agent: Firm-role categories, many types per pet, personality, traits, auto-pick (least-used tiebreak), session/project pins, least-privilege permissions that only narrow a role (`lib/agent-types.js`, `lib/permissions.js`, Forge page)
-- [ ] Next for kinds: read the Lebowski swarm's agent definitions (affirm-builders tag `archive/pr373-lebowski-achievers`) and Euphonia's card contract for more traits/permissions to carry; a violations-vs-credits ledger kept separately; more seed types per role
+- [x] From the Lebowski swarm roster and Euphonia's card contract: execution bounds per kind (writes itself up to N lines, max sub-agents, report-within minutes) and a credits-vs-violations ledger kept separately (`lib/ledger.js`; log from the Forge or `ledger-record`)
+- [ ] Next for kinds: a monitor category (persistent rule enforcement and audit trail, as in the swarm's monitors) once the Firm has an equivalent role; feed ledger entries from live Firm events when T-0010 lands; more seed types per role
 
 - [ ] Decide the integration shape with The Firm: (a) Peon Pet exposes a token-protected localhost API the Firm UI embeds, or (b) pets/species/projects move into the Firm backend and Peon Pet becomes a client
 - [ ] Agent types as first-class: species + personality + role + (later) prompt/tools, shared through the Firm

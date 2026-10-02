@@ -5,7 +5,7 @@ let typesState = null;
 
 const refreshTypes = () => window.dashBridge.getTypes().then((st) => { typesState = st; renderTypes(); }).catch(showError);
 const saveType = (t) => window.dashBridge.putType(t).then((st) => { typesState = st; renderTypes(); }).catch((e) => { showError(e); refreshTypes(); });
-const clip = (t) => ({ slug: t.slug, name: t.name, category: t.category, species: t.species, traits: t.traits, personality: t.personality, tint: t.tint, allow: t.allow, deny: t.deny });
+const clip = (t) => ({ slug: t.slug, name: t.name, category: t.category, species: t.species, traits: t.traits, personality: t.personality, tint: t.tint, allow: t.allow, deny: t.deny, bounds: t.bounds });
 
 function typeCard(t) {
   const field = (label, el) => h('div', { class: 'line' }, h('label', { class: 'inline', style: 'min-width:84px' }, label), el);
@@ -36,8 +36,23 @@ function typeCard(t) {
   const verdict = h('span', { class: 'dim' }, '');
   const ask = () => window.dashBridge.checkType(t.slug, act.value).then((r) => {
     verdict.textContent = r.decision === 'allow' ? `✓ allowed — ${r.reason}` : r.decision === 'delegate' ? `→ hand to ${r.route} — ${r.reason}` : `✕ denied — ${r.reason}`;
+    if (r.decision !== 'allow') verdict.append(' ', h('button', { title: 'Write this to the ledger as a violation', onclick: () => window.dashBridge.checkType(t.slug, act.value, { record: true }).then(refreshTypes).catch(showError) }, 'log violation'));
   }).catch(showError);
   act.addEventListener('change', ask);
+
+  // Execution bounds: blank = no limit.
+  const bound = (key, label, title) => {
+    const i = h('input', { type: 'number', min: 1, value: t.bounds[key] ?? '', title, style: 'width:90px;flex:none;min-width:0', onchange: () => edit({ bounds: { ...t.bounds, [key]: i.value === '' ? null : Number(i.value) } }) });
+    return h('span', {}, h('label', { class: 'inline' }, label), ' ', i, '  ');
+  };
+  const bounds = h('span', {}, bound('directLoc', 'Writes itself up to (lines)', 'Above this it coordinates instead of doing the work'),
+    bound('maxAgents', 'Sub-agents', 'Most it may run at once'), bound('timeoutMin', 'Report within (min)', 'Minutes before it must report or escalate'));
+
+  // Reputation: credits and violations are kept apart, so a good result never hides an out-of-role act.
+  const rec = t.record;
+  const recent = rec.recent.length ? rec.recent.map((e) => `${e.kind === 'credit' ? '＋' : '−'} ${e.action ? `${e.action}: ` : ''}${e.note || ''}`.trim()).join('\n') : 'Nothing recorded yet';
+  const record = h('span', { class: 'dim', title: recent }, `${rec.credits} credit${rec.credits === 1 ? '' : 's'} · ${rec.violations} violation${rec.violations === 1 ? '' : 's'}`);
+  const logCredit = h('button', { title: 'Record a good outcome for this kind', onclick: () => window.dashBridge.recordLedger({ type: t.slug, kind: 'credit', note: 'Logged from the Forge' }).then((st) => { typesState = st; renderTypes(); }).catch(showError) }, '＋ credit');
 
   const inUse = app.sessions.filter((a) => a.pet && a.pet.type && a.pet.type.slug === t.slug).length;
   return h('section', { class: 'card typecard' },
@@ -48,7 +63,9 @@ function typeCard(t) {
     field('Traits', traits),
     field('Filter', tint),
     field('May', h('span', {}, boxes)),
-    field('Can it…?', h('span', {}, act, ' ', verdict)));
+    field('Limits', bounds),
+    field('Can it…?', h('span', {}, act, ' ', verdict)),
+    field('Record', h('span', {}, record, ' ', logCredit)));
 }
 
 function renderTypes() {
