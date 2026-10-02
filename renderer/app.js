@@ -470,25 +470,26 @@ window.peonBridge.onFrameStyle(({ id }) => { frameDyn = id && id.startsWith('dyn
 
 // --- Summary strip: counts, and a click to dive in ---
 const summaryEl = document.getElementById('summary');
-function summaryButton(cls, text, title, data) {
+function summaryButton(cls, text, tip, data) {
   const b = document.createElement('button');
-  b.className = cls; b.textContent = text; b.title = title;
+  b.className = cls; b.textContent = text; b.dataset.tip = tip;
   for (const [k, v] of Object.entries(data)) b.dataset[k] = v;
   return b;
 }
 function renderSummary(sessions) {
   const s = AgentSummary.summarizeAgents(sessions);
+  const tips = AgentSummary.summaryTips(sessions);
   const parts = [];
   if (!s.total) parts.push(Object.assign(document.createElement('span'), { className: 'none', textContent: 'no agents' }));
   else {
-    parts.push(summaryButton('work', `● ${s.working}`, `${s.working} working — click to see them`, { status: 'working' }));
-    parts.push(summaryButton('idle', `◐ ${s.idle}`, `${s.idle} idle — click to see them`, { status: 'idle' }));
-    if (s.attention) parts.push(summaryButton('alert', `⚠ ${s.attention}`, `${s.attention} need you — click to see them`, { status: 'attention' }));
+    parts.push(summaryButton('work', `● ${s.working}`, tips.working, { status: 'working' }));
+    parts.push(summaryButton('idle', `◐ ${s.idle}`, tips.idle, { status: 'idle' }));
+    if (s.attention) parts.push(summaryButton('alert', `⚠ ${s.attention}`, tips.attention, { status: 'attention' }));
     if (s.projects.length) {
       parts.push(Object.assign(document.createElement('span'), { className: 'sep' }));
       // Two project chips fit beside three count chips; the rest are one "+N" away when there is room.
-      for (const p of s.projects.slice(0, 2)) parts.push(summaryButton('', `${p.emoji}${p.count}`, `${p.name}: ${p.count} (${p.working} working) — click to see only this project`, { project: p.key }));
-      if (s.projects.length > 2 && !s.attention) parts.push(summaryButton('idle', `+${s.projects.length - 2}`, `${s.projects.length} projects in all — click to see everyone`, {}));
+      for (const p of s.projects.slice(0, 2)) parts.push(summaryButton('', `${p.emoji}${p.count}`, tips.projects[p.key] || p.name, { project: p.key }));
+      if (s.projects.length > 2 && !s.attention) parts.push(summaryButton('idle', `+${s.projects.length - 2}`, `${s.projects.length} projects in all\n${s.projects.slice(2).map((p) => `${p.emoji} ${p.name} (${p.count})`).join('\n')}\nClick to see everyone`, {}));
     }
   }
   summaryEl.replaceChildren(...parts);
@@ -552,7 +553,7 @@ const grpBtn = document.getElementById('grp');
 function syncDashButtons() {
   if (!dash) return;
   const p = dash.presetName();
-  fltBtn.title = `Showing: ${p} (click for ${PRESETS[(PRESETS.indexOf(p) + 1) % PRESETS.length]})`;
+  fltBtn.dataset.tip = `Showing: ${p}\nClick for ${PRESETS[(PRESETS.indexOf(p) + 1) % PRESETS.length]}`;
   fltBtn.classList.toggle('lit', p !== 'all');
   grpBtn.classList.toggle('lit', dash.state.groupBy === 'project');
 }
@@ -787,6 +788,7 @@ function animate(time) {
 
   if (cornerView === 'pet') renderer.render(scene, camera);   // nothing to draw behind the agent views
 }
+Tip.attach();
 dframeReady = true;
 updateDframe();
 requestAnimationFrame(animate);

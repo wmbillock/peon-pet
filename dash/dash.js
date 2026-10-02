@@ -105,7 +105,7 @@
       if (dk) t.root.classList.add(`f-${dk}`);
       const pf = sf ? `url(${assetUrl('borders.png', { border: sf })})` : 'none';
       if (t.pframeKey !== pf) { t.pframeKey = pf; t.pframe.style.backgroundImage = pf; }
-      t.root.title = `${label(a)}${a.firmRole ? ` · ${a.firmRole}` : ''}\n${p ? `${p.name} · ${p.speciesDisplay}\n` : ''}${stateWord(a)} · ${ago(a.lastActive)}\nClick: speaker · Shift-click: presenter`.trim();
+      t.root.dataset.tip = `${label(a)}${a.firmRole ? ` · ${a.firmRole}` : ''}\n${p ? `${p.name} · ${p.speciesDisplay}\n` : ''}${stateWord(a)} · ${ago(a.lastActive)}\nClick: speaker · Shift-click: presenter`.trim();
       t.roleB.textContent = roleLabel(a);
       t.roleB.style.display = roleLabel(a) ? '' : 'none';
       t.agentB.textContent = a.agent;
