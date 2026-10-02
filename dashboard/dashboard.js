@@ -242,9 +242,11 @@ async function refreshPets() {
       b.addEventListener('click', async () => {
         try { showError(null); await window.dashBridge.setChar(c.name); } catch (e) { showError(e); }
         refreshPets();
+window.addEventListener('focus', refreshPets);  // pick up characters imported while the panel was open
       });
       return b;
     }));
   } catch (e) { showError(e); }
 }
 refreshPets();
+window.addEventListener('focus', refreshPets);  // pick up characters imported while the panel was open
