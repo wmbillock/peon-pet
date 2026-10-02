@@ -13,6 +13,8 @@ This package supplies ten images in each of six categories. “Cell phone idle w
 
 The public PR contains definitions, prompts, the gallery, and validation receipts. Artwork remains in the local bundle. Runtime registration is left to the development agent.
 
+On the generation machine, the PNGs are also retained in local commit `97105e16c21afe11e2b2b79998ba1ed63d62f6cd` on `codex/background-library-60`. Retrieve only the PNG paths listed in the manifest from that local commit. The artwork branch was not pushed.
+
 ## Format
 
 Each background is a single 1024×1024 opaque PNG generated with the built-in image tool and normalized with nearest-neighbor sampling. The prompts request warm right-side light, a clear lower-centre area about 55% wide by 45% tall, a calm top 10%, and no characters, text, or UI. Placement guides exist only in the gallery, never in the image files.
