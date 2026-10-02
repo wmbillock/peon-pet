@@ -113,3 +113,28 @@ test('projects carry a frame and an environment (null = default), validated as c
   expect(() => s.update('k', { frame: '../etc' })).toThrow(/Invalid frame/);
   expect(() => s.update('k', { env: 'Has Spaces' })).toThrow(/Invalid env/);
 });
+
+test('bare sessions and peeks are never persisted', () => {
+  const s = createProjectStore({ file });
+  const e = s.resolve('session:abc', 'thing');
+  expect(e).toMatchObject({ key: 'session:abc', ephemeral: true });
+  expect(HUES).toContain(e.hue);
+  expect(s.resolve('session:abc', 'thing').hue).toBe(e.hue);          // stable without being stored
+  const p = s.peek('cwd:/w/x', 'x');
+  expect(p).toMatchObject({ ephemeral: true, name: 'x' });
+  expect(s.list()).toEqual([]);
+  s.resolve('cwd:/w/x', 'x');
+  expect(s.peek('cwd:/w/x', 'x').ephemeral).toBeUndefined();          // once resolved it is the stored one
+  expect(s.list()).toHaveLength(1);
+});
+
+test('emoji rules match whole-word starts: "display" is not "play", "carpet" is not "pet"', () => {
+  expect(suggestEmoji('Markdown display')).toBe('📝');
+  expect(suggestEmoji('display')).not.toBe('🎮');
+  expect(suggestEmoji('carpet')).not.toBe('🐾');
+  expect(suggestEmoji('playground')).not.toBe('🎮');
+  expect(suggestEmoji('play')).toBe('🎮');
+  expect(suggestEmoji('peon-pet')).toBe('🐾');
+  expect(suggestEmoji('the-firm')).toBe('🏛️');
+  expect(suggestEmoji('security-audit')).toBe('🧾');   // first matching rule wins (audit before security)
+});

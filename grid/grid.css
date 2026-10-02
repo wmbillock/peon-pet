@@ -18,3 +18,15 @@ button, select { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1
 #stage { flex: 1; min-height: 0; overflow: auto; padding: 14px; }
 #empty { text-align: center; color: #666; margin-top: 18vh; font-size: 14px; line-height: 1.8; }
 
+
+#slices { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 14px; border-bottom: 1px solid #1c1c2c; font-size: 11px; }
+#slices .lbl { color: #6a6a88; text-transform: uppercase; letter-spacing: .06em; font-size: 10px; margin-left: 6px; }
+#slices .lbl:first-child { margin-left: 0; }
+#slices .seg { display: inline-flex; gap: 2px; background: #161622; padding: 2px; border-radius: 8px; border: 1px solid #262638; }
+#slices .seg button { border-color: transparent; background: transparent; color: #999; padding: 2px 10px; }
+#slices .seg button.on { background: #2b2b44; color: #fff; }
+#slices .chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.chip-t { cursor: pointer; padding: 2px 9px; border-radius: 11px; border: 1px solid #2c2c44; background: #171726; color: #cfd; font: inherit; }
+.chip-t.off { opacity: .38; text-decoration: line-through; }
+.chip-t .n { color: #7d7da0; margin-left: 4px; }
+.chip-t.proj { border-color: var(--ring); }

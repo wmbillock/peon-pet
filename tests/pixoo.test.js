@@ -94,3 +94,28 @@ test('bgraToRgb composites onto a background when given one', () => {
   expect([...out.subarray(0, 3)]).toEqual([200, 0, 0]);
   expect([...out.subarray(3, 6)]).toEqual([40, 40, 40]);
 });
+
+describe('drawSummary', () => {
+  const { drawSummary } = require('../lib/pixoo');
+  const px = (buf, x, y) => [...buf.subarray((y * SIZE + x) * 3, (y * SIZE + x) * 3 + 3)];
+
+  test('draws a swatch and digits per group on a darkened band, without mutating the input', () => {
+    const base = Buffer.alloc(FRAME_BYTES, 200);
+    const out = drawSummary(base, { working: 5, idle: 12, attention: 0 });
+    expect(base[0]).toBe(200);
+    expect(px(out, 24, 6)).toEqual([60, 60, 60]);                  // inside the band, below the digits: darkened
+    expect(px(out, 20, 20)).toEqual([200, 200, 200]);               // art below the band is untouched
+    expect(px(out, 3, 3)).toEqual([68, 255, 68]);                   // working swatch (green)
+    // "5" starts at x=6: its top row is 111 (y=1), its second row is 100 (y=2)
+    expect([px(out, 6, 1), px(out, 7, 1), px(out, 8, 1)].every((c) => c[1] === 255 && c[0] === 68)).toBe(true);
+    expect(px(out, 6, 2)).toEqual([68, 255, 68]);
+    expect(px(out, 8, 2)).not.toEqual([68, 255, 68]);
+  });
+
+  test('an attention group is drawn only when there is one; counts above 99 are capped', () => {
+    const base = Buffer.alloc(FRAME_BYTES, 0);
+    const lit = (b) => { let n = 0; for (let i = 0; i < b.length; i += 3) if (b[i] || b[i + 1] || b[i + 2]) n++; return n; };
+    expect(lit(drawSummary(base, { working: 1, idle: 1, attention: 1 }))).toBeGreaterThan(lit(drawSummary(base, { working: 1, idle: 1, attention: 0 })));
+    expect(lit(drawSummary(base, { working: 500, idle: 0 }))).toBe(lit(drawSummary(base, { working: 99, idle: 0 })));
+  });
+});

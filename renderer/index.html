@@ -25,15 +25,31 @@
       z-index: 100;
     }
     /* ---- corner views: Pet · Grid · Speaker · Presenter ---- */
-    #bar { position: absolute; top: 5px; left: 6px; z-index: 102; display: flex; gap: 2px; padding: 2px; border-radius: 7px;
+    /* ---- summary strip: counts you can click to dive in ---- */
+    #summary { position: absolute; top: 5px; left: 6px; z-index: 103; max-width: 164px; display: flex; align-items: center; gap: 2px; padding: 2px 3px;
+               border-radius: 11px; background: rgba(8, 8, 16, 0.80); border: 1px solid rgba(255, 255, 255, 0.16); cursor: pointer; white-space: nowrap;
+               font: 600 10px/16px -apple-system, sans-serif; color: #ddd; overflow: hidden; }
+    #summary:hover { background: rgba(28, 28, 58, 0.92); border-color: rgba(160, 160, 255, 0.5); }
+    #summary button { all: unset; cursor: pointer; padding: 0 3px; border-radius: 8px; flex: none; }
+    #summary button:hover { background: rgba(255, 255, 255, 0.14); }
+    #summary .work { color: #6dff7a; } #summary .idle { color: #9fb0c8; } #summary .alert { color: #ffcc55; animation: blink 1.1s ease-in-out infinite; }
+    #summary .sep { width: 1px; height: 12px; margin: 0 2px; background: rgba(255, 255, 255, 0.2); }
+    #summary .none { padding: 0 6px; color: #8a8aa0; font-weight: 500; }
+    body.dashing #summary { display: none; }
+    @keyframes blink { 50% { opacity: 0.45; } }
+    /* the hover toolbar drops below the strip in pet mode; in the agent views it takes the top row */
+    #bar { position: absolute; top: 30px; left: 6px; z-index: 102; display: flex; gap: 2px; padding: 2px; border-radius: 7px;
            background: rgba(8, 8, 16, 0.78); border: 1px solid rgba(255, 255, 255, 0.14); opacity: 0; transition: opacity .15s; }
     body:hover #bar, body.dashing #bar { opacity: 1; }
     #bar button { width: 22px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #aab; cursor: pointer; font: 12px/20px -apple-system, sans-serif; }
     #bar button:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
     #bar button.on { color: #fff; background: rgba(120, 120, 255, 0.45); }
+    body:not(.dashing) #bar .dashonly { display: none; }
+    #bar button.lit { color: #fff; background: rgba(120, 220, 140, 0.35); }
     #bar .sep { width: 1px; margin: 3px 2px; background: rgba(255, 255, 255, 0.15); }
     #dash { font: 11px -apple-system, 'SF Mono', sans-serif; color: #ccc; position: absolute; left: 0; right: 0; bottom: 0; top: 0; padding: 34px 8px 8px; overflow: auto; display: none;
             background: rgba(12, 12, 20, 0.94); border: 1px solid #2a2a40; border-radius: 10px; z-index: 50; }
+    body.dashing #bar { top: 5px; }
     body.dashing #dash { display: block; }
     body.dashing canvas { display: none; }
     #dash::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -65,6 +81,8 @@
 <body>
   <canvas id="c"></canvas>
   <div id="tooltip"></div>
+  <div id="dframe"></div>
+  <div id="summary" title="Click to dive in"></div>
   <div id="dash"></div>
   <div id="bar" title="Drag here to move">
     <button data-v="pet" title="Pet">🐾</button>
@@ -72,6 +90,8 @@
     <button data-v="speaker" title="Speaker — whoever is working">◉</button>
     <button data-v="presenter" title="Presenter — a master and its sub-agents">▣</button>
     <span class="sep"></span>
+    <button id="flt" class="dashonly" title="Filter: all">◔</button>
+    <button id="grp" class="dashonly" title="Group by project">🗂</button>
     <button id="gear" title="Settings">⚙</button>
   </div>
   <button id="sound-btn" title="Mute sounds" aria-label="Mute sounds">
@@ -81,6 +101,7 @@
       <g class="slash"><line x1="16" y1="9" x2="22" y2="15"/><line x1="22" y1="9" x2="16" y2="15"/></g>
     </svg>
   </button>
+  <script src="../dash/summary.js"></script>
   <script src="../dash/dash.js"></script>
   <script type="module" src="app.js"></script>
 </body>

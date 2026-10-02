@@ -26,3 +26,12 @@ test('generated borders are 200×200 RGBA with a transparent centre', () => {
     expect({ id: b.id, centreAlpha: x.getImageData(100, 100, 1, 1).data[3] }).toEqual({ id: b.id, centreAlpha: 0 });
   }));
 });
+
+test('dynamic frames are in the catalog, drawn live, and named dyn-<kind> (the renderers key off that)', () => {
+  const dyn = BORDERS.filter((b) => b.dynamic);
+  expect(dyn.map((b) => b.id).sort()).toEqual(['dyn-chase', 'dyn-glow', 'dyn-rainbow', 'dyn-status']);
+  for (const b of dyn) {
+    expect(b.id).toBe(`dyn-${b.dynamic}`);
+    expect(b.file).toBe('borders/none.png');          // the static overlay stays blank
+  }
+});

@@ -1,5 +1,8 @@
 import * as THREE from '../node_modules/three/build/three.module.js';
 
+// updateDframe() is called from playAnim at load time, before the frame's elements exist: stay quiet until ready.
+let dframeReady = false;
+
 // --- Config ---
 const ATLAS_COLS = 6;
 const ATLAS_ROWS = 6;
@@ -186,27 +189,9 @@ for (let i = 0; i < MAX_DOTS; i++) {
   dotStates.push({ active: false });
 }
 
-function updateDots(sessions) {
-  const count = Math.min(sessions.length, MAX_DOTS);
-  const totalWidth = count * DOT_SIZE + Math.max(0, count - 1) * DOT_GAP;
-  const startX = -totalWidth / 2 + DOT_SIZE / 2;
-
-  for (let i = 0; i < MAX_DOTS; i++) {
-    const mesh = dotMeshes[i];
-    const u    = mesh.material.uniforms;
-    if (i < count) {
-      const { hot, warm } = sessions[i];
-      dotStates[i].active = hot;
-      mesh.position.x = startX + i * (DOT_SIZE + DOT_GAP);
-      mesh.position.y = DOT_Y;
-      // hot = bright green pulsing, warm = dim green static, else grey
-      u.dotColor.value.set(hot ? 0x44ff44 : warm ? 0x1a4d1a : 0x333333);
-      u.visible.value = 1.0;
-    } else {
-      dotStates[i].active = false;
-      u.visible.value = 0.0;
-    }
-  }
+// The row of session dots is retired: the summary strip (counts you can click) replaced it.
+function updateDots() {
+  for (let i = 0; i < MAX_DOTS; i++) { dotMeshes[i].material.uniforms.visible.value = 0.0; dotStates[i].active = false; }
 }
 
 function triggerFlash(r, g, b, intensity = 0.6, decay = 3.0) {
@@ -339,6 +324,7 @@ function playAnim(animName) {
   if (!ANIM_CONFIG[animName]) return;
   currentAnim = animName;
   const cfg = ANIM_CONFIG[animName];
+  updateDframe();
   material.map = cfg.extra ? extrasTex : atlas;
   if (!cfg.extra) window.peonBridge.reportAnim(animName);   // extras are desktop-only: the Pixoo keeps its state
   if (cfg.extra) console.info('[extra] play', animName);
@@ -361,7 +347,10 @@ playAnim('sleeping');
 const tooltip = document.getElementById('tooltip');
 let currentSessions = [];
 
-function hitTestDots(px, py) {
+function hitTestDots() {
+  return -1;   // dots are retired; nothing to hover
+}
+function hitTestDotsLegacy(px, py) {
   const count = Math.min(currentSessions.length, MAX_DOTS);
   if (count === 0) return -1;
   const totalWidth = count * DOT_SIZE + Math.max(0, count - 1) * DOT_GAP;
@@ -465,6 +454,61 @@ canvas.addEventListener('contextmenu', (e) => {
   window.peonBridge.openDashboard();
 });
 
+// --- Dynamic frame: a live border over the window that reacts to what is happening ---
+const dframe = document.getElementById('dframe');
+let frameDyn = null;   // 'status' | 'glow' | 'chase' | 'rainbow' | null
+let frameRing = '#7a7aff';
+function updateDframe() {
+  if (!dframeReady) return;
+  if (!frameDyn) { if (dframe.className) dframe.className = ''; return; }
+  const state = currentAnim === 'alarmed' || currentAnim === 'annoyed' ? 'alert' : currentAnim === 'celebrate' ? 'celebrate' : anySessionActive ? 'working' : 'idle';
+  const cls = `on dyn-${frameDyn} st-${state}`;
+  if (dframe.className !== cls) dframe.className = cls;   // only on a real change, or the CSS animation would restart
+  if (dframe.style.getPropertyValue('--ring') !== frameRing) dframe.style.setProperty('--ring', frameRing);
+}
+window.peonBridge.onFrameStyle(({ id }) => { frameDyn = id && id.startsWith('dyn-') ? id.slice(4) : null; updateDframe(); });
+
+// --- Summary strip: counts, and a click to dive in ---
+const summaryEl = document.getElementById('summary');
+function summaryButton(cls, text, title, data) {
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = text; b.title = title;
+  for (const [k, v] of Object.entries(data)) b.dataset[k] = v;
+  return b;
+}
+function renderSummary(sessions) {
+  const s = AgentSummary.summarizeAgents(sessions);
+  const parts = [];
+  if (!s.total) parts.push(Object.assign(document.createElement('span'), { className: 'none', textContent: 'no agents' }));
+  else {
+    parts.push(summaryButton('work', `● ${s.working}`, `${s.working} working — click to see them`, { status: 'working' }));
+    parts.push(summaryButton('idle', `◐ ${s.idle}`, `${s.idle} idle — click to see them`, { status: 'idle' }));
+    if (s.attention) parts.push(summaryButton('alert', `⚠ ${s.attention}`, `${s.attention} need you — click to see them`, { status: 'attention' }));
+    if (s.projects.length) {
+      parts.push(Object.assign(document.createElement('span'), { className: 'sep' }));
+      // Two project chips fit beside three count chips; the rest are one "+N" away when there is room.
+      for (const p of s.projects.slice(0, 2)) parts.push(summaryButton('', `${p.emoji}${p.count}`, `${p.name}: ${p.count} (${p.working} working) — click to see only this project`, { project: p.key }));
+      if (s.projects.length > 2 && !s.attention) parts.push(summaryButton('idle', `+${s.projects.length - 2}`, `${s.projects.length} projects in all — click to see everyone`, {}));
+    }
+  }
+  summaryEl.replaceChildren(...parts);
+}
+summaryEl.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b && b.dataset.project) diveInto({ project: b.dataset.project });
+  else if (b && b.dataset.status) diveInto({ status: b.dataset.status });
+  else diveInto({});
+});
+// Open the Grid in the corner window, optionally narrowed to a status or one project.
+function diveInto({ status, project } = {}) {
+  requestCornerView('grid');
+  if (!dash) return;
+  dash.preset('all');
+  if (project) dash.showOnlyProject(project);
+  else if (status) dash.setStatusSlice(status);
+  syncDashButtons();
+}
+
 // --- Corner views: the small window can show the pet, or the agent Grid / Speaker / Presenter ---
 const CORNER_VIEWS = ['pet', 'grid', 'speaker', 'presenter'];
 const BAR_H = 34, DASH_PAD = 8;     // toolbar strip above the views, and the container's bottom padding
@@ -488,6 +532,7 @@ function applyCornerView(v) {
     if (lastPayload) dash.update(lastPayload);
   }
   dash.setView(v);
+  syncDashButtons();
 }
 
 // Ask the main process to remember the view (it echoes it back), and apply it right away.
@@ -500,6 +545,19 @@ let lastPayload = null;
 window.peonBridge.onCornerView((v) => applyCornerView(v));
 for (const b of document.querySelectorAll('#bar button[data-v]')) b.addEventListener('click', () => requestCornerView(b.dataset.v));
 document.getElementById('gear').addEventListener('click', () => window.peonBridge.openDashboard());
+// Filter presets (All → Working → Masters) and Group-by-project, for the compact views.
+const PRESETS = ['all', 'working', 'masters'];
+const fltBtn = document.getElementById('flt');
+const grpBtn = document.getElementById('grp');
+function syncDashButtons() {
+  if (!dash) return;
+  const p = dash.presetName();
+  fltBtn.title = `Showing: ${p} (click for ${PRESETS[(PRESETS.indexOf(p) + 1) % PRESETS.length]})`;
+  fltBtn.classList.toggle('lit', p !== 'all');
+  grpBtn.classList.toggle('lit', dash.state.groupBy === 'project');
+}
+fltBtn.addEventListener('click', () => { if (!dash) return; dash.preset(PRESETS[(PRESETS.indexOf(dash.presetName()) + 1) % PRESETS.length]); syncDashButtons(); });
+grpBtn.addEventListener('click', () => { if (!dash) return; dash.setGroupBy(dash.state.groupBy === 'project' ? 'agent' : 'project'); syncDashButtons(); });
 // The toolbar doubles as a drag handle for the larger views.
 const bar = document.getElementById('bar');
 bar.addEventListener('pointerdown', (e) => {
@@ -627,11 +685,16 @@ window.peonBridge.onEvent(({ anim, event }) => {
 window.peonBridge.onSessionUpdate((payload) => {
   const { sessions } = payload;
   lastPayload = payload;
+  renderSummary(sessions);
   if (dash) dash.update(payload);
+  // The frame wears the colour of whichever project is busiest right now.
+  const busiest = sessions.filter((a) => a.hot && a.mark).sort((x, y) => y.lastActive - x.lastActive)[0] || sessions.find((a) => a.mark);
+  frameRing = busiest ? busiest.mark.ring : frameRing;
   currentSessions = sessions;
   updateDots(sessions);
   const wasActive = anySessionActive;
   anySessionActive = sessions.some(s => s.hot);
+  updateDframe();
   // If a session just became hot and orc is sleeping, wake him to typing
   if (anySessionActive && !wasActive && currentAnim === 'sleeping') {
     playAnim('typing');
@@ -724,4 +787,6 @@ function animate(time) {
 
   if (cornerView === 'pet') renderer.render(scene, camera);   // nothing to draw behind the agent views
 }
+dframeReady = true;
+updateDframe();
 requestAnimationFrame(animate);

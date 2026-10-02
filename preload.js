@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('peonBridge', {
   startDrag: () => ipcRenderer.send('drag-start'),
   stopDrag: () => ipcRenderer.send('drag-stop'),
   onPetLook: (callback) => ipcRenderer.on('pet-look', (_e, data) => callback(data)),
+  onFrameStyle: (cb) => ipcRenderer.on('frame-style', (_e, d) => cb(d)),
   onCornerView: (cb) => ipcRenderer.on('corner-view', (_e, v) => cb(v)),
   setCornerView: (v) => ipcRenderer.send('corner-set-view', v),
   resizeCorner: (size) => ipcRenderer.send('corner-resize', size),

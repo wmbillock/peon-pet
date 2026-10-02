@@ -22,7 +22,14 @@
     <label id="zoom-wrap">Zoom <input type="range" id="zoom" min="110" max="420" step="4"></label>
     <button id="open-panel">Panel</button>
   </header>
+  <div id="slices">
+    <span class="lbl">Show</span><span id="sl-status" class="seg"></span>
+    <span class="lbl">Group by</span><span id="sl-group" class="seg"></span>
+    <span class="lbl">Slice</span><span id="sl-types"></span><span id="sl-tools"></span>
+    <span class="lbl">Projects</span><span id="sl-projects"></span>
+  </div>
   <main id="stage"></main>
+  <script src="../dash/summary.js"></script>
   <script src="../dash/dash.js"></script>
   <script src="grid.js"></script>
 </body>

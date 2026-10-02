@@ -26,7 +26,11 @@
     const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
     return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`;
   };
-  const ringOf = (a) => (a.pet && a.pet.tintAlpha > 0 ? `rgb(${a.pet.tintRgb.join(',')})` : '#4a4a66');
+  // The family colour: every agent of a project shares it (the sprite's own wash is a per-type shade).
+  const ringOf = (a) => (a.mark ? a.mark.ring : '#4a4a66');
+  const emojiOf = (a) => (a.project && a.project.emoji) || '';
+  const frameKind = (a) => { const f = a.project && a.project.frame; return f && f.startsWith('dyn-') ? f.slice(4) : null; };
+  const frameStatic = (a) => { const f = a.project && a.project.frame; return f && !f.startsWith('dyn-') && f !== 'default' ? f : null; };
   const stateWord = (a) => (a.hot ? 'working' : a.warm ? 'idle' : 'quiet');
 
   function animFor(a) {
@@ -44,14 +48,30 @@
       pinSpeaker: load('pinSpeaker', '') || null,
       pinPresenter: load('pinPresenter', '') || null,
       follow: load('follow', '1') === '1',
-      cold: load('cold', compact ? '0' : '0') === '1',
+      cold: load('cold', '0') === '1',
+      groupBy: load('groupBy', 'agent') === 'project' ? 'project' : 'agent',
+      slices: { status: load('sliceStatus', 'all'), hidden: new Set(JSON.parse(load('sliceHidden', '[]'))) },
       zoom: Number(load('zoom', 200)),
       lastSwitch: 0, speakerId: null,
     };
     const tiles = new Map();   // agent id → tile record
     stage.classList.toggle('compact', compact);
 
-    const visible = (a) => S.cold || a.hot || a.warm || a.role === 'master';   // masters stay, dimmed when idle
+    // ---- slices: toggle which agents are shown (by status, project, type, tool) --------------
+    // `hidden` holds tokens: "project:<key>", "type:master|worker", "tool:claude|codex|firm".
+    const typeOf = (a) => (a.isRoot !== false && a.role === 'master' ? 'master' : 'worker');
+    const toolOf = (a) => (a.firm ? 'firm' : a.agent);
+    const tokens = (a) => [`project:${a.project ? a.project.key : ''}`, `type:${typeOf(a)}`, `tool:${toolOf(a)}`];
+    const sliceOk = (a) => {
+      const st = S.slices.status, sum = window.AgentSummary;
+      if (st === 'working' && !sum.isWorking(a)) return false;
+      if (st === 'idle' && !sum.isIdle(a)) return false;
+      if (st === 'active' && !(a.hot || a.warm)) return false;
+      if (st === 'attention' && !sum.needsAttention(a, Date.now())) return false;
+      return !tokens(a).some((t) => S.slices.hidden.has(t));
+    };
+    const baseVisible = (a) => S.cold || a.hot || a.warm || a.role === 'master';   // masters stay, dimmed when idle
+    const visible = (a) => sliceOk(a) && (S.slices.status !== 'all' || baseVisible(a));
 
     // ------------------------------------------------------------ tiles
     function makeTile(id) {
@@ -60,12 +80,13 @@
       const led = el('div', 'led');
       const badges = el('div', 'badges'), roleB = el('span', 'badge role'), agentB = el('span', 'badge');
       badges.append(roleB, agentB);
+      const pframe = el('div', 'layer pframe');
       const scene = el('div', 'scene');
-      scene.append(env, sprite, tint, led, badges);
+      scene.append(env, sprite, tint, pframe, led, badges);
       const pet = el('div', 'pet'), what = el('div', 'what'), info = el('div', 'info');
       info.append(pet, what);
       root.append(scene, info);
-      const t = { id, root, env, sprite, tint, roleB, agentB, pet, what, frame: 0, lastAt: 0, spriteKey: '', envKey: '', anim: 'sleeping', agent: null };
+      const t = { id, root, env, sprite, tint, pframe, roleB, agentB, pet, what, frame: 0, lastAt: 0, spriteKey: '', envKey: '', anim: 'sleeping', agent: null };
       root.addEventListener('click', (e) => { if (t.agent) onTileClick(t.agent, e.shiftKey); });
       return t;
     }
@@ -77,6 +98,13 @@
       t.root.classList.toggle('warm', !!a.warm && !a.hot);
       t.root.classList.toggle('cold', !a.warm && !a.hot);
       t.root.style.setProperty('--ring', ringOf(a));
+      t.root.style.setProperty('--plate', a.mark ? a.mark.plate : '#161622');
+      // The project's frame: a static border image over the art, or a dynamic (animated) one.
+      const dk = frameKind(a), sf = frameStatic(a);
+      for (const c of [...t.root.classList]) if (c.startsWith('f-')) t.root.classList.remove(c);
+      if (dk) t.root.classList.add(`f-${dk}`);
+      const pf = sf ? `url(${assetUrl('borders.png', { border: sf })})` : 'none';
+      if (t.pframeKey !== pf) { t.pframeKey = pf; t.pframe.style.backgroundImage = pf; }
       t.root.title = `${label(a)}${a.firmRole ? ` · ${a.firmRole}` : ''}\n${p ? `${p.name} · ${p.speciesDisplay}\n` : ''}${stateWord(a)} · ${ago(a.lastActive)}\nClick: speaker · Shift-click: presenter`.trim();
       t.roleB.textContent = roleLabel(a);
       t.roleB.style.display = roleLabel(a) ? '' : 'none';
@@ -84,8 +112,10 @@
       t.agentB.style.display = a.agent === 'claude' ? 'none' : '';
       if (p) {
         if (t.spriteKey !== p.species) { t.spriteKey = p.species; t.sprite.style.backgroundImage = `url(${assetUrl('sprite-atlas.png', { char: p.species })})`; }
-        const envKey = p.layout === 'cutout' ? `${p.species}|${p.env}` : '';
-        if (t.envKey !== envKey) { t.envKey = envKey; t.env.style.backgroundImage = envKey ? `url(${assetUrl('bg.png', { char: p.species, env: p.env || '' })})` : 'none'; }
+        // A cutout pet stands on its project's environment (falling back to the species' own).
+        const envId = (a.project && a.project.env) || p.env || '';
+        const envKey = p.layout === 'cutout' ? `${p.species}|${envId}` : '';
+        if (t.envKey !== envKey) { t.envKey = envKey; t.env.style.backgroundImage = envKey ? `url(${assetUrl('bg.png', { char: p.species, env: envId })})` : 'none'; }
         t.tint.style.background = p.tintCss;
       }
       // Roots show the pet's name; sub-agents show what they are, since they share their root's pet.
@@ -180,20 +210,20 @@
     }
 
     // ------------------------------------------------------------ layouts
-    function layoutGrid(vis) {
-      const groups = el('div', 'groups');
-      if (!compact) groups.style.setProperty('--tile', `${S.zoom}px`);   // compact sizes come from the stylesheet
+    function agentGroups(vis) {
       const ids = new Set(vis.map((a) => a.id));
       const rootOf = (a) => (a.isRoot !== false || !ids.has(a.rootId) ? a.id : a.rootId);
       const members = new Map();
       for (const a of vis) members.set(rootOf(a), [...(members.get(rootOf(a)) || []), a]);
+      const out = [];
       for (const [rootId, list] of members) {
         const root = list.find((a) => a.id === rootId) || list[0];
         const g = el('div', 'group');
         g.style.setProperty('--ring', ringOf(root));
         const kids = list.filter((a) => a.id !== root.id);
         const title = el('div', 'group-title');
-        title.append(el('b', '', label(root)), kids.length ? ` · ${kids.length} sub-agent${kids.length === 1 ? '' : 's'}` : '');
+        // Emoji marks the group when groups are the unit; inside a project section it would repeat.
+        title.append(S.groupBy === 'project' ? '' : `${emojiOf(root)} `, el('b', '', label(root)), kids.length ? ` · ${kids.length} sub-agent${kids.length === 1 ? '' : 's'}` : '');
         g.append(title);
         const rt = tiles.get(root.id); setTileSize(rt, 'full'); g.append(rt.root);
         if (kids.length) {
@@ -201,9 +231,35 @@
           for (const c of kids) { const ct = tiles.get(c.id); setTileSize(ct, 'sub'); k.append(ct.root); }
           g.append(k);
         }
-        groups.append(g);
+        out.push({ root, el: g, count: list.length });
       }
-      return groups;
+      return out;
+    }
+
+    function layoutGrid(vis) {
+      const groups = agentGroups(vis);
+      const wrap = el('div', S.groupBy === 'project' ? 'projects' : 'groups');
+      if (!compact) wrap.style.setProperty('--tile', `${S.zoom}px`);   // compact sizes come from the stylesheet
+      if (S.groupBy !== 'project') { for (const g of groups) wrap.append(g.el); return wrap; }
+      // Group by project: one section per project (its emoji and colour), holding its agent groups.
+      const byProject = new Map();
+      for (const g of groups) {
+        const key = g.root.project ? g.root.project.key : '';
+        byProject.set(key, [...(byProject.get(key) || []), g]);
+      }
+      for (const list of byProject.values()) {
+        const p = list[0].root.project || {};
+        const sec = el('section', 'proj');
+        sec.style.setProperty('--ring', list[0].root.mark ? list[0].root.mark.ring : '#4a4a66');
+        const n = list.reduce((s2, g) => s2 + g.count, 0);
+        const head = el('div', 'proj-title');
+        head.append(el('span', 'emoji', p.emoji || ''), el('b', '', p.name || 'Ungrouped'), el('span', 'dim', ` · ${n} agent${n === 1 ? '' : 's'}`));
+        const body = el('div', 'groups');
+        for (const g of list) body.append(g.el);
+        sec.append(head, body);
+        wrap.append(sec);
+      }
+      return wrap;
     }
 
     function heroLayout(main, strip, extraCol) {
@@ -297,7 +353,7 @@
         const key = `${S.view}:${h}`;
         if (key !== lastSize) { lastSize = key; onSize({ view: S.view, h }); }
       }
-      onViewChange({ view: S.view, count: vis.length, firm: S.firm, firmAgents: S.agents.filter((a) => a.firm).length });
+      onViewChange({ view: S.view, count: vis.length, firm: S.firm, firmAgents: S.agents.filter((a) => a.firm).length, slices: api.sliceInfo() });
     }
 
     function setView(v) {
@@ -335,6 +391,57 @@
         render();
       },
       render,
+
+      // ---- slices & grouping ----
+      sliceInfo() {
+        const projects = new Map();
+        for (const a of S.agents) {
+          if (!a.project) continue;
+          const p = projects.get(a.project.key) || { key: a.project.key, name: a.project.name, emoji: a.project.emoji, ring: a.mark ? a.mark.ring : '#4a4a66', count: 0 };
+          p.count += 1;
+          projects.set(a.project.key, p);
+        }
+        const hid = (t) => S.slices.hidden.has(t);
+        return {
+          status: S.slices.status, groupBy: S.groupBy,
+          projects: [...projects.values()].map((p) => ({ ...p, hidden: hid(`project:${p.key}`) })),
+          types: [['master', 'Masters'], ['worker', 'Sub-agents']].map(([id, label]) => ({ id, label, hidden: hid(`type:${id}`) })),
+          tools: [['claude', 'Claude'], ['codex', 'Codex'], ['firm', 'The Firm']].map(([id, label]) => ({ id, label, hidden: hid(`tool:${id}`) })),
+        };
+      },
+      toggleSlice(token) {
+        if (S.slices.hidden.has(token)) S.slices.hidden.delete(token); else S.slices.hidden.add(token);
+        save('sliceHidden', JSON.stringify([...S.slices.hidden]));
+        render();
+      },
+      setStatusSlice(v) {
+        if (!['all', 'active', 'working', 'idle', 'attention'].includes(v)) return;
+        S.slices.status = v; save('sliceStatus', v); render();
+      },
+      setGroupBy(v) {
+        S.groupBy = v === 'project' ? 'project' : 'agent'; save('groupBy', S.groupBy); lastSize = ''; render();
+      },
+      // Show only one project: everything else is hidden (clear with preset('all')).
+      showOnlyProject(key) {
+        const keys = new Set(S.agents.map((a) => a.project && a.project.key).filter(Boolean));
+        S.slices.hidden = new Set([...keys].filter((k) => k !== key).map((k) => `project:${k}`));
+        S.slices.status = 'all';
+        save('sliceHidden', JSON.stringify([...S.slices.hidden])); save('sliceStatus', 'all');
+        render();
+      },
+      // One-tap presets for the small window: everything, only what is working, or only masters.
+      preset(name) {
+        S.slices.hidden = new Set(name === 'masters' ? ['type:worker'] : []);
+        S.slices.status = name === 'working' ? 'working' : 'all';
+        save('sliceHidden', JSON.stringify([...S.slices.hidden])); save('sliceStatus', S.slices.status);
+        render();
+      },
+      presetName() {
+        const h = S.slices.hidden;
+        if (S.slices.status === 'working' && !h.size) return 'working';
+        if (S.slices.status === 'all' && h.size === 1 && h.has('type:worker')) return 'masters';
+        return S.slices.status === 'all' && !h.size ? 'all' : 'custom';
+      },
     };
     return api;
   }

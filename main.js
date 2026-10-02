@@ -19,10 +19,11 @@ const { readSessionRegistry, transcriptFor } = require('./lib/live-agents');
 const { createFirmClient, createFirmPoller, parseBaseUrl } = require('./lib/firm-client');
 const { buildAgents } = require('./lib/agent-graph');
 const { applyMarks } = require('./lib/marks');
+const { summarizeAgents } = require('./dash/summary');
 const { BORDERS } = require('./lib/borders');
 const { computeCornerBounds } = require('./lib/corner-window');
 const { watchApp } = require('./lib/hot-reload');
-const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawDots } = require('./lib/pixoo');
+const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawSummary } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
 
 let win;
@@ -93,14 +94,16 @@ function initPets() {
   try { pets.setRoleSpecies(loadPetConfig().roleSpecies || {}); } catch (e) { console.error('[forge] ignoring stale role map:', e.message); }
 }
 
-const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { ...opts, border: loadPetConfig().border });
+const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { border: loadPetConfig().border, ...opts });
 
 function registerCharacterProtocol() {
   // peon-asset://<file>[?char=<species>&env=<environment>] — defaults to the lead pet.
   protocol.handle('peon-asset', (request) => {
     const u = new URL(request.url);
     if (!ASSET_NAMES.has(u.hostname)) return new Response('not found', { status: 404 });
-    const file = resolveAsset(u.hostname, { char: u.searchParams.get('char') || undefined, env: u.searchParams.get('env') || undefined });
+    const opts = { char: u.searchParams.get('char') || undefined, env: u.searchParams.get('env') || undefined };
+    if (u.searchParams.get('border')) opts.border = u.searchParams.get('border');   // a tile asking for its project's frame
+    const file = resolveAsset(u.hostname, opts);
     if (!fs.existsSync(file)) return new Response('not found', { status: 404 });
     return net.fetch('file://' + file);
   });
@@ -160,6 +163,7 @@ const sessionTitles = new Map();  // session_id → { title, kind: 'custom'|'ai'
 // Live-process knowledge (refreshed every 15s): masters are interactive agents you started; workers are headless.
 let masterIds = new Set();
 let workerIds = new Set();
+let liveReady = false;    // true once the first registry read has landed (session names/folders are known)
 let liveIds = new Set();   // every session in Claude's registry (its process is running)
 let busyIds = new Set();   // …of which currently mid-turn
 const sessionRegistry = new Map();  // session_id → registry entry (name, entrypoint, status…)
@@ -405,7 +409,7 @@ function sendSessionUpdate(now) {
   }
   const baseLooks = pets ? pets.assign(agents) : new Map();
   // Project identity (emoji, colour family, frame, environment) and per-type shades.
-  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n) => pets.projects.resolve(k, n), titles: firmState.projects || {} }) : new Map();
+  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n) => (liveReady ? pets.projects.resolve(k, n) : pets.projects.peek(k, n)), titles: firmState.projects || {} }) : new Map();
   const looks = new Map([...marks].map(([id, m]) => [id, m.look]).filter(([, l]) => l));
   latestLooks = looks;
   const payload = {
@@ -486,6 +490,7 @@ function startPolling() {
         sessionRegistry.set(r.sessionId, r);
       }
       for (const id of [...sessionRegistry.keys()]) if (!liveIds.has(id)) sessionRegistry.delete(id);
+      liveReady = true;
       sendSessionUpdate(Date.now());
     } catch (e) {
       console.error('[live] registry read failed:', e.message);
@@ -567,11 +572,12 @@ async function runPixooSync() {
     if (!pixoo.client || pixoo.client.ip !== ip) { pixoo.client = new PixooClient(ip); pixoo.lastSig = null; }
     const sessions = latestSessions.sessions || [];
     const lead = leadLook();
-    const sig = `${lead && lead.petId}|${lead && lead.tint}|${petAnim}|${look}|${brightness}|${sessions.map((s) => (s.hot ? 2 : s.warm ? 1 : 0)).join('')}`;
+    const summary = summarizeAgents(sessions);
+    const sig = `${lead && lead.petId}|${lead && lead.tint}|${petAnim}|${look}|${brightness}|${summary.working}/${summary.idle}/${summary.attention}`;
     if (sig !== pixoo.lastSig) {
       const { frames, speedMs } = pixooAnimFrames(petAnim);
       if (brightness !== null) await pixoo.client.setBrightness(brightness);
-      await pixoo.client.showAnimation(frames.map((f) => drawDots(applyTint(applyLook(f, look), lead && lead.tintRgb, lead ? lead.tintAlpha : 0), sessions)), speedMs);
+      await pixoo.client.showAnimation(frames.map((f) => drawSummary(applyTint(applyLook(f, look), lead && lead.tintRgb, lead ? lead.tintAlpha : 0), summary)), speedMs);
       pixoo.lastSig = sig;
     }
     setPixooStatus('connected');
@@ -936,6 +942,7 @@ function createWindow() {
     win.webContents.send('sound-state', { muted: soundMuted });
     sendLook(win);
     win.webContents.send('corner-view', cornerView);
+    win.webContents.send('frame-style', { id: loadPetConfig().border || 'default' });
   });
 
   // Clean up sub-agent windows when main window closes
