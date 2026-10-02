@@ -41,7 +41,10 @@ test('createPets makes distinct individuals and auto-tints duplicates of a speci
 test('resolveAsset: lead species by default, ?char= override, orc fallbacks, border override', () => {
   const lead = svc.resolveAsset('sprite-atlas.png');
   expect(lead).toBe(path.join(ASSETS, 'orc-sprite-atlas.png'));
-  expect(svc.resolveAsset('sprite-atlas.png', { char: 'terra-ff6' })).toBe(path.join(ASSETS, 'terra-ff6-sprite-atlas.png'));
+  expect(svc.resolveAsset('sprite-atlas.png', { char: 'weeping-willow' })).toBe(path.join(ASSETS, 'weeping-willow-sprite-atlas.png'));
+  // terra-ff6 is local-only art: it resolves to its own atlas where present and falls back to the lead in a distribution
+  const terra = path.join(ASSETS, 'terra-ff6-sprite-atlas.png');
+  expect(svc.resolveAsset('sprite-atlas.png', { char: 'terra-ff6' })).toBe(require('fs').existsSync(terra) ? terra : lead);
   expect(svc.resolveAsset('sprite-atlas.png', { char: '../../etc' })).toBe(lead);   // invalid → lead
   expect(svc.resolveAsset('borders.png', { char: 'lcd-creature' })).toBe(path.join(ASSETS, 'orc-borders.png'));
   expect(svc.resolveAsset('borders.png', { border: 'gold' })).toBe(path.join(ASSETS, 'borders/gold.png'));

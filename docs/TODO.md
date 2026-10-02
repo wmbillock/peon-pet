@@ -28,7 +28,7 @@ Identity model (decided 2026-10-02):
 - [ ] Art redo as cutouts on per-project environments (prompts in `docs/art-prompts/`; ~21 images)
 - [ ] Beardie wave strip; re-run `scripts/gen-headbob.js --custom` after the new sheet
 - [ ] Desktop "army": one small window per root agent, tinted/shaded like the dashboard
-- [ ] Mark `terra-ff6` and `hello-kitty` local-only in any distribution/PR build (flag exists in species metadata; needs a build filter)
+- [x] Local-only build filter: `node scripts/make-dist.js <out>` leaves out `terra-ff6`/`hello-kitty` art and `docs/firm/`; catalogs tolerate absent art (dist passes its tests)
 - [ ] Split `feat/control-panel-pixoo` into reviewable upstream PRs (panel, packs, hot reload + LaunchAgent fix, pet switcher, Pixoo, Codex)
 
 ## Agent Forge / The Firm
