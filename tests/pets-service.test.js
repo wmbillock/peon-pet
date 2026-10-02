@@ -102,3 +102,39 @@ test('snapshot has everything the UI renders', () => {
   expect(s.tints.map((t) => t.id)).toContain('red');
   expect(s.borders.map((b) => b.id)).toContain('default');
 });
+
+describe('assign: roots, children and instance tints', () => {
+  const agent = (id, extra = {}) => ({ id, rootId: id, isRoot: true, cwd: '/w', agent: 'claude', hot: true, lastActive: 1, rank: 0, order: 0, ...extra });
+
+  test('an agent\'s sub-agents inherit its pet look and tint', () => {
+    svc.createPets({ species: 'bearded-dragon', name: 'Spike' });
+    const spike = svc.roster.list().find((p) => p.name === 'Spike');
+    svc.roster.update(spike.id, { tint: 'violet', assignment: { type: 'session', value: 'lead' } });
+    svc.refresh();
+    const m = svc.assign([agent('lead', { order: 0 }), agent('w1', { isRoot: false, rootId: 'lead', order: 1 }), agent('w2', { isRoot: false, rootId: 'lead', order: 2 })]);
+    expect(m.get('lead')).toMatchObject({ name: 'Spike', tint: 'violet' });
+    expect(m.get('w1')).toMatchObject({ name: 'Spike', tint: 'violet', species: 'bearded-dragon', sub: true });
+    expect(m.get('w2').petId).toBe(m.get('lead').petId);
+    expect(m.get('lead').sub).toBeUndefined();
+  });
+
+  test('more root agents than pets: extra instances get distinct, stable tinted copies', () => {
+    const roots = ['a', 'b', 'c', 'd'].map((id, i) => agent(id, { order: i }));
+    const m1 = svc.assign(roots);                    // roster has one pet
+    const looks = roots.map((r) => m1.get(r.id));
+    expect(looks[0].virtual).toBeUndefined();
+    expect(looks.slice(1).every((l) => l.virtual)).toBe(true);
+    expect(new Set(looks.map((l) => l.tint)).size).toBe(4);          // every instance is distinguishable
+    expect(looks[1].name).toBe(`${looks[0].name} 2`);
+    expect(looks[2].name).toBe(`${looks[0].name} 3`);
+    expect(looks[1].petId).toBe(`${looks[0].petId}~2`);
+    // stable when asked again, even if the input order flips
+    const m2 = svc.assign([...roots].reverse());
+    for (const r of roots) expect(m2.get(r.id)).toEqual(m1.get(r.id));
+  });
+
+  test('rows without graph fields still work as roots (backwards compatible)', () => {
+    const m = svc.assign([{ id: 'x', cwd: '/w', agent: 'claude', hot: true, lastActive: 1 }]);
+    expect(m.get('x')).toBeTruthy();
+  });
+});

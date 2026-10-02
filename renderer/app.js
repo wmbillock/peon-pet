@@ -13,6 +13,14 @@ const ANIM_CONFIG = {
   annoyed:   { row: 5, frames: 6, fps: 8,  loop: false },
 };
 
+// Asset URLs carry this window's ?char=&env= (set for sub-agent windows so they wear their parent's
+// art); without a query they resolve to the lead pet.
+const ASSET_QS = location.search.replace(/^\?/, '');
+const assetUrl = (name, extra = '') => {
+  const qs = [ASSET_QS, extra].filter(Boolean).join('&');
+  return `peon-asset://${name}${qs ? `?${qs}` : ''}`;
+};
+
 // --- Scene setup ---
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({
@@ -30,7 +38,7 @@ const camera = new THREE.OrthographicCamera(-100, 100, 100, -100, 0.1, 10);
 camera.position.z = 1;
 
 // --- Background ---
-const bgTex = new THREE.TextureLoader().load('peon-asset://bg.png');
+const bgTex = new THREE.TextureLoader().load(assetUrl('bg.png'));
 const bgMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(180, 180),
   new THREE.MeshBasicMaterial({ map: bgTex, color: 0x888888 })
@@ -40,7 +48,7 @@ scene.add(bgMesh);
 
 // --- Sprite mesh ---
 const loader = new THREE.TextureLoader();
-const atlas = loader.load('peon-asset://sprite-atlas.png', () => {
+const atlas = loader.load(assetUrl('sprite-atlas.png'), () => {
   atlas.magFilter = THREE.NearestFilter;
   atlas.minFilter = THREE.NearestFilter;
   atlas.generateMipmaps = false;
@@ -93,7 +101,7 @@ async function setupFlash() {
 setupFlash();
 
 // --- Border overlay ---
-const borderTex = loader.load('peon-asset://borders.png', () => {
+const borderTex = loader.load(assetUrl('borders.png'), () => {
   borderTex.magFilter = THREE.NearestFilter;
   borderTex.minFilter = THREE.NearestFilter;
   borderTex.needsUpdate = true;
@@ -543,7 +551,7 @@ function setupExtras(list) {
   extrasTex = null;
   clearTimeout(flourishTimer);
   if (!list.length || isSubAgent) return;
-  loader.load(`peon-asset://extras.png?v=${Date.now()}`, (tex) => {
+  loader.load(assetUrl('extras.png', `v=${Date.now()}`), (tex) => {
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;

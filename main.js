@@ -16,6 +16,8 @@ const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
 const { registerPetIpc } = require('./lib/ipc-pets');
 const { readSessionRegistry, transcriptFor } = require('./lib/live-agents');
+const { createFirmClient, createFirmPoller } = require('./lib/firm-client');
+const { buildAgents } = require('./lib/agent-graph');
 const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawDots } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
@@ -152,6 +154,9 @@ let workerIds = new Set();
 let liveIds = new Set();   // every session in Claude's registry (its process is running)
 let busyIds = new Set();   // …of which currently mid-turn
 const sessionRegistry = new Map();  // session_id → registry entry (name, entrypoint, status…)
+let firmState = { available: false, threads: [], error: null };   // The Firm's agents (read-only poll)
+let firmUrl = null;
+let latestLooks = new Map();   // agent id → pet look, so sub-agent windows can wear their parent's tint
 const DEFAULT_WORKER_PATTERNS = ['/.firm/worktrees/'];
 
 function roleOf(id, cwd) {
@@ -169,6 +174,13 @@ function setSessionTitle(id, title, kind) {
 }
 
 let sessionUpdateTimer = null;
+function firmSummary() {
+  const byRole = {};
+  for (const t of firmState.threads) byRole[t.role] = (byRole[t.role] || 0) + 1;
+  return { available: firmState.available, url: firmUrl, error: firmState.error, total: firmState.threads.length, byRole };
+}
+ipcMain.handle('firm-get', () => firmSummary());
+
 function scheduleSessionUpdate() {   // transcripts can carry hundreds of title records: coalesce
   clearTimeout(sessionUpdateTimer);
   sessionUpdateTimer = setTimeout(() => sendSessionUpdate(Date.now()), 150);
@@ -204,9 +216,11 @@ function repositionSubAgentWindows() {
   }
 }
 
-function createSubAgentWindow(sessionId) {
+// parentSessionId: the agent that spawned it, so the mini pet wears that agent's species and tint.
+function createSubAgentWindow(sessionId, parentSessionId) {
   if (subAgentWindows.size >= MAX_SUB_AGENT_WINDOWS) return;
   if (subAgentWindows.has(sessionId)) return;
+  const parentLook = parentSessionId ? latestLooks.get(parentSessionId) : null;
 
   const { height } = screen.getPrimaryDisplay().workAreaSize;
   const idx = subAgentWindows.size;
@@ -232,11 +246,11 @@ function createSubAgentWindow(sessionId) {
 
   subWin.setIgnoreMouseEvents(true);
 
-  subWin.loadFile('renderer/index.html');
+  subWin.loadFile('renderer/index.html', parentLook ? { query: { char: parentLook.species, env: parentLook.env || '' } } : undefined);
 
   subWin.webContents.once('did-finish-load', () => {
     subWin.webContents.send('peon-config', { size: 100, subAgent: true });
-    sendLook(subWin);
+    if (parentLook) subWin.webContents.send('pet-look', parentLook); else sendLook(subWin);
     subWin.webContents.send('peon-event', { anim: 'waking', event: 'SessionStart' });
     startMouseTrackingForWindow(subWin);
   });
@@ -343,17 +357,16 @@ function sendSessionUpdate(now) {
       animAt: (sessionAnims.get(s.id) || {}).at || 0,
     };
   });
-  // Masters first in a stable (alphabetical) order so tiles and dots don't shuffle; the rest by recency.
-  const label = (r) => `${r.title || r.name || ''}|${r.id}`;
-  rows.sort((a, b) => a.rank - b.rank || (a.rank === 0 ? label(a).localeCompare(label(b)) : b.lastActive - a.lastActive));
-  rows.splice(24);
-  const sig = `${rows.length}/${rows.filter((r) => r.hot).length}/${rows.filter((r) => r.warm).length}`;
+  // Merge in The Firm's agents, then order: roots (masters first, stable) each followed by their children.
+  const agents = buildAgents({ sessions: rows, firmThreads: firmState.threads, now }).slice(0, 48);
+  const sig = `${agents.length}/${agents.filter((r) => r.hot).length}/${agents.filter((r) => r.warm).length}`;
   if (sig !== lastSessionSig) {   // one line per change: total/hot/warm and who
     lastSessionSig = sig;
-    console.log(`[sessions] ${sig} ${rows.map((r) => `${r.role === 'master' ? 'M:' : ''}${(r.title || r.name || '?').slice(0, 16)}${r.hot ? '*' : r.warm ? '~' : '.'}`).join(' ')}`);
+    console.log(`[sessions] ${sig} ${agents.map((r) => `${r.isRoot ? (r.role === 'master' ? 'M:' : 'R:') : ' ·'}${(r.title || r.name || '?').slice(0, 16)}${r.hot ? '*' : r.warm ? '~' : '.'}`).join(' ')}`);
   }
-  const looks = pets ? pets.assign(rows) : new Map();
-  const payload = { sessions: rows.map(r => ({ ...r, pet: looks.get(r.id) || null })) };
+  const looks = pets ? pets.assign(agents) : new Map();
+  latestLooks = looks;
+  const payload = { sessions: agents.map(r => ({ ...r, pet: looks.get(r.id) || null })), firm: { available: firmState.available, url: firmUrl } };
   latestSessions = payload;
   if (gridWin && !gridWin.isDestroyed()) gridWin.webContents.send('grid-sessions', payload);
   if (pixooConfig().enabled) schedulePixooSync();
@@ -401,9 +414,9 @@ function startPolling() {
 
   for (const w of watchers) {
     w.on('session-event', handleSessionEvent);
-    w.on('subagent-event', ({ parentToolId, event }) => {
+    w.on('subagent-event', ({ sessionId: parentSession, parentToolId, event }) => {
       if (event === 'SubagentStart' && win && !win.isDestroyed()) win.webContents.send('peon-event', { anim: null, event });  // lets pets react to a newcomer
-      if (event === 'SubagentStart') createSubAgentWindow(parentToolId);
+      if (event === 'SubagentStart') createSubAgentWindow(parentToolId, parentSession);
       if (event === 'SubagentStop')  destroySubAgentWindow(parentToolId);
     });
     w.start();
@@ -435,6 +448,22 @@ function startPolling() {
   }
   refreshLive();
   setInterval(refreshLive, 4000);
+
+  // The Firm: who its agents are (role, workstream) so its workers and leads join the dashboard and
+  // share their lead's tint. Read-only and optional: without it everything still works.
+  if (cfg.firm !== false) {
+    try {
+      firmUrl = cfg.firmUrl || 'http://127.0.0.1:8420';
+      const poller = createFirmPoller({
+        client: createFirmClient({ baseUrl: firmUrl }),
+        onChange: (st) => { firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
+        onTransition: (st) => console.log(st.available ? `[firm] connected (${st.threads.length} agents)` : `[firm] unreachable: ${st.error}`),
+      });
+      poller.start();
+    } catch (e) {
+      console.error('[firm] disabled:', e.message);
+    }
+  }
 
   // Heartbeat: refresh session hot/warm status so the pet correctly decays.
   // Sessions with pending tools are kept hot so the pet stays awake during long tool runs.
