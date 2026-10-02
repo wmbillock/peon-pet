@@ -5,6 +5,7 @@
 //   node scripts/gen-headbob.js bearded-dragon --custom         # ACTIVE art (your custom sheet if any) →
 //                                                               #   <userData>/characters/<slug>/extras.png, row 0
 //   add --wave to make the arm-wave strip instead (lifts the near hand; region defaults to the beardie's front leg)
+//   --frame N      warp frame N of the typing row in all six frames (for sheets whose working row is an animation, not a pose)
 //   options: --region cx,cy,sigma   head centre + softness as fractions of the cell (default per species)
 //            --root <dir>           characters folder (default ~/Library/Application Support/Peon Pet/characters)
 //
@@ -23,6 +24,7 @@ const DEFAULT_REGION = { cx: 0.50, cy: 0.42, sigma: 0.12 };
 const HEADS = { 'bearded-dragon': DEFAULT_REGION };
 const HANDS = { 'bearded-dragon': { cx: 0.41, cy: 0.57, sigma: 0.05 } };
 const WAVE = process.argv.includes('--wave');
+const FRAME = process.argv.includes('--frame') ? Number(process.argv[process.argv.indexOf('--frame') + 1]) : null;
 
 function arg(flag) { const i = process.argv.indexOf(flag); return i !== -1 ? process.argv[i + 1] : undefined; }
 
@@ -35,7 +37,7 @@ async function makeStrip(atlasFile, region) {
   for (let i = 0; i < 6; i++) {
     const c = createCanvas(cell, cell);
     const x = c.getContext('2d');
-    x.drawImage(atlas, i * cell, TYPING_ROW * cell, cell, cell, 0, 0, cell, cell);
+    x.drawImage(atlas, (FRAME === null ? i : FRAME) * cell, TYPING_ROW * cell, cell, cell, 0, 0, cell, cell);
     const src = x.getImageData(0, 0, cell, cell);
     const dst = x.createImageData(cell, cell);
     if (WAVE) { const [dx, dy] = WAVE_OFFSETS[i]; warpRegionXY(src.data, dst.data, cell, cell, r, dx * (cell / 512), dy * (cell / 512)); }

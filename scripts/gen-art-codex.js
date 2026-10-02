@@ -36,7 +36,7 @@ function job(slug) {
   const instruction = `Use your built-in image generation tool to create ONE image following the prompt in ${promptFile} (read that file${attach.length ? '; the attached image is the existing sprite sheet it refers to' : ''}). Save the resulting PNG in this directory as ${out}. Do nothing else.`;
   return new Promise((resolve) => {
     const log = fs.createWriteStream(path.join(stage, `${out}.log`));
-    const p = spawn('codex', ['exec', '--skip-git-repo-check', '-s', 'workspace-write', '-C', stage, ...attach, instruction], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const p = spawn('codex', ['exec', '--skip-git-repo-check', '-s', 'workspace-write', '-C', stage, instruction, ...attach], { stdio: ['ignore', 'pipe', 'pipe'] });   // -i takes a list, so it goes after the prompt
     p.stdout.pipe(log); p.stderr.pipe(log);
     const t = setTimeout(() => p.kill(), 10 * 60 * 1000);
     p.on('close', () => { clearTimeout(t); resolve({ slug, ok: fs.existsSync(path.join(stage, out)), why: '' }); });

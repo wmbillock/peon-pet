@@ -57,7 +57,7 @@ test('assign maps active sessions to individual pets with looks', () => {
   const sessions = [{ id: 'a', cwd: '/w', agent: 'claude', hot: true, lastActive: 2 }, { id: 'b', cwd: '/w', agent: 'codex', hot: false, lastActive: 1 }];
   const m = svc.assign(sessions);
   expect(m.get('a').petId).not.toBe(m.get('b').petId);
-  expect(m.get('a')).toMatchObject({ layout: 'baked', env: null });
+  expect(m.get('a')).toMatchObject({ layout: 'cutout', env: 'orc-forge' });   // bundled art is cutouts on per-species environments
   svc.roster.update(m.get('b').petId, { assignment: { type: 'agent', value: 'codex' } });
   svc.refresh();
   expect(svc.assign(sessions).get('b').petId).toBe(m.get('b').petId);
@@ -83,6 +83,8 @@ test('importSheet with a chroma backdrop turns a species into a cutout that uses
 });
 
 test('baked species ignore environments', () => {
+  svc.species.update(svc.lead().species, { layout: 'baked' });   // a sheet that paints its own scene
+  svc.refresh();
   expect(svc.lookOf(svc.lead())).toMatchObject({ layout: 'baked', env: null });
 });
 

@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "species": {
+    "orc": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "orc-forge",
+      "activity": "hammering a glowing blade on an iron anvil with a heavy smith's hammer, sparks flying off the metal"
+    },
+    "capybara": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "snowy-onsen",
+      "activity": "soaking contentedly with eyes half-closed, a yuzu fruit balanced on its head, now and then lifting a tiny wooden cup of tea"
+    },
+    "hello-kitty": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "pastel-bakery",
+      "activity": "decorating a pink frosted cupcake with a piping bag and rainbow sprinkles"
+    },
+    "retro-robot": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "robotics-garage",
+      "activity": "soldering a circuit board with a smoking soldering iron, tiny sparks flashing and its antenna blinking"
+    },
+    "terra-ff6": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "airship-deck",
+      "activity": "channeling a swirling green magic spell between both hands, her hair and cape lifting in the energy"
+    },
+    "weeping-willow": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "willow-riverbank",
+      "activity": "dangling one long branch like a fishing rod over the water, patiently waiting for a bite, a tiny float bobbing"
+    },
+    "bearded-dragon": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "beardie-terrarium",
+      "activity": "basking motionless on a warm flat rock, tongue flicking now and then, slowly chewing a leaf of greens"
+    },
+    "clipart-trumpet": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "jazz-club",
+      "activity": "playing a swinging jazz solo with its bell raised, little musical notes floating out"
+    },
+    "eighth-note": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "composer-s-studio",
+      "activity": "hopping along the lines of a musical staff in time, bouncing on each beat"
+    },
+    "lcd-creature": {
+      "layout": "cutout",
+      "setting": "free",
+      "defaultEnv": "90s-bedroom",
+      "activity": "doing tiny pixel workouts, hopping in place and pressing its own buttons, its LCD face showing a pixel smile"
+    }
+  }
+}
