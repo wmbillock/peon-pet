@@ -27,7 +27,8 @@ Identity model (decided 2026-10-02):
 
 - [x] New themed pets (9) and 60 backgrounds registered from `scripts/art-selection.json` / `background-library.json`; checked on their default backgrounds (R2-D2 still needs art)
 
-- [ ] Art redo as cutouts on per-project environments (prompts in `docs/art-prompts/`; ~21 images)
+- [x] Environments for all 10 plan species generated via Codex (`scripts/gen-art-codex.js`, `scripts/install-art-envs.js`), built in
+- [ ] Art redo: the 10 cutout character sheets (`gen-art-codex.js <stage> character`; review before importing)
 - [x] Beardie wave: procedural arm wave, row 2 of the extras (`node scripts/gen-headbob.js bearded-dragon --wave`; add `--custom` after replacing the sheet)
 - [x] Desktop "army": tray/dock menu → "Desktop army"; one small draggable window per root agent (`lib/army.js`, `grid/army.*`), positions remembered
 - [x] Local-only build filter: `node scripts/make-dist.js <out>` leaves out `terra-ff6`/`hello-kitty` art and `docs/firm/`; catalogs tolerate absent art (dist passes its tests)

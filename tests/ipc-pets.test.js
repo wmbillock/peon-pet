@@ -90,12 +90,12 @@ test('environments: import, edit, remove', async () => {
   const c = createCanvas(500, 400); const x = c.getContext('2d'); x.fillStyle = '#335'; x.fillRect(0, 0, 500, 400);
   fs.writeFileSync(f, c.toBuffer('image/png'));
   picked = { canceled: false, filePaths: [f] };
-  let snap = await invoke('env-import', { display: 'Jazz Club', description: 'smoky' });
-  expect(snap.created).toBe('jazz-club');
-  snap = await invoke('env-update', 'jazz-club', { description: 'very smoky' });
-  expect(snap.environs.find((e) => e.id === 'jazz-club').description).toBe('very smoky');
-  snap = await invoke('env-remove', 'jazz-club');
-  expect(snap.environs.some((e) => e.id === 'jazz-club')).toBe(false);
+  let snap = await invoke('env-import', { display: 'Test Lagoon', description: 'smoky' });
+  expect(snap.created).toBe('test-lagoon');
+  snap = await invoke('env-update', 'test-lagoon', { description: 'very smoky' });
+  expect(snap.environs.find((e) => e.id === 'test-lagoon').description).toBe('very smoky');
+  snap = await invoke('env-remove', 'test-lagoon');
+  expect(snap.environs.some((e) => e.id === 'test-lagoon')).toBe(false);
   await expect(invoke('env-remove', 'dungeon')).rejects.toThrow(/Built-in/);
 });
 

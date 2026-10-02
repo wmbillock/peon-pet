@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "environments": [
+    {
+      "id": "orc-forge",
+      "display": "Orc forge",
+      "category": "species",
+      "description": "The interior of an orcish blacksmith's forge: a roaring stone furnace glowing orange on the back wall, racks of crude axes and shields, hanging tongs and chains, a leather bellows, a quench barrel, soot-dark stone walls and a packed-dirt floor lit by ember glow.",
+      "path": "renderer/assets/env-orc-forge.png",
+      "for": "orc",
+      "localOnly": false
+    },
+    {
+      "id": "snowy-onsen",
+      "display": "Snowy onsen",
+      "category": "species",
+      "description": "An outdoor Japanese hot spring in winter at blue dusk: a steaming rock-edged pool across the lower middle, snow-dusted boulders, a bamboo fence, a glowing stone lantern, pine branches heavy with snow, drifting steam.",
+      "path": "renderer/assets/env-snowy-onsen.png",
+      "for": "capybara",
+      "localOnly": false
+    },
+    {
+      "id": "pastel-bakery",
+      "display": "Pastel bakery",
+      "category": "species",
+      "description": "A sweet pastel bakery kitchen: pink-and-cream checkered floor, a back counter with cake stands and cupcakes, a window with bunting, shelves of jars, a stand mixer, soft pink light.",
+      "path": "renderer/assets/env-pastel-bakery.png",
+      "for": "hello-kitty",
+      "localOnly": true
+    },
+    {
+      "id": "robotics-garage",
+      "display": "Robotics garage",
+      "category": "species",
+      "description": "A cluttered 1980s robotics garage workshop: a pegboard wall of tools, a shelf of half-built robot heads and gears, an oscilloscope showing a green waveform, a hanging work lamp, coiled cables on a concrete floor, blueprint posters.",
+      "path": "renderer/assets/env-robotics-garage.png",
+      "for": "retro-robot",
+      "localOnly": false
+    },
+    {
+      "id": "airship-deck",
+      "display": "Airship deck",
+      "category": "species",
+      "description": "The wooden deck of a fantasy airship at sunset: railings and rigging at the sides, a huge billowing sail in the distance, orange-pink clouds below, a ship's wheel at the back, polished brass fittings.",
+      "path": "renderer/assets/env-airship-deck.png",
+      "for": "terra-ff6",
+      "localOnly": true
+    },
+    {
+      "id": "willow-riverbank",
+      "display": "Willow riverbank",
+      "category": "species",
+      "description": "A quiet riverbank at golden dusk: a slow stream across the foreground with lily pads and reeds, a small wooden footbridge in the background, drifting fireflies, soft mist, mossy stones and distant hills.",
+      "path": "renderer/assets/env-willow-riverbank.png",
+      "for": "weeping-willow",
+      "localOnly": false
+    },
+    {
+      "id": "beardie-terrarium",
+      "display": "Beardie terrarium",
+      "category": "species",
+      "description": "The inside of a large glass desert terrarium seen from the front: sandy substrate, stacked rocks and driftwood at the sides, a glowing heat lamp hanging at the top casting a warm cone of light, a water dish, small succulents, amber light.",
+      "path": "renderer/assets/env-beardie-terrarium.png",
+      "for": "bearded-dragon",
+      "localOnly": false
+    },
+    {
+      "id": "jazz-club",
+      "display": "Jazz club",
+      "category": "species",
+      "description": "A smoky 1950s jazz club stage: a dark red curtain backdrop, a small round stage lit by a spotlight pool, stand-up bass and drum-kit silhouettes at the sides, cafe tables with candles at the bottom edges, a warm blue-purple haze.",
+      "path": "renderer/assets/env-jazz-club.png",
+      "for": "clipart-trumpet",
+      "localOnly": false
+    },
+    {
+      "id": "composer-s-studio",
+      "display": "Composer's studio",
+      "category": "species",
+      "description": "A moonlit composer's attic studio: an upright piano on one side, sheet music scattered and pinned to the walls, a candle in a brass holder, a metronome on a shelf, a round window with a night sky, wooden floorboards.",
+      "path": "renderer/assets/env-composer-s-studio.png",
+      "for": "eighth-note",
+      "localOnly": false
+    },
+    {
+      "id": "90s-bedroom",
+      "display": "90s bedroom",
+      "category": "species",
+      "description": "A 1990s kid's bedroom desk corner: a corkboard covered in posters, a glowing lava lamp, a stack of game boxes, a chunky CRT TV, a bean bag, blue-green evening light through window blinds, a carpeted floor.",
+      "path": "renderer/assets/env-90s-bedroom.png",
+      "for": "lcd-creature",
+      "localOnly": false
+    }
+  ]
+}
