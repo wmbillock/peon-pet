@@ -25,7 +25,7 @@ Identity model (decided 2026-10-02):
 
 ## Soon
 
-- [x] New themed pets (9) and 60 backgrounds registered from `scripts/art-selection.json` / `background-library.json`; checked on their default backgrounds (R2-D2 still needs art)
+- [x] New themed pets (9) and 60 backgrounds registered from `scripts/art-selection.json` / `background-library.json`; checked on their default backgrounds (R2-D2 still needs art: the image tool's safety review declined the sheet on 2026-10-02; use another tool or a different design)
 
 - [x] Environments for all 10 plan species generated via Codex (`scripts/gen-art-codex.js`, `scripts/install-art-envs.js`), built in
 - [x] Art redo: the 10 cutout character sheets generated via Codex and installed as the bundled art (`scripts/gen-art-codex.js`, `install-art-cutouts.js`); each species now sits on its own environment; beardie bob/wave rebuilt from the new sheet
