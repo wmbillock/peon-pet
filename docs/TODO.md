@@ -18,7 +18,8 @@ Identity model (decided 2026-10-02):
 - [x] Projects page; Forge per-role species and filter
 - [x] Summary strip (counts, click to dive) replaces the dots; Pixoo shows the same counts
 - [x] Firm: consume `agent_type` and project look fields when provided; feature requests drafted (`docs/firm/`)
-- [ ] **Submit the Firm feature requests** (PR into affirm-builders `pricing/the-firm/develop`: ROADMAP entries + TASKS rows) — needs a go-ahead
+- [x] Firm feature requests written, aligned with T-0002/T-0003, and built into a verified patch (`docs/firm/firm-pr.patch`, `SUBMIT.md`)
+- [ ] **Open the draft PR** into affirm-builders `pricing/the-firm/develop` — outward-facing (Peter's swarm reviews; touches `swarm/` so needs a human approval): waiting on a go-ahead
 - [ ] Per-session override of project membership ("this session belongs to project X")
 - [ ] Project background for baked sheets (needs cutout art; see art prompts)
 
