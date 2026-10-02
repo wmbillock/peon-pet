@@ -79,3 +79,19 @@ describe('cornerPosition', () => {
     }
   });
 });
+
+describe('restoreBounds', () => {
+  const { restoreBounds } = require('../lib/window-position');
+  const areas = [{ x: 0, y: 25, width: 1920, height: 1055 }, { x: 1920, y: 0, width: 1280, height: 1024 }];
+  test('keeps a saved spot that is still on a display', () => {
+    expect(restoreBounds({ x: 2000, y: 100, width: 300, height: 400 }, areas)).toEqual({ x: 2000, y: 100, width: 300, height: 400 });
+  });
+  test('pulls a partly off-screen window fully inside and clamps size', () => {
+    expect(restoreBounds({ x: 1800, y: 900, width: 9999, height: 400 }, [areas[0]])).toEqual({ x: 1360, y: 680, width: 560, height: 400 });
+  });
+  test('returns null when the display is gone or the data is bad', () => {
+    expect(restoreBounds({ x: 5000, y: 100, width: 300, height: 300 }, [areas[0]])).toBeNull();
+    expect(restoreBounds({ x: 'a' }, areas)).toBeNull();
+    expect(restoreBounds(undefined, areas)).toBeNull();
+  });
+});

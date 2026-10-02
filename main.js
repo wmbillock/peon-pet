@@ -950,19 +950,21 @@ function createTray() {
   refreshMenus();
 }
 
-const { WIN_SIZE, WIN_MARGIN, cornerPosition } = require('./lib/window-position');
+const { WIN_SIZE, WIN_MARGIN, cornerPosition, restoreBounds } = require('./lib/window-position');
 const { planArmy, armyPosition, clampToArea, ARMY_SIZE } = require('./lib/army');
 
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   const cfg = loadPetConfig();
   const { x, y } = cornerPosition(cfg.corner, width, height);
+  // Reopen where it was last left (dragged, or resized by a view change), if that spot is still on a display.
+  const restored = restoreBounds(cfg.winBounds, screen.getAllDisplays().map((d) => d.workArea), { min: CORNER_MIN, max: CORNER_MAX });
 
   win = new BrowserWindow({
-    width: WIN_SIZE,
-    height: WIN_SIZE,
-    x,
-    y,
+    width: restored ? restored.width : WIN_SIZE,
+    height: restored ? restored.height : WIN_SIZE,
+    x: restored ? restored.x : x,
+    y: restored ? restored.y : y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -976,6 +978,15 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+
+  // Remember where it sits (debounced: a drag fires many moves).
+  let saveBoundsTimer = null;
+  const rememberBounds = () => {
+    clearTimeout(saveBoundsTimer);
+    saveBoundsTimer = setTimeout(() => { if (win && !win.isDestroyed()) savePetConfig({ winBounds: win.getBounds() }); }, 400);
+  };
+  win.on('move', rememberBounds);
+  win.on('resize', rememberBounds);
 
   win.setIgnoreMouseEvents(true);
 
