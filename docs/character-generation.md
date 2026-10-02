@@ -23,3 +23,5 @@ The scene is baked into the atlas, so the background must be opaque. Keep the to
 session dots are drawn there.
 
 See the [retro robot generation record](characters/retro-robot.md) for a checked-in 3072×3072 atlas, its prompt, and a nearest-neighbor resize recipe.
+
+Browse the [character sprite catalog](characters/README.md) for the generated Terra, willow, bearded dragon, trumpet, eighth note, and LCD creature sheets.
