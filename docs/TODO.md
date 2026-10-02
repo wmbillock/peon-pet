@@ -36,7 +36,7 @@ Identity model (decided 2026-10-02):
 - [ ] Decide the integration shape with The Firm: (a) Peon Pet exposes a token-protected localhost API the Firm UI embeds, or (b) pets/species/projects move into the Firm backend and Peon Pet becomes a client
 - [ ] Agent types as first-class: species + personality + role + (later) prompt/tools, shared through the Firm
 - [ ] Surface Firm state on tiles: bead progress, review round, blocked/escalated
-- [ ] Codex masters (registry-style discovery like Claude's `~/.claude/sessions`)
+- [x] Codex masters: a main Codex session written in the last 30 min (not `codex exec`) is a live master (`codexMasters`)
 - [ ] Approval-requested signal for Codex (no event found in rollouts yet)
 
 ## Done

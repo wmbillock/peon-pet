@@ -154,3 +154,17 @@ describe('session registry', () => {
     expect(A.pidAlive(2 ** 22 + 12345)).toBe(false);
   });
 });
+
+describe('codexMasters', () => {
+  const { codexMasters } = require('../lib/live-agents');
+  const now = 1_000_000_000;
+  test('recently written interactive sessions are masters; scripted and stale ones are not', () => {
+    const mains = [
+      { sessionId: 'tui', cwd: '/w/a', originator: 'codex-tui', mtime: now - 60_000 },
+      { sessionId: 'app', cwd: '/w/b', originator: null, mtime: now - 10 * 60_000 },
+      { sessionId: 'exec', cwd: '/w/c', originator: 'codex_exec', mtime: now - 1000 },
+      { sessionId: 'old', cwd: '/w/d', originator: 'codex-tui', mtime: now - 3 * 3600_000 },
+    ];
+    expect(codexMasters(mains, now).map((m) => m.sessionId)).toEqual(['tui', 'app']);
+  });
+});

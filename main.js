@@ -15,7 +15,7 @@ const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
 const { registerPetIpc } = require('./lib/ipc-pets');
-const { readSessionRegistry, transcriptFor } = require('./lib/live-agents');
+const { readSessionRegistry, transcriptFor, codexMasters } = require('./lib/live-agents');
 const { createFirmClient, createFirmPoller, parseBaseUrl } = require('./lib/firm-client');
 const { buildAgents } = require('./lib/agent-graph');
 const { applyMarks } = require('./lib/marks');
@@ -494,6 +494,12 @@ function startPolling() {
         sessionRegistry.set(r.sessionId, r);
       }
       for (const id of [...sessionRegistry.keys()]) if (!liveIds.has(id)) sessionRegistry.delete(id);
+      // Codex: no registry, so "recently written main session" stands in for "a live master".
+      for (const m of codexMasters(codexWatcher.getMainSessions())) {
+        masterIds.add(m.sessionId); liveIds.add(m.sessionId);
+        tracker.update(m.sessionId, m.mtime);
+        if (m.cwd && !sessionCwds.has(m.sessionId)) sessionCwds.set(m.sessionId, m.cwd);
+      }
       liveReady = true;
       sendSessionUpdate(Date.now());
     } catch (e) {
