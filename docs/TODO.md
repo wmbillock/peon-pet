@@ -25,6 +25,8 @@ Identity model (decided 2026-10-02):
 
 ## Soon
 
+- [x] New themed pets (9) and 60 backgrounds registered from `scripts/art-selection.json` / `background-library.json`; checked on their default backgrounds (R2-D2 still needs art)
+
 - [ ] Art redo as cutouts on per-project environments (prompts in `docs/art-prompts/`; ~21 images)
 - [x] Beardie wave: procedural arm wave, row 2 of the extras (`node scripts/gen-headbob.js bearded-dragon --wave`; add `--custom` after replacing the sheet)
 - [x] Desktop "army": tray/dock menu → "Desktop army"; one small draggable window per root agent (`lib/army.js`, `grid/army.*`), positions remembered
