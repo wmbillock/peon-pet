@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('dashBridge', {
   updateEnv: (id, patch) => ipcRenderer.invoke('env-update', id, patch),
   removeEnv: (id) => ipcRenderer.invoke('env-remove', id),
   setBorder: (id) => ipcRenderer.invoke('borders-set', id),
-  openGrid: () => ipcRenderer.send('open-grid'),
+  openGrid: (view) => ipcRenderer.send('open-grid', view),
   audition: (name) => ipcRenderer.invoke('packs-audition', name),
   setGlobalPack: (name, applyToSessions) => ipcRenderer.invoke('packs-set-global', name, applyToSessions),
 });

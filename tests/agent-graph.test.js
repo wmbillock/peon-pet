@@ -73,3 +73,13 @@ test('input is not mutated and every row has group/root/order', () => {
   expect(s[0]).not.toHaveProperty('groupId');
   for (const r of out) for (const k of ['groupId', 'rootId', 'isRoot', 'rank', 'order', 'kind']) expect(r).toHaveProperty(k);
 });
+
+test('Management sorts first among masters, and a Firm title replaces the derived session name', () => {
+  const out = buildAgents({
+    sessions: [sess('aaa', { title: 'Aardvark' }), sess('lead-s', { title: 'the-firm-fd', role: 'worker' })],
+    firmThreads: [thread('management', 'management', { title: 'Management' }), thread('l', 'lead', { sessionId: 'lead-s', workstreamId: 'ws_q', title: 'Lead · Pricing CLI' })],
+  });
+  expect(out[0]).toMatchObject({ firmRole: 'management' });
+  expect(out.find((r) => r.id === 'lead-s').title).toBe('Lead · Pricing CLI');
+  expect(out.find((r) => r.id === 'aaa').title).toBe('Aardvark');
+});

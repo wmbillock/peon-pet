@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' peon-asset:; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' peon-asset:;">
+        content="default-src 'self' peon-asset:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' peon-asset:;">
+  <link rel="stylesheet" href="../dash/dash.css">
   <style>
     * { margin: 0; padding: 0; }
-    html, body { width: 200px; height: 200px; overflow: hidden; background: transparent; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
     canvas { display: block; }
     #tooltip {
       position: absolute;
@@ -23,6 +24,20 @@
       pointer-events: none;
       z-index: 100;
     }
+    /* ---- corner views: Pet · Grid · Speaker · Presenter ---- */
+    #bar { position: absolute; top: 5px; left: 6px; z-index: 102; display: flex; gap: 2px; padding: 2px; border-radius: 7px;
+           background: rgba(8, 8, 16, 0.78); border: 1px solid rgba(255, 255, 255, 0.14); opacity: 0; transition: opacity .15s; }
+    body:hover #bar, body.dashing #bar { opacity: 1; }
+    #bar button { width: 22px; height: 20px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #aab; cursor: pointer; font: 12px/20px -apple-system, sans-serif; }
+    #bar button:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+    #bar button.on { color: #fff; background: rgba(120, 120, 255, 0.45); }
+    #bar .sep { width: 1px; margin: 3px 2px; background: rgba(255, 255, 255, 0.15); }
+    #dash { font: 11px -apple-system, 'SF Mono', sans-serif; color: #ccc; position: absolute; left: 0; right: 0; bottom: 0; top: 0; padding: 34px 8px 8px; overflow: auto; display: none;
+            background: rgba(12, 12, 20, 0.94); border: 1px solid #2a2a40; border-radius: 10px; z-index: 50; }
+    body.dashing #dash { display: block; }
+    body.dashing canvas { display: none; }
+    #dash::-webkit-scrollbar { width: 6px; height: 6px; }
+    #dash::-webkit-scrollbar-thumb { background: #33334a; border-radius: 3px; }
     #sound-btn {
       position: absolute;
       top: 6px;
@@ -50,6 +65,15 @@
 <body>
   <canvas id="c"></canvas>
   <div id="tooltip"></div>
+  <div id="dash"></div>
+  <div id="bar" title="Drag here to move">
+    <button data-v="pet" title="Pet">🐾</button>
+    <button data-v="grid" title="Grid — everyone">▦</button>
+    <button data-v="speaker" title="Speaker — whoever is working">◉</button>
+    <button data-v="presenter" title="Presenter — a master and its sub-agents">▣</button>
+    <span class="sep"></span>
+    <button id="gear" title="Settings">⚙</button>
+  </div>
   <button id="sound-btn" title="Mute sounds" aria-label="Mute sounds">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <polygon points="3,9 7,9 12,5 12,19 7,15 3,15" fill="currentColor"/>
@@ -57,6 +81,7 @@
       <g class="slash"><line x1="16" y1="9" x2="22" y2="15"/><line x1="22" y1="9" x2="16" y2="15"/></g>
     </svg>
   </button>
+  <script src="../dash/dash.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

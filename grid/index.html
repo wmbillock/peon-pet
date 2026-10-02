@@ -4,19 +4,26 @@
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data: peon-asset:; script-src 'self'; style-src 'self' 'unsafe-inline';">
   <title>Peon Pet — Agents</title>
+  <link rel="stylesheet" href="../dash/dash.css">
   <link rel="stylesheet" href="grid.css">
 </head>
 <body>
   <header>
     <h1>Agents <span id="count"></span></h1>
+    <nav id="views" title="G · S · P">
+      <button data-view="grid">Grid</button>
+      <button data-view="speaker">Speaker</button>
+      <button data-view="presenter">Presenter</button>
+    </nav>
     <span class="spacer"></span>
-    <label title="Show sessions that have gone cold"><input type="checkbox" id="show-cold"> include cold</label>
-    <label for="zoom">Zoom</label>
-    <input type="range" id="zoom" min="96" max="420" step="4">
+    <span id="firm" class="chip" title="The Firm"></span>
+    <label id="cold-wrap" title="Show agents that have gone quiet"><input type="checkbox" id="show-cold"> include idle</label>
+    <label id="follow-wrap" title="Speaker view follows whoever is working"><input type="checkbox" id="follow"> follow activity</label>
+    <label id="zoom-wrap">Zoom <input type="range" id="zoom" min="110" max="420" step="4"></label>
     <button id="open-panel">Panel</button>
   </header>
-  <main id="grid"></main>
-  <div id="empty" hidden>No active agents right now.<br><small>Start a Claude Code or Codex session and its pet shows up here.</small></div>
+  <main id="stage"></main>
+  <script src="../dash/dash.js"></script>
   <script src="grid.js"></script>
 </body>
 </html>

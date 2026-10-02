@@ -43,7 +43,12 @@ Peon Pet follows **Claude Code** (`~/.claude/projects`) and **OpenAI Codex** (`~
 
 ## Control panel, menu bar, Pixoo
 
-- **Click the pet** (a click, not a drag) to open the control panel: mute/resume, global voice, per-session voices, volume, sound categories, pet picker, Pixoo settings.
+- **The corner window** shows your lead pet, or the agent dashboard: hover it for the toolbar — **Pet · Grid · Speaker · Presenter · ⚙**. A click on the pet steps to the next view; drag the toolbar to move it. The window grows from whichever screen corner it's parked in.
+  - **Grid:** every agent, grouped — each root agent with its sub-agents, all in one tint.
+  - **Speaker:** whoever is working, large (or click a tile to pin it).
+  - **Presenter:** a master (Management by default; shift-click a tile to choose) with its workstreams and sub-agents.
+  - The **⚙** (or right-click the pet, or the menu bar) opens the control panel: mute/resume, global voice, per-session voices, volume, sound categories, pets, species & art, Pixoo.
+- **Agents** come from your Claude Code sessions (including their names), Codex, and — when it is running locally — **The Firm**, whose workers, inspectors and planners share their lead's tint.
 - **Menu bar icon**: quick mute, voice, volume.
 - **Pixoo 64**: enter the device IP (Divoom app → Device Settings → Device Info) and tick *Mirror pet*. Private IPv4 addresses only.
 - **Add a pet**: generate a sprite atlas with `node scripts/character-prompt.js --brief wizard-cat`, then install it with `node scripts/import-character.js <name> <atlas.png>`. Full walkthrough in [docs/character-generation.md](docs/character-generation.md). Characters live in `~/Library/Application Support/Peon Pet/characters/<name>/` and appear in the panel automatically.

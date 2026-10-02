@@ -397,9 +397,10 @@ canvas.addEventListener('pointerup', (e) => {
   if (e.button !== 0 || !dragging) return;
   dragging = false;
   window.peonBridge.stopDrag();
-  // A click without movement opens the control panel
-  if (Math.hypot(e.screenX - downX, e.screenY - downY) < CLICK_SLOP_PX) {
-    window.peonBridge.openDashboard();
+  // A click without movement steps to the next view (Pet → Grid → Speaker → Presenter); settings are on the gear
+  if (Math.hypot(e.screenX - downX, e.screenY - downY) < CLICK_SLOP_PX && !isSubAgent) {
+    const i = CORNER_VIEWS.indexOf(cornerView);
+    requestCornerView(CORNER_VIEWS[(i + 1) % CORNER_VIEWS.length]);
   }
 });
 
@@ -464,6 +465,51 @@ canvas.addEventListener('contextmenu', (e) => {
   window.peonBridge.openDashboard();
 });
 
+// --- Corner views: the small window can show the pet, or the agent Grid / Speaker / Presenter ---
+const CORNER_VIEWS = ['pet', 'grid', 'speaker', 'presenter'];
+const BAR_H = 34, DASH_PAD = 8;     // toolbar strip above the views, and the container's bottom padding
+const CORNER_W = { grid: 344, speaker: 232, presenter: 232 };   // fixed width per view; height follows the content
+let cornerView = 'pet';
+let dash = null;
+
+function reportCornerSize(w, h) { if (!isSubAgent) window.peonBridge.resizeCorner({ w, h }); }
+
+function applyCornerView(v) {
+  if (!CORNER_VIEWS.includes(v) || isSubAgent) return;
+  cornerView = v;
+  document.body.classList.toggle('dashing', v !== 'pet');
+  for (const b of document.querySelectorAll('#bar button[data-v]')) b.classList.toggle('on', b.dataset.v === v);
+  if (v === 'pet') { reportCornerSize(200, 200); return; }
+  if (!dash) {
+    dash = createDash({
+      stage: document.getElementById('dash'), compact: true, storage: 'corner',
+      onSize: ({ view, h }) => { if (cornerView !== 'pet' && view === cornerView) reportCornerSize(CORNER_W[view], h + BAR_H + DASH_PAD); },
+    });
+    if (lastPayload) dash.update(lastPayload);
+  }
+  dash.setView(v);
+}
+
+// Ask the main process to remember the view (it echoes it back), and apply it right away.
+function requestCornerView(v) {
+  window.peonBridge.setCornerView(v);
+  applyCornerView(v);
+}
+
+let lastPayload = null;
+window.peonBridge.onCornerView((v) => applyCornerView(v));
+for (const b of document.querySelectorAll('#bar button[data-v]')) b.addEventListener('click', () => requestCornerView(b.dataset.v));
+document.getElementById('gear').addEventListener('click', () => window.peonBridge.openDashboard());
+// The toolbar doubles as a drag handle for the larger views.
+const bar = document.getElementById('bar');
+bar.addEventListener('pointerdown', (e) => {
+  if (e.target !== bar || e.button !== 0) return;
+  bar.setPointerCapture(e.pointerId);
+  window.peonBridge.startDrag();
+});
+bar.addEventListener('pointerup', () => window.peonBridge.stopDrag());
+bar.addEventListener('lostpointercapture', () => window.peonBridge.stopDrag());
+
 // --- Master sound toggle ---
 const soundBtn = document.getElementById('sound-btn');
 soundBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -521,6 +567,8 @@ window.peonBridge.onConfig(({ size, subAgent }) => {
 
   // Sub-agents have no controls
   soundBtn.style.display = 'none';
+  document.getElementById('bar').style.display = 'none';
+  document.getElementById('dash').style.display = 'none';
 
   // Disable tooltip
   tooltip.style.display = 'none';
@@ -576,7 +624,10 @@ window.peonBridge.onEvent(({ anim, event }) => {
   playAnim(anim);
 });
 
-window.peonBridge.onSessionUpdate(({ sessions }) => {
+window.peonBridge.onSessionUpdate((payload) => {
+  const { sessions } = payload;
+  lastPayload = payload;
+  if (dash) dash.update(payload);
   currentSessions = sessions;
   updateDots(sessions);
   const wasActive = anySessionActive;
@@ -671,6 +722,6 @@ function animate(time) {
     sprite.position.y = 0;
   }
 
-  renderer.render(scene, camera);
+  if (cornerView === 'pet') renderer.render(scene, camera);   // nothing to draw behind the agent views
 }
 requestAnimationFrame(animate);

@@ -18,6 +18,7 @@ const { registerPetIpc } = require('./lib/ipc-pets');
 const { readSessionRegistry, transcriptFor } = require('./lib/live-agents');
 const { createFirmClient, createFirmPoller } = require('./lib/firm-client');
 const { buildAgents } = require('./lib/agent-graph');
+const { computeCornerBounds } = require('./lib/corner-window');
 const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawDots } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
@@ -75,6 +76,8 @@ function thumb(file, px) {
 }
 
 function initPets() {
+  const savedView = loadPetConfig().cornerView;
+  if (CORNER_VIEWS.includes(savedView)) cornerView = savedView;
   pets = createPetsService({ userDataDir: app.getPath('userData'), assetsDir: bundledAssetsDir, bundled: BUNDLED_CHARS, thumb });
   pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
   registerPetIpc({
@@ -581,6 +584,36 @@ ipcMain.handle('pixoo-set', (_e, patch) => {
   return { ...next, status: pixoo.status };
 });
 
+// --- Corner window views: Pet · Grid · Speaker · Presenter ---
+const CORNER_VIEWS = ['pet', 'grid', 'speaker', 'presenter'];
+const CORNER_MIN = { w: 200, h: 200 }, CORNER_MAX = { w: 560, h: 700 };
+let cornerView = 'pet';   // restored from the config in initPets() — app.setName() hasn't run yet at module load
+
+function setCornerView(v, from) {
+  if (!CORNER_VIEWS.includes(v)) return;
+  cornerView = v;
+  savePetConfig({ cornerView: v });
+  if (win && !win.isDestroyed() && win.webContents !== from) win.webContents.send('corner-view', v);
+  refreshMenus();
+}
+
+// Resize the corner window to fit its content, keeping whichever screen corner it is nearest to
+// fixed — so a window parked bottom-left grows up and to the right.
+function resizeCorner(w, h) {
+  if (!win || win.isDestroyed()) return;
+  const b = win.getBounds();
+  const next = computeCornerBounds(b, screen.getDisplayMatching(b).workArea, w, h, { min: CORNER_MIN, max: CORNER_MAX });
+  if (next.width !== b.width || next.height !== b.height || next.x !== b.x || next.y !== b.y) win.setBounds(next);
+}
+
+ipcMain.on('corner-set-view', (e, v) => setCornerView(v, e.sender));
+ipcMain.on('corner-resize', (e, size) => { if (win && e.sender === win.webContents && size) resizeCorner(size.w, size.h); });
+
+const cornerMenu = () => ({
+  label: 'Corner view',
+  submenu: CORNER_VIEWS.map((v) => ({ label: v[0].toUpperCase() + v.slice(1), type: 'radio', checked: v === cornerView, click: () => setCornerView(v) })),
+});
+
 // --- Master sound toggle (peon-ping .paused) ---
 let soundMuted = peonSound.isMuted();
 
@@ -614,17 +647,22 @@ function openDashboard() {
   dashWin.on('closed', () => { dashWin = null; });
 }
 
-function openGrid() {
-  if (gridWin && !gridWin.isDestroyed()) { gridWin.show(); gridWin.focus(); return; }
+function openGrid(view) {
+  if (gridWin && !gridWin.isDestroyed()) {
+    gridWin.show(); gridWin.focus();
+    if (typeof view === 'string') gridWin.webContents.send('grid-view', view);
+    return;
+  }
   gridWin = new BrowserWindow({
     width: 980, height: 700, minWidth: 360, minHeight: 280,
     title: 'Peon Pet — Agents', backgroundColor: '#0e0e16',
     webPreferences: { preload: path.join(__dirname, 'grid', 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   gridWin.loadFile('grid/index.html');
+  if (typeof view === 'string') gridWin.webContents.once('did-finish-load', () => gridWin.webContents.send('grid-view', view));
   gridWin.on('closed', () => { gridWin = null; });
 }
-ipcMain.on('open-grid', openGrid);
+ipcMain.on('open-grid', (_e, view) => openGrid(view));
 ipcMain.on('grid-ready', (e) => e.sender.send('grid-sessions', latestSessions));
 
 ipcMain.on('dash-ready', (e) => {
@@ -741,7 +779,8 @@ function buildDockMenu() {
   return Menu.buildFromTemplate([
     { label: soundMuted ? 'Unmute Sounds' : 'Mute Sounds', click() { setSoundMuted(!soundMuted); } },
     { label: 'Open Control Panel', click: openDashboard },
-    { label: 'Open Agent Grid', click: openGrid },
+    cornerMenu(),
+    { label: 'Open Agent Dashboard (big window)', click: () => openGrid() },
     { label: petVisible ? 'Hide Pet' : 'Show Pet', click: togglePet },
     { type: 'separator' },
     { label: 'Quit', click() { app.quit(); } },
@@ -762,7 +801,12 @@ function buildTrayMenu() {
   const px = pixooConfig();
   return Menu.buildFromTemplate([
     { label: 'Open Control Panel', click: openDashboard },
-    { label: 'Open Agent Grid', click: openGrid },
+    cornerMenu(),
+    { label: 'Agent Dashboard (big window)', submenu: [
+      { label: 'Grid', click: () => openGrid('grid') },
+      { label: 'Speaker', click: () => openGrid('speaker') },
+      { label: 'Presenter', click: () => openGrid('presenter') },
+    ] },
     { type: 'separator' },
     { label: soundMuted ? 'Resume Sounds' : 'Silence All Sounds', click() { setSoundMuted(!soundMuted); } },
     {
@@ -861,6 +905,7 @@ function createWindow() {
     isDragging = false;
     win.webContents.send('sound-state', { muted: soundMuted });
     sendLook(win);
+    win.webContents.send('corner-view', cornerView);
   });
 
   // Clean up sub-agent windows when main window closes

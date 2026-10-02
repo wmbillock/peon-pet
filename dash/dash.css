@@ -1,0 +1,89 @@
+:root { --ring: #3a3a52; }
+/* ---------- tiles (shared by every view) ---------- */
+.tile { --ring: #3a3a52; position: relative; display: flex; flex-direction: column; background: #161622; border: 2px solid var(--ring); border-radius: 10px; overflow: hidden; min-width: 0; cursor: pointer; transition: box-shadow .3s; }
+.tile.hot { box-shadow: 0 0 14px color-mix(in srgb, var(--ring) 55%, transparent); }
+.tile.cold { opacity: 0.55; }
+.scene { position: relative; width: 100%; aspect-ratio: 1; background: #000; overflow: hidden; }
+.scene .layer { position: absolute; inset: 0; }
+.scene .env { background-size: cover; background-position: center; image-rendering: pixelated; }
+.scene .sprite { background-size: 600% 600%; image-rendering: pixelated; }
+.scene .tint { pointer-events: none; }
+.led { position: absolute; top: 8px; left: 8px; width: 10px; height: 10px; border-radius: 50%; background: #555; box-shadow: 0 0 0 2px rgba(0,0,0,0.5); }
+.hot .led { background: #44ff44; box-shadow: 0 0 8px #44ff44, 0 0 0 2px rgba(0,0,0,0.5); }
+.warm .led { background: #1aaa1a; }
+.badges { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #cde; }
+.badge.role { background: color-mix(in srgb, var(--ring) 70%, #000); color: #fff; }
+.info { padding: 6px 9px 8px; min-width: 0; }
+.info .pet { color: #fff; font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.info .pet small { color: #8a8aa0; font-weight: 400; font-size: 11px; margin-left: 4px; }
+.info .what { color: #9a9ab0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.info .what b { color: #cfd; font-weight: 500; }
+.tile.sub .info .pet small, .tile.mini .info .what { display: none; }
+.tile.mini .info { padding: 3px 6px 4px; }
+.tile.mini .info .pet { font-size: 11px; }
+.tile.mini .badges, .tile.mini .led { transform: scale(0.8); transform-origin: top left; }
+.tile.pinned { outline: 2px solid #fff; outline-offset: 1px; }
+
+/* ---------- grid view: groups ---------- */
+.groups { --tile: 200px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.group { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; border-radius: 12px; background: #12121c; border: 1px solid #1f1f30; border-left: 4px solid var(--ring); max-width: 100%; align-items: flex-start; }
+.group .kids { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; max-width: calc(var(--tile) * 2.3); }
+.group > .tile { width: var(--tile); }
+.group .kids .tile { width: calc(var(--tile) * 0.5); }
+.group-title { width: 100%; font-size: 11px; color: #8a8aa0; margin-bottom: 2px; }
+.group-title b { color: #dde; font-weight: 600; }
+
+/* ---------- speaker / presenter ---------- */
+.stage-split { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.hero { flex: 1; min-height: 0; display: flex; gap: 14px; }
+.hero .main-tile { height: 100%; aspect-ratio: 1 / 1.16; max-width: 62%; }
+.hero .main-tile .tile { height: 100%; }
+.hero .main-tile .scene { flex: 1; aspect-ratio: auto; min-height: 0; }
+.detail { flex: 1; min-width: 220px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.card { background: #141420; border: 1px solid #222234; border-radius: 10px; padding: 10px 12px; }
+.card h3 { font-size: 11px; color: #7d7da0; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.card .big { font-size: 18px; color: #fff; font-weight: 600; }
+.kv { display: grid; grid-template-columns: 92px 1fr; gap: 3px 10px; font-size: 12px; }
+.kv span:nth-child(odd) { color: #7d7da0; }
+.kv span:nth-child(even) { color: #ccd; overflow-wrap: anywhere; }
+.msg { color: #bbc; white-space: pre-wrap; max-height: 150px; overflow: auto; }
+.bar { height: 6px; background: #20202e; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.bar i { display: block; height: 100%; background: var(--ring); }
+.kids-col { display: flex; flex-wrap: wrap; gap: 8px; }
+.kids-col .tile { width: 118px; }
+.strip { flex: none; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.strip .tile { width: 96px; flex: none; }
+
+/* ---------- compact (the small corner window) ---------- */
+.dash-empty { text-align: center; color: #777; padding: 24px 10px; font-size: 12px; line-height: 1.7; }
+.dash-empty small { color: #555; }
+.compact { font-size: 11px; }
+.compact .groups { --tile: 84px; gap: 6px; }
+.compact .group { padding: 5px 6px 6px; gap: 5px; border-radius: 8px; border-left-width: 3px; }
+/* width:0 + min-width:100% keeps the title from widening its group: groups pack three-abreast */
+.compact .group-title { font-size: 10px; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 0; min-width: 100%; }
+.compact .group .kids { max-width: calc(var(--tile) * 3); gap: 4px; }
+.compact .group .kids .tile { width: 38px; }
+.compact .tile { border-width: 2px; border-radius: 7px; }
+.compact .tile .info { padding: 2px 5px 3px; }
+.compact .tile .info .pet { font-size: 11px; }
+.compact .tile .info .pet small, .compact .tile .info .what { display: none; }
+.compact .tile.sub .info, .compact .tile.mini .info { display: none; }
+.compact .tile .badges { display: none; }
+.compact .led { top: 4px; left: 4px; width: 7px; height: 7px; }
+.compact .tile.sub .led, .compact .tile.mini .led { width: 5px; height: 5px; top: 2px; left: 2px; }
+.compact .stage-split { gap: 6px; height: auto; }
+.compact .hero { gap: 6px; flex-direction: column; align-items: center; }
+.compact .hero .main-tile { width: 200px; height: auto; max-width: none; aspect-ratio: auto; }
+.compact .hero .main-tile .tile { height: auto; }
+.compact .hero .main-tile .scene { aspect-ratio: 1; }
+.compact .hero .main-tile .tile .info .what { display: block; }
+.compact .hero .main-tile .tile .info .pet small { display: inline; }
+.compact .reports { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.compact .reports .card { padding: 4px 6px; border-radius: 8px; }
+.compact .reports .card h3 { font-size: 9px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compact .kids-col { gap: 4px; }
+.compact .kids-col .tile { width: 38px; }
+.compact .strip { gap: 4px; flex-wrap: wrap; overflow: visible; }
+.compact .strip .tile { width: 42px; flex: none; }
