@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data: peon-asset:; script-src 'self'; style-src 'self' 'unsafe-inline';">
+  <title>Peon Pet — Agents</title>
+  <link rel="stylesheet" href="grid.css">
+</head>
+<body>
+  <header>
+    <h1>Agents <span id="count"></span></h1>
+    <span class="spacer"></span>
+    <label title="Show sessions that have gone cold"><input type="checkbox" id="show-cold"> include cold</label>
+    <label for="zoom">Zoom</label>
+    <input type="range" id="zoom" min="96" max="420" step="4">
+    <button id="open-panel">Panel</button>
+  </header>
+  <main id="grid"></main>
+  <div id="empty" hidden>No active agents right now.<br><small>Start a Claude Code or Codex session and its pet shows up here.</small></div>
+  <script src="grid.js"></script>
+</body>
+</html>

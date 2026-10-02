@@ -1,0 +1,123 @@
+// Shared helpers for the control panel scripts.
+const $ = (id) => document.getElementById(id);
+
+// Tiny DOM builder: h('div', { class: 'x', onclick }, child, 'text', ...)
+function h(tag, props = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else if (k === 'value') el.value = v;
+    else if (k === 'checked' || k === 'disabled' || k === 'selected') el[k] = !!v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(kid);
+  return el;
+}
+
+const errorBox = $('error');
+function showError(err) {
+  errorBox.textContent = err ? String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : '';
+  errorBox.style.display = err ? 'block' : 'none';
+}
+
+const app = { snap: null, sessions: [] };
+const snapListeners = [];
+let snapKey = '';
+const onSnap = (fn) => { snapListeners.push(fn); if (app.snap) fn(app.snap); };
+
+function setSnap(snap) {
+  const key = JSON.stringify(snap);
+  if (key === snapKey) return;  // nothing changed: don't churn the DOM
+  snapKey = key;
+  app.snap = snap;
+  for (const fn of snapListeners) fn(snap);
+}
+
+async function refreshSnap() {
+  try { setSnap(await window.dashBridge.getPets()); } catch (e) { showError(e); }
+}
+
+// Run a bridge call that returns a fresh snapshot; surface errors; resolves to the result or null.
+async function act(call) {
+  try {
+    showError(null);
+    const r = await call();
+    if (r && r.pets) setSnap(r);
+    return r;
+  } catch (e) {
+    showError(e);
+    refreshSnap();
+    return null;
+  }
+}
+
+// Skip re-rendering a container while the user is typing/choosing inside it.
+function renderUnlessEditing(container, render) {
+  const el = document.activeElement;
+  if (el && container.contains(el) && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+    el.addEventListener('blur', () => setTimeout(() => render(), 0), { once: true });
+    return;
+  }
+  render();
+}
+
+// A thumbnail with the pet's translucent tint laid over it.
+function petThumb(src, tintCss) {
+  return h('div', { class: 'thumb' }, src ? h('img', { src }) : null, h('div', { class: 'tint', style: `background:${tintCss || 'transparent'}` }));
+}
+
+// Editable key/value "durable facts". `save(facts)` is called on every change; `openSet` remembers
+// which editors are expanded across re-renders.
+function factsEditor(facts, save, openSet, openKey, hint) {
+  const box = h('details', { class: 'facts', open: openSet.has(openKey) });
+  box.addEventListener('toggle', () => { if (box.open) openSet.add(openKey); else openSet.delete(openKey); });
+  box.append(h('summary', {}, `Facts (${facts.length})`));
+  const rowsEl = h('div');
+  const commit = () => save([...rowsEl.querySelectorAll('.fact')].map((r) => ({ key: r.querySelector('.k').value, value: r.querySelector('.v').value })));
+  const addRow = (f) => {
+    const row = h('div', { class: 'fact' },
+      h('input', { type: 'text', class: 'k', value: f.key, placeholder: 'Fact', onchange: commit }),
+      h('input', { type: 'text', class: 'v', value: f.value, placeholder: 'Detail', onchange: commit }),
+      h('button', { class: 'iconbtn', title: 'Remove', onclick: () => { row.remove(); commit(); } }, '×'));
+    rowsEl.append(row);
+    return row;
+  };
+  facts.forEach(addRow);
+  box.append(rowsEl, h('button', { style: 'margin-top:6px', onclick: () => addRow({ key: '', value: '' }).querySelector('.k').focus() }, '+ Add fact'));
+  if (!facts.length && hint) box.append(h('div', { class: 'help' }, hint));
+  return box;
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* fall back */ }
+  const ta = h('textarea', { style: 'position:fixed;opacity:0' });
+  ta.value = text;
+  document.body.append(ta);
+  ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  return ok;
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button.copy');
+  if (!btn) return;
+  const src = $(btn.dataset.copy);
+  const ok = await copyText(src.value);
+  const label = btn.dataset.label || (btn.dataset.label = btn.textContent);
+  btn.textContent = ok ? 'Copied ✓' : 'Copy failed';
+  setTimeout(() => { btn.textContent = label; }, 1400);
+});
+
+// Tabs
+function showTab(name) {
+  for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === name);
+  for (const t of document.querySelectorAll('main.tab')) t.hidden = t.id !== `tab-${name}`;
+  try { localStorage.setItem('tab', name); } catch { /* storage unavailable */ }
+}
+for (const b of document.querySelectorAll('#tabs button')) b.addEventListener('click', () => showTab(b.dataset.tab));
+try { showTab(localStorage.getItem('tab') || 'control'); } catch { showTab('control'); }
+
+window.addEventListener('focus', refreshSnap);
+refreshSnap();

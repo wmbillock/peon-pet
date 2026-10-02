@@ -9,6 +9,7 @@ test('classify routes files to the right reload level', () => {
   expect(classify('package.json')).toBe('app');
   expect(classify('renderer/app.js')).toBe('windows');
   expect(classify('dashboard/index.html')).toBe('windows');
+  expect(classify('grid/grid.js')).toBe('windows');
   expect(classify('preload.js')).toBe('windows');
 });
 

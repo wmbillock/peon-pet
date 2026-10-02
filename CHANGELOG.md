@@ -8,6 +8,12 @@
 - **Menu bar item** — quick mute, voice and volume switching, Pixoo status
 - **Pet switcher** — pick the active character live from the panel; user characters in `<userData>/characters/<name>/sprite-atlas.png` are discovered automatically
 - **Divoom Pixoo 64 mirror** — streams the pet animation and session dots to a Pixoo 64 over the LAN, with brightness and LED color-match controls
+- **Individual pets** — a roster of named pets, each with its own species, translucent tint, durable facts and an assignment (a session, project, agent, or the auto pool; benched pets are never auto-assigned). The old single-character setting became the *lead pet* shown on the desktop
+- **Species & art tab** — friendly display names, durable facts, scene/activity/setting per species, a local-only flag, new-species drafts with a copyable image-model prompt (whole sheet or per row), sheet import/replace with a contact-sheet preview, and chroma-key import for transparent "cutout" characters
+- **Environments** — backgrounds are separate from characters; cutout characters sit on one, baked sheets keep their own scene. Prompts for environment plates are generated too
+- **Tints** — translucent colour filters so many pets of one species can be told apart (desktop, grid and Pixoo)
+- **Agent grid** — a zoom window with one animated tile per active agent session showing its assigned pet (menu bar / dock / panel → Grid)
+- **Frame styles** — 12 selectable borders independent of the pet (`scripts/gen-borders.js`)
 - **Seven new bundled pets** — retro robot, Terra (FF6), weeping willow, bearded dragon, clipart trumpet, eighth note, LCD creature; selectable from the panel. Sheets, prompts and validation records are in `docs/characters/`; `scripts/gen-pet-icons.js` makes their dock icons
 - **Cross-agent: Codex support** — watches `~/.codex/sessions` rollouts alongside Claude Code transcripts (turns → typing/celebrate, interrupts → annoyed, long-running tool calls → alarmed, spawned worker threads → mini pets; guardian review threads ignored). Sessions are tagged in the panel and tooltip, and per-session voice pins use peon-ping's `codex-<id>` keys
 - **Hot reload** — edits to `renderer/`/`dashboard/` reload windows; edits to `main.js`/`lib/` restart the app

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const {
@@ -12,14 +12,17 @@ const { CodexWatcher } = require('./lib/codex-watcher');
 const peonSound = require('./lib/peon-sound');
 const peonPacks = require('./lib/peon-packs');
 const BUNDLED_CHARS = require('./lib/bundled-characters');
-const { listCharacters, isKnownCharacter } = require('./lib/characters');
+const { createPetsService } = require('./lib/pets-service');
+const { byId: borderById } = require('./lib/borders');
+const { registerPetIpc } = require('./lib/ipc-pets');
 const { watchApp } = require('./lib/hot-reload');
-const { PixooClient, isValidDeviceIp, applyLook, drawDots } = require('./lib/pixoo');
+const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawDots } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
 
 let win;
 let petVisible = true;
 let dashWin = null;
+let gridWin = null;
 let latestSessions = { sessions: [] };
 const subAgentWindows = new Map(); // session_id → BrowserWindow
 const subAgentCreatedAt = new Map(); // session_id → creation timestamp (ms)
@@ -54,34 +57,51 @@ function savePetConfig(patch) {
   return next;
 }
 
-let activeChar = 'orc';
 const bundledAssetsDir = path.join(__dirname, 'renderer', 'assets');
-const customCharRoot = () => path.join(app.getPath('userData'), 'characters');
+const ASSET_NAMES = new Set(['sprite-atlas.png', 'borders.png', 'bg.png', 'dock-icon.png']);
+let pets = null;  // pets service (species, environments, roster); created once the app is ready
 
-// 1. User-installed character dir, 2. bundled map: char-specific → orc fallback → filename as-is
-function resolveAsset(filename) {
-  const custom = path.join(customCharRoot(), activeChar, filename);
-  if (fs.existsSync(custom)) return custom;
-  const charMap = BUNDLED_CHARS[activeChar] || {};
-  return path.join(bundledAssetsDir, charMap[filename] || BUNDLED_CHARS.orc[filename] || filename);
+// Resized data-URL thumbnails, cached by file + mtime.
+const thumbCache = new Map();
+function thumb(file, px) {
+  try {
+    const key = `${file}|${px}|${fs.statSync(file).mtimeMs}`;
+    if (!thumbCache.has(key)) thumbCache.set(key, nativeImage.createFromPath(file).resize({ width: px }).toDataURL());
+    return thumbCache.get(key);
+  } catch { return null; }
 }
 
-function registerCharacterProtocol() {
-  activeChar = argCharacter || loadPetConfig().character || 'orc';
-  protocol.handle('peon-asset', (request) => {
-    const filename = new URL(request.url).hostname;
-    return net.fetch('file://' + resolveAsset(filename));
+function initPets() {
+  pets = createPetsService({ userDataDir: app.getPath('userData'), assetsDir: bundledAssetsDir, bundled: BUNDLED_CHARS, thumb });
+  pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
+  registerPetIpc({
+    ipcMain, dialog, nativeImage, pets, mutate, petSnapshot, savePetConfig, reloadPetWindows, borderById,
+    getParentWindow: () => dashWin || undefined,
+    clearThumbs: () => thumbCache.clear(),
   });
 }
 
-function characterList() { return listCharacters(Object.keys(BUNDLED_CHARS), customCharRoot()); }
+const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { ...opts, border: loadPetConfig().border });
 
-function charThumb(name) {
-  const prev = activeChar;
-  activeChar = name;
-  try { return nativeImage.createFromPath(resolveAsset('dock-icon.png')).resize({ width: 56, height: 56 }).toDataURL(); }
-  catch { return null; }
-  finally { activeChar = prev; }
+function registerCharacterProtocol() {
+  // peon-asset://<file>[?char=<species>&env=<environment>] — defaults to the lead pet.
+  protocol.handle('peon-asset', (request) => {
+    const u = new URL(request.url);
+    if (!ASSET_NAMES.has(u.hostname)) return new Response('not found', { status: 404 });
+    const file = resolveAsset(u.hostname, { char: u.searchParams.get('char') || undefined, env: u.searchParams.get('env') || undefined });
+    return net.fetch('file://' + file);
+  });
+}
+
+const leadLook = () => { const l = pets && pets.lead(); return l ? pets.lookOf(l) : null; };
+
+function sendLook(w) {
+  const look = leadLook();
+  if (look && w && !w.isDestroyed()) w.webContents.send('pet-look', look);
+}
+function broadcastLook() {
+  sendLook(win);
+  for (const w of subAgentWindows.values()) sendLook(w);
 }
 
 function applyCharacterIcons() {
@@ -91,28 +111,38 @@ function applyCharacterIcons() {
   }
 }
 
-ipcMain.handle('chars-get', () => ({
-  active: activeChar,
-  chars: characterList().map((c) => ({ ...c, thumb: charThumb(c.name) })),
-}));
-
-// Live-switch the pet: no restart needed.
-ipcMain.handle('chars-set', (_e, name) => {
-  if (!isKnownCharacter(name, characterList())) throw new Error(`Unknown pet: ${name}`);
-  activeChar = name;
-  savePetConfig({ character: name });
+// Art or scene changed: rebuild everything that cached the old look.
+function reloadPetWindows() {
   pixooFrameCache.clear();
   pixoo.lastSig = null;
   applyCharacterIcons();
   for (const id of [...subAgentWindows.keys()]) destroySubAgentWindow(id);
-  if (win && !win.isDestroyed()) win.webContents.reloadIgnoringCache();
+  for (const w of [win, gridWin]) if (w && !w.isDestroyed()) w.webContents.reloadIgnoringCache();
   schedulePixooSync(0);
-  return name;
-});
+  refreshMenus();
+}
+
+const lookSig = (l) => JSON.stringify(l && { id: l.petId, sp: l.species, lay: l.layout, env: l.env });
+
+// Run a roster/species mutation, then refresh whatever the lead pet's visuals depend on.
+function mutate(fn) {
+  const before = leadLook();
+  const result = fn();
+  pets.refresh();
+  const after = leadLook();
+  if (lookSig(before) !== lookSig(after)) reloadPetWindows();
+  else if (JSON.stringify(before) !== JSON.stringify(after)) { broadcastLook(); pixoo.lastSig = null; schedulePixooSync(0); }
+  sendSessionUpdate(Date.now());
+  refreshMenus();
+  return result;
+}
+
+const petSnapshot = () => ({ ...pets.snapshot(), activeBorder: loadPetConfig().border || 'default' });
 
 const tracker = createSessionTracker();
 const sessionCwds = new Map();  // session_id → cwd string
 const sessionAgents = new Map();  // session_id → 'claude' | 'codex'
+const sessionAnims = new Map();  // session_id → { anim, at } most recent reaction (for grid tiles)
 
 // peon-ping keys Codex sessions as `codex-<id>`; per-session voice pins must use its key.
 const peonKey = (id) => (sessionAgents.get(id) === 'codex' ? `codex-${id}` : id);
@@ -176,6 +206,7 @@ function createSubAgentWindow(sessionId) {
 
   subWin.webContents.once('did-finish-load', () => {
     subWin.webContents.send('peon-config', { size: 100, subAgent: true });
+    sendLook(subWin);
     subWin.webContents.send('peon-event', { anim: 'waking', event: 'SessionStart' });
     startMouseTrackingForWindow(subWin);
   });
@@ -223,6 +254,7 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
     tracker.remove(sessionId);
     sessionCwds.delete(sessionId);
     sessionAgents.delete(sessionId);
+    sessionAnims.delete(sessionId);
   } else if (event === 'SessionSeen') {
     // File existed at startup: register with actual file mtime, no animation, no dedup
     tracker.update(sessionId, timestamp || now);
@@ -249,6 +281,7 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
   sendSessionUpdate(now);
 
   const anim = EVENT_TO_ANIM[event];
+  if (anim) sessionAnims.set(sessionId, { anim, at: now });
   if (anim && win && !win.isDestroyed()) {
     win.webContents.send('peon-event', { anim, event });
   }
@@ -257,17 +290,20 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
 function sendSessionUpdate(now) {
   const sessions = buildSessionStates(tracker.entries(), now, HOT_MS, WARM_MS, 10);
   const times = new Map(tracker.entries());
-  const payload = {
-    sessions: sessions.map(s => ({
-      ...s,
-      lastActive: times.get(s.id),
-      cwd: sessionCwds.get(s.id) || null,
-      name: sessionCwds.get(s.id) ? path.basename(sessionCwds.get(s.id)) : null,
-      agent: sessionAgents.get(s.id) || 'claude',
-      peonKey: peonKey(s.id),
-    })),
-  };
+  const rows = sessions.map(s => ({
+    ...s,
+    lastActive: times.get(s.id),
+    cwd: sessionCwds.get(s.id) || null,
+    name: sessionCwds.get(s.id) ? path.basename(sessionCwds.get(s.id)) : null,
+    agent: sessionAgents.get(s.id) || 'claude',
+    peonKey: peonKey(s.id),
+    anim: (sessionAnims.get(s.id) || {}).anim || null,
+    animAt: (sessionAnims.get(s.id) || {}).at || 0,
+  }));
+  const looks = pets ? pets.assign(rows) : new Map();
+  const payload = { sessions: rows.map(r => ({ ...r, pet: looks.get(r.id) || null })) };
   latestSessions = payload;
+  if (gridWin && !gridWin.isDestroyed()) gridWin.webContents.send('grid-sessions', payload);
   if (pixooConfig().enabled) schedulePixooSync();
   if (win && !win.isDestroyed()) win.webContents.send('session-update', payload);
   if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('dash-sessions', payload);
@@ -366,10 +402,14 @@ function setPixooStatus(status) {
 }
 
 function pixooAnimFrames(anim) {
-  if (!pixooFrameCache.has(anim)) {
-    pixooFrameCache.set(anim, buildAnimFrames(nativeImage, resolveAsset('sprite-atlas.png'), anim));
+  const look = leadLook();
+  const key = `${look && look.species}|${look && look.env}|${anim}`;
+  if (!pixooFrameCache.has(key)) {
+    // Cutout pets are composited onto their environment; baked sheets already contain the scene.
+    const bgPath = look && look.layout === 'cutout' ? resolveAsset('bg.png') : null;
+    pixooFrameCache.set(key, buildAnimFrames(nativeImage, resolveAsset('sprite-atlas.png'), anim, { bgPath }));
   }
-  return pixooFrameCache.get(anim);
+  return pixooFrameCache.get(key);
 }
 
 function schedulePixooSync(delayMs = 300) {
@@ -385,11 +425,12 @@ async function runPixooSync() {
   try {
     if (!pixoo.client || pixoo.client.ip !== ip) { pixoo.client = new PixooClient(ip); pixoo.lastSig = null; }
     const sessions = latestSessions.sessions || [];
-    const sig = `${petAnim}|${look}|${brightness}|${sessions.map((s) => (s.hot ? 2 : s.warm ? 1 : 0)).join('')}`;
+    const lead = leadLook();
+    const sig = `${lead && lead.petId}|${lead && lead.tint}|${petAnim}|${look}|${brightness}|${sessions.map((s) => (s.hot ? 2 : s.warm ? 1 : 0)).join('')}`;
     if (sig !== pixoo.lastSig) {
       const { frames, speedMs } = pixooAnimFrames(petAnim);
       if (brightness !== null) await pixoo.client.setBrightness(brightness);
-      await pixoo.client.showAnimation(frames.map((f) => drawDots(applyLook(f, look), sessions)), speedMs);
+      await pixoo.client.showAnimation(frames.map((f) => drawDots(applyTint(applyLook(f, look), lead && lead.tintRgb, lead ? lead.tintAlpha : 0), sessions)), speedMs);
       pixoo.lastSig = sig;
     }
     setPixooStatus('connected');
@@ -462,6 +503,19 @@ function openDashboard() {
   dashWin.loadFile('dashboard/index.html');
   dashWin.on('closed', () => { dashWin = null; });
 }
+
+function openGrid() {
+  if (gridWin && !gridWin.isDestroyed()) { gridWin.show(); gridWin.focus(); return; }
+  gridWin = new BrowserWindow({
+    width: 980, height: 700, minWidth: 360, minHeight: 280,
+    title: 'Peon Pet — Agents', backgroundColor: '#0e0e16',
+    webPreferences: { preload: path.join(__dirname, 'grid', 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  gridWin.loadFile('grid/index.html');
+  gridWin.on('closed', () => { gridWin = null; });
+}
+ipcMain.on('open-grid', openGrid);
+ipcMain.on('grid-ready', (e) => e.sender.send('grid-sessions', latestSessions));
 
 ipcMain.on('dash-ready', (e) => {
   e.sender.send('dash-sessions', latestSessions);
@@ -577,6 +631,7 @@ function buildDockMenu() {
   return Menu.buildFromTemplate([
     { label: soundMuted ? 'Unmute Sounds' : 'Mute Sounds', click() { setSoundMuted(!soundMuted); } },
     { label: 'Open Control Panel', click: openDashboard },
+    { label: 'Open Agent Grid', click: openGrid },
     { label: petVisible ? 'Hide Pet' : 'Show Pet', click: togglePet },
     { type: 'separator' },
     { label: 'Quit', click() { app.quit(); } },
@@ -597,6 +652,7 @@ function buildTrayMenu() {
   const px = pixooConfig();
   return Menu.buildFromTemplate([
     { label: 'Open Control Panel', click: openDashboard },
+    { label: 'Open Agent Grid', click: openGrid },
     { type: 'separator' },
     { label: soundMuted ? 'Resume Sounds' : 'Silence All Sounds', click() { setSoundMuted(!soundMuted); } },
     {
@@ -694,6 +750,7 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     isDragging = false;
     win.webContents.send('sound-state', { muted: soundMuted });
+    sendLook(win);
   });
 
   // Clean up sub-agent windows when main window closes
@@ -744,7 +801,7 @@ function startHotReload() {
       if (kind === 'app') return restartApp();
       // Sub-agent windows get their config once at load; they're transient, so drop them.
       for (const id of [...subAgentWindows.keys()]) destroySubAgentWindow(id);
-      for (const w of [win, dashWin]) {
+      for (const w of [win, dashWin, gridWin]) {
         if (w && !w.isDestroyed()) w.webContents.reloadIgnoringCache();
       }
     });
@@ -760,6 +817,7 @@ if (!gotLock) {
   app.quit();
 } else {
   app.whenReady().then(() => {
+    initPets();
     registerCharacterProtocol();
     createWindow();
     createTray();

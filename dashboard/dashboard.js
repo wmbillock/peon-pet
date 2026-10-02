@@ -11,7 +11,6 @@ const volume = document.getElementById('volume');
 const volumeVal = document.getElementById('volume-val');
 const catBox = document.getElementById('categories');
 const notif = document.getElementById('notif');
-const errorBox = document.getElementById('error');
 
 let sessions = [];
 let packState = { packs: [], defaultPack: '', rotationMode: '', pathRuleCount: 0, sessionPacks: {}, volume: 0.5, categories: {}, desktopNotifications: true };
@@ -28,11 +27,6 @@ function cell(text, cls) {
   td.textContent = text;
   if (cls) td.className = cls;
   return td;
-}
-
-function showError(err) {
-  errorBox.textContent = err ? String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : '';
-  errorBox.style.display = err ? 'block' : 'none';
 }
 
 function displayName(name) {
@@ -139,7 +133,15 @@ function renderRows() {
     play.addEventListener('click', () => audition(sel.value || packState.defaultPack));
     voiceTd.append(sel, play);
 
-    tr.append(status, cell(ago(s.lastActive)), voiceTd);
+    const petTd = document.createElement('td');
+    if (s.pet) {
+      const sw = document.createElement('span');
+      sw.className = 'dot';
+      sw.style.background = s.pet.tintCss === 'transparent' ? '#777' : s.pet.tintCss.replace(/[\d.]+\)$/, '1)');
+      petTd.append(sw, s.pet.name);
+      petTd.title = s.pet.speciesDisplay + (s.pet.tint !== 'none' ? ` · ${s.pet.tint} tint` : '');
+    }
+    tr.append(petTd, status, cell(ago(s.lastActive)), voiceTd);
     return tr;
   }));
   empty.style.display = sessions.length ? 'none' : 'block';
@@ -182,7 +184,10 @@ globalApply.addEventListener('click', async () => {
 
 window.dashBridge.onSessions((data) => {
   sessions = data.sessions;
+  app.sessions = sessions;
+  document.dispatchEvent(new Event('sessions'));
   refreshPacks();  // also picks up changes made outside the pet (`peon packs use`, /peon-ping-use)
+  refreshSnap();   // pet assignments / art may have changed
 });
 
 window.dashBridge.onSoundState(({ muted }) => {
@@ -234,26 +239,16 @@ pixooIp.addEventListener('change', () => { if (pixooOn.checked) savePixoo(); });
 window.dashBridge.onPixooState(renderPixoo);
 window.dashBridge.getPixoo().then(renderPixoo);
 
-// --- Pets ---
-const petCards = document.getElementById('pet-cards');
+// --- Frame style ---
+const borderCards = document.getElementById('border-cards');
 
-async function refreshPets() {
-  try {
-    const { active, chars } = await window.dashBridge.getChars();
-    petCards.replaceChildren(...chars.map((c) => {
-      const b = document.createElement('button');
-      b.className = 'pet' + (c.name === active ? ' active' : '');
-      b.title = c.custom ? 'Custom character' : 'Bundled character';
-      if (c.thumb) { const img = document.createElement('img'); img.src = c.thumb; b.append(img); }
-      b.append(c.name);
-      b.addEventListener('click', async () => {
-        try { showError(null); await window.dashBridge.setChar(c.name); } catch (e) { showError(e); }
-        refreshPets();
-window.addEventListener('focus', refreshPets);  // pick up characters imported while the panel was open
-      });
-      return b;
-    }));
-  } catch (e) { showError(e); }
-}
-refreshPets();
-window.addEventListener('focus', refreshPets);  // pick up characters imported while the panel was open
+onSnap((snap) => renderUnlessEditing(borderCards, () => {
+  borderCards.replaceChildren(...snap.borders.map((b) => {
+    const btn = h('button', { class: 'cardbtn' + (b.id === snap.activeBorder ? ' on' : ''), title: b.label,
+      onclick: () => act(() => window.dashBridge.setBorder(b.id)) });
+    btn.append(b.thumb ? h('img', { class: 'ph frameprev', src: b.thumb }) : h('div', { class: 'ph frameprev' }, h('div', { style: 'padding-top:20px;color:#888' }, b.id === 'default' ? 'pet' : '')), b.label);
+    return btn;
+  }));
+}));
+
+document.getElementById('grid-btn').addEventListener('click', () => window.dashBridge.openGrid());

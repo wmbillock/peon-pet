@@ -105,6 +105,23 @@ const borderMesh = new THREE.Mesh(
 borderMesh.position.z = 0.4;
 scene.add(borderMesh);
 
+// --- Tint: a translucent colour filter so several pets of one species can be told apart ---
+const tintMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthTest: false })
+);
+tintMesh.position.z = 0.35;
+scene.add(tintMesh);
+
+let petLook = null;
+window.peonBridge.onPetLook((look) => {
+  petLook = look;
+  tintMesh.material.color.setRGB(look.tintRgb[0] / 255, look.tintRgb[1] / 255, look.tintRgb[2] / 255);
+  tintMesh.material.opacity = look.tintAlpha;
+  // The dungeon backdrop is dimmed to sit behind baked art; environment plates should be full colour.
+  bgMesh.material.color.set(look.layout === 'cutout' ? 0xffffff : 0x888888);
+});
+
 // --- Session dots (glowing orbs) ---
 const MAX_DOTS = 10;
 const DOT_SIZE = 12;
@@ -392,15 +409,16 @@ function handleMouseMove(e) {
                          : '<span style="color:#555">cold</span>';
     const label = s.cwd ? s.cwd.split('/').filter(Boolean).pop() : ('\u2026' + s.id.slice(-8));
     const agentTag = s.agent === 'codex' ? ' (codex)' : '';
-    html = `${label}${agentTag} &bull; ${status}`;
+    const petTag = s.pet ? `${s.pet.name} \u00b7 ` : '';
+    html = `${petTag}${label}${agentTag} &bull; ${status}`;
   } else {
     const active = currentSessions.filter(s => s.hot).length;
     const total  = currentSessions.length;
     if (total === 0) {
-      html = 'Peon Pet';
+      html = petLook ? `${petLook.name} (${petLook.speciesDisplay})` : 'Peon Pet';
     } else {
       const names = currentSessions
-        .map(s => s.cwd ? s.cwd.split('/').filter(Boolean).pop() + (s.agent === 'codex' ? ' (codex)' : '') : null)
+        .map(s => s.cwd ? (s.pet ? s.pet.name + ' \u00b7 ' : '') + s.cwd.split('/').filter(Boolean).pop() + (s.agent === 'codex' ? ' (codex)' : '') : null)
         .filter(Boolean);
       html = names.length ? names.join('<br>') : `${active}/${total} sessions`;
     }
@@ -469,6 +487,8 @@ window.peonBridge.onConfig(({ size, subAgent }) => {
   sprite.geometry = geometry;
   borderMesh.geometry.dispose();
   borderMesh.geometry = new THREE.PlaneGeometry(size, size);
+  tintMesh.geometry.dispose();
+  tintMesh.geometry = new THREE.PlaneGeometry(size, size);
 
   // Re-apply current frame UVs to the new geometry
   setFrame(currentAnim, currentFrame);

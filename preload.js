@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('peonBridge', {
   onSessionUpdate: (callback) => ipcRenderer.on('session-update', (_e, data) => callback(data)),
   startDrag: () => ipcRenderer.send('drag-start'),
   stopDrag: () => ipcRenderer.send('drag-stop'),
+  onPetLook: (callback) => ipcRenderer.on('pet-look', (_e, data) => callback(data)),
   reportAnim: (anim) => ipcRenderer.send('anim-changed', anim),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   toggleSound: () => ipcRenderer.send('sound-toggle'),

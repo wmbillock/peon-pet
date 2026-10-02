@@ -74,3 +74,23 @@ test('applyLook: 0 is identity, higher strength darkens, desaturates and cuts bl
   expect(applyLook(Buffer.alloc(FRAME_BYTES, 255), 100)[0]).toBe(255);  // white stays white (r,g)
   expect(px[0]).toBe(40);                    // input untouched
 });
+
+test('applyTint blends toward the tint colour and leaves alpha 0 unchanged', () => {
+  const { applyTint } = require('../lib/pixoo');
+  const px = Buffer.alloc(FRAME_BYTES, 100);
+  expect(applyTint(px, [255, 0, 0], 0).equals(px)).toBe(true);
+  expect(applyTint(px, null, 0.5).equals(px)).toBe(true);
+  const t = applyTint(px, [255, 0, 0], 0.5);
+  expect([...t.subarray(0, 3)]).toEqual([178, 50, 50]);
+  expect(px[0]).toBe(100);
+});
+
+test('bgraToRgb composites onto a background when given one', () => {
+  const bgra = Buffer.alloc(SIZE * SIZE * 4);
+  bgra.set([0, 0, 200, 255], 0);   // opaque red (BGRA)
+  bgra.set([0, 0, 200, 0], 4);     // fully transparent
+  const bg = Buffer.alloc(SIZE * SIZE * 3, 40);
+  const out = bgraToRgb(bgra, bg);
+  expect([...out.subarray(0, 3)]).toEqual([200, 0, 0]);
+  expect([...out.subarray(3, 6)]).toEqual([40, 40, 40]);
+});
