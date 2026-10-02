@@ -19,7 +19,7 @@ Identity model (decided 2026-10-02):
 - [x] Summary strip (counts, click to dive) replaces the dots; Pixoo shows the same counts
 - [x] Firm: consume `agent_type` and project look fields when provided; feature requests drafted (`docs/firm/`)
 - [x] Firm feature requests written, aligned with T-0002/T-0003, and built into a verified patch (`docs/firm/firm-pr.patch`, `SUBMIT.md`)
-- [ ] **Open the draft PR** into affirm-builders `pricing/the-firm/develop` — outward-facing (Peter's swarm reviews; touches `swarm/` so needs a human approval): waiting on a go-ahead
+- [x] Draft PR opened: https://github.com/Affirm/affirm-builders/pull/3871 (T-0006..T-0012; waiting on human approval + swarm review)
 - [ ] Per-session override of project membership ("this session belongs to project X")
 - [ ] Project background for baked sheets (needs cutout art; see art prompts)
 
