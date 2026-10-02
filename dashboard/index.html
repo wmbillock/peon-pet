@@ -202,6 +202,12 @@
         </table>
       </section>
       <section class="card">
+        <h2 class="first">Kinds of agent</h2>
+        <div class="help" style="margin:0 0 8px">A pet can serve as many kinds of agent. Each kind belongs to a Firm role and has a viewpoint (<b>personality</b>), <b>traits</b> that decide when it fits, and <b>permissions</b> it may only narrow from its role. Sub-agents are matched automatically: the type whose traits fit the agent's role, project, title and folder best wins, and ties go to the type used least so duplicates get variety. Pin a type on one agent from the Projects page. The Firm's own choice always wins.</div>
+        <div class="line"><label class="inline"><input type="checkbox" id="types-auto-roots"> Also pick a type for top-level agents</label><span style="flex:1"></span><button id="types-new">New kind of agent</button></div>
+        <div id="types-list"></div>
+      </section>
+      <section class="card">
         <h2 class="first">Next: build agent types together in The Firm</h2>
         <div class="help" style="margin:0">Pets, species, environments and prompt generation are designed to move into The Firm's Agent Forge, where an agent type (its look, personality and role) can be defined and shared. This page is the seed of that: today it maps roles to looks.</div>
       </section>
@@ -216,5 +222,6 @@
   <script src="projects-tab.js"></script>
   <script src="firm-tab.js"></script>
   <script src="forge-tab.js"></script>
+  <script src="types-tab.js"></script>
 </body>
 </html>

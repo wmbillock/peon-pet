@@ -174,3 +174,21 @@ test('projects: list, edit (frame/env validated against the catalogs), forget; c
   const s2 = await invoke('projects-forget', 'cwd:/w/peon-pet');
   expect(s2.projects).toEqual([]);
 });
+
+test('agent types: list, edit with permissions, pin, auto roots, and ask "can it?"', async () => {
+  let st = await invoke('types-get');
+  expect(st.categories).toContain('worker');
+  expect(st.types.find((t) => t.slug === 'tinkerer').can).toContain('edit-code');
+  st = await invoke('types-put', { slug: 'careful', name: 'Careful', category: 'worker', species: 'orc', traits: 'security', deny: ['write-tests'] });
+  expect(st.types.find((t) => t.slug === 'careful').can).not.toContain('write-tests');
+  await expect(invoke('types-put', { slug: 'bad', name: 'Bad', category: 'inspector', species: 'orc', allow: ['edit-code'] })).rejects.toThrow(/only narrow/);
+  expect(await invoke('types-check', 'careful', 'edit-code')).toMatchObject({ decision: 'allow' });
+  expect(await invoke('types-check', 'careful', 'merge')).toMatchObject({ decision: 'delegate', route: 'human' });
+  st = await invoke('types-pin', 'session', 's1', 'careful');
+  expect(st.pins.sessions).toEqual({ s1: 'careful' });
+  st = await invoke('types-pin', 'session', 's1', null);
+  expect(st.pins.sessions).toEqual({});
+  expect((await invoke('types-auto-roots', true)).autoRoots).toBe(true);
+  st = await invoke('types-remove', 'careful');
+  expect(st.types.some((t) => t.slug === 'careful')).toBe(false);
+});
