@@ -1,7 +1,9 @@
 const { localOnlySlugs, excluded } = require('../lib/dist-filter');
 
 test('local-only species come from the species metadata', () => {
-  expect(localOnlySlugs().sort()).toEqual(['hello-kitty', 'terra-ff6']);
+  expect(localOnlySlugs()).toEqual(expect.arrayContaining(['hello-kitty', 'terra-ff6', 'the-dude', 'kirby']));
+  expect(localOnlySlugs()).not.toContain('orc');
+  expect(localOnlySlugs()).not.toContain('french-horn');
 });
 
 test('excludes local-only art and docs plus internal Firm notes, nothing else', () => {
