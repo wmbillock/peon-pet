@@ -121,3 +121,15 @@ describe('assignPets', () => {
     expect(r.get('cold')).toBe('b');
   });
 });
+
+describe('assignPets with ranks', () => {
+  const pet = (id, assignment = null) => ({ id, assignment });
+  const sess = (id, extra = {}) => ({ id, cwd: '/w', agent: 'claude', hot: true, lastActive: 0, ...extra });
+
+  test('masters pick pets before workers even when workers are busier', () => {
+    const pets = [pet('first'), pet('second')];
+    const r = assignPets({ pets, lead: 'first', sessions: [sess('w1', { rank: 1, lastActive: 99 }), sess('m1', { rank: 0, lastActive: 1 })] });
+    expect(r.get('m1')).toBe('first');
+    expect(r.get('w1')).toBe('second');
+  });
+});

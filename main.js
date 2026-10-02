@@ -15,6 +15,7 @@ const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
 const { registerPetIpc } = require('./lib/ipc-pets');
+const { readSessionRegistry, transcriptFor } = require('./lib/live-agents');
 const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawDots } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
@@ -144,6 +145,34 @@ const tracker = createSessionTracker();
 const sessionCwds = new Map();  // session_id → cwd string
 const sessionAgents = new Map();  // session_id → 'claude' | 'codex'
 const sessionAnims = new Map();  // session_id → { anim, at } most recent reaction (for grid tiles)
+const sessionTitles = new Map();  // session_id → { title, kind: 'custom'|'ai' }  (what the user named the session)
+// Live-process knowledge (refreshed every 15s): masters are interactive agents you started; workers are headless.
+let masterIds = new Set();
+let workerIds = new Set();
+let liveIds = new Set();   // every session in Claude's registry (its process is running)
+let busyIds = new Set();   // …of which currently mid-turn
+const sessionRegistry = new Map();  // session_id → registry entry (name, entrypoint, status…)
+const DEFAULT_WORKER_PATTERNS = ['/.firm/worktrees/'];
+
+function roleOf(id, cwd) {
+  if (masterIds.has(id)) return 'master';
+  const patterns = loadPetConfig().workerPatterns || DEFAULT_WORKER_PATTERNS;
+  if (workerIds.has(id) || (!liveIds.has(id) && cwd && patterns.some((p) => cwd.includes(p)))) return 'worker';
+  return 'session';
+}
+
+const TITLE_RANK = { custom: 3, ai: 2, derived: 1 };   // a name you chose > the auto title > a derived name
+function setSessionTitle(id, title, kind) {
+  const cur = sessionTitles.get(id);
+  if (cur && TITLE_RANK[cur.kind] > TITLE_RANK[kind]) return;
+  sessionTitles.set(id, { title, kind });
+}
+
+let sessionUpdateTimer = null;
+function scheduleSessionUpdate() {   // transcripts can carry hundreds of title records: coalesce
+  clearTimeout(sessionUpdateTimer);
+  sessionUpdateTimer = setTimeout(() => sendSessionUpdate(Date.now()), 150);
+}
 
 // peon-ping keys Codex sessions as `codex-<id>`; per-session voice pins must use its key.
 const peonKey = (id) => (sessionAgents.get(id) === 'codex' ? `codex-${id}` : id);
@@ -235,8 +264,9 @@ function destroySubAgentWindow(sessionId) {
   repositionSubAgentWindows();
 }
 
-function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
+function handleSessionEvent({ sessionId, event, cwd, timestamp, agent, title, titleKind }) {
   if (!isValidSessionId(sessionId)) return;
+  if (event === 'SessionTitle') { setSessionTitle(sessionId, title, titleKind); scheduleSessionUpdate(); return; }
   if (agent && !sessionAgents.has(sessionId)) console.log(`[session] ${agent} ${sessionId.slice(0, 8)} ${event}`);
   if (agent) sessionAgents.set(sessionId, agent);
 
@@ -256,6 +286,7 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
     sessionCwds.delete(sessionId);
     sessionAgents.delete(sessionId);
     sessionAnims.delete(sessionId);
+    sessionTitles.delete(sessionId);
   } else if (event === 'SessionSeen') {
     // File existed at startup: register with actual file mtime, no animation, no dedup
     tracker.update(sessionId, timestamp || now);
@@ -274,9 +305,9 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
     if (cwd) sessionCwds.set(sessionId, cwd);
   }
 
-  tracker.prune(now - SESSION_PRUNE_MS);
+  tracker.prune(now - SESSION_PRUNE_MS, (id) => liveIds.has(id));   // live sessions stay, however long they idle
   for (const id of sessionCwds.keys()) {
-    if (!tracker.entries().some(([sid]) => sid === id)) { sessionCwds.delete(id); sessionAgents.delete(id); }
+    if (!tracker.entries().some(([sid]) => sid === id)) { sessionCwds.delete(id); sessionAgents.delete(id); sessionTitles.delete(id); }
   }
 
   sendSessionUpdate(now);
@@ -288,19 +319,39 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
   }
 }
 
+let lastSessionSig = '';
 function sendSessionUpdate(now) {
-  const sessions = buildSessionStates(tracker.entries(), now, HOT_MS, WARM_MS, 10);
+  const sessions = buildSessionStates(tracker.entries(), now, HOT_MS, WARM_MS, 200);
   const times = new Map(tracker.entries());
-  const rows = sessions.map(s => ({
-    ...s,
-    lastActive: times.get(s.id),
-    cwd: sessionCwds.get(s.id) || null,
-    name: sessionCwds.get(s.id) ? path.basename(sessionCwds.get(s.id)) : null,
-    agent: sessionAgents.get(s.id) || 'claude',
-    peonKey: peonKey(s.id),
-    anim: (sessionAnims.get(s.id) || {}).anim || null,
-    animAt: (sessionAnims.get(s.id) || {}).at || 0,
-  }));
+  const rows = sessions.map(s => {
+    const cwd = sessionCwds.get(s.id) || null;
+    const role = roleOf(s.id, cwd);
+    const t = sessionTitles.get(s.id);
+    return {
+      ...s,
+      lastActive: times.get(s.id),
+      cwd,
+      name: cwd ? path.basename(cwd) : null,
+      title: t ? t.title : null,
+      role,
+      status: busyIds.has(s.id) ? 'busy' : liveIds.has(s.id) ? 'idle' : null,
+      live: liveIds.has(s.id),
+      rank: role === 'master' ? 0 : 1,
+      agent: sessionAgents.get(s.id) || 'claude',
+      peonKey: peonKey(s.id),
+      anim: (sessionAnims.get(s.id) || {}).anim || null,
+      animAt: (sessionAnims.get(s.id) || {}).at || 0,
+    };
+  });
+  // Masters first in a stable (alphabetical) order so tiles and dots don't shuffle; the rest by recency.
+  const label = (r) => `${r.title || r.name || ''}|${r.id}`;
+  rows.sort((a, b) => a.rank - b.rank || (a.rank === 0 ? label(a).localeCompare(label(b)) : b.lastActive - a.lastActive));
+  rows.splice(24);
+  const sig = `${rows.length}/${rows.filter((r) => r.hot).length}/${rows.filter((r) => r.warm).length}`;
+  if (sig !== lastSessionSig) {   // one line per change: total/hot/warm and who
+    lastSessionSig = sig;
+    console.log(`[sessions] ${sig} ${rows.map((r) => `${r.role === 'master' ? 'M:' : ''}${(r.title || r.name || '?').slice(0, 16)}${r.hot ? '*' : r.warm ? '~' : '.'}`).join(' ')}`);
+  }
   const looks = pets ? pets.assign(rows) : new Map();
   const payload = { sessions: rows.map(r => ({ ...r, pet: looks.get(r.id) || null })) };
   latestSessions = payload;
@@ -358,6 +409,33 @@ function startPolling() {
     w.start();
   }
 
+  // Which sessions are alive, and which are masters? Claude's own registry (~/.claude/sessions) lists
+  // every live session with its name, idle/busy status and entrypoint ('cli' = you; 'sdk-*' = launched
+  // by software like The Firm). Live sessions' transcripts are tracked however long they've been quiet.
+  function refreshLive() {
+    try {
+      const reg = readSessionRegistry();
+      masterIds = new Set(reg.filter((r) => r.role === 'master').map((r) => r.sessionId));
+      workerIds = new Set(reg.filter((r) => r.role === 'worker').map((r) => r.sessionId));
+      liveIds = new Set(reg.map((r) => r.sessionId));
+      busyIds = new Set(reg.filter((r) => r.status === 'busy').map((r) => r.sessionId));
+      for (const r of reg) {
+        const file = transcriptFor(r);
+        if (file && watcher.trackFile(file)) console.log(`[live] tracking ${r.role} ${r.name || r.sessionId.slice(0, 8)}`);
+        if (r.name) setSessionTitle(r.sessionId, r.name, r.nameSource === 'user' ? 'custom' : 'derived');
+        if (r.status === 'busy') tracker.update(r.sessionId, Date.now());
+        if (!sessionCwds.has(r.sessionId)) sessionCwds.set(r.sessionId, r.cwd);
+        sessionRegistry.set(r.sessionId, r);
+      }
+      for (const id of [...sessionRegistry.keys()]) if (!liveIds.has(id)) sessionRegistry.delete(id);
+      sendSessionUpdate(Date.now());
+    } catch (e) {
+      console.error('[live] registry read failed:', e.message);
+    }
+  }
+  refreshLive();
+  setInterval(refreshLive, 4000);
+
   // Heartbeat: refresh session hot/warm status so the pet correctly decays.
   // Sessions with pending tools are kept hot so the pet stays awake during long tool runs.
   // Also runs the TTL sweep for sub-agent windows whose SubagentStop never fired.
@@ -372,6 +450,7 @@ function startPolling() {
     for (const w of watchers) {
       for (const sessionId of w.getActiveSessionIds()) tracker.update(sessionId, now);
     }
+    for (const sessionId of busyIds) tracker.update(sessionId, now);
     sendSessionUpdate(now);
   }, 5000);
 

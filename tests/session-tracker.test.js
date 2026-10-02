@@ -254,3 +254,12 @@ describe('EVENT_TO_ANIM', () => {
     expect(EVENT_TO_ANIM['UnknownEvent']).toBeUndefined();
   });
 });
+
+describe('prune with keep', () => {
+  test('retains kept sessions even when stale', () => {
+    const t = createSessionTracker();
+    t.update('old-master', 1000); t.update('old-worker', 1000); t.update('fresh', 9000);
+    t.prune(5000, (id) => id === 'old-master');
+    expect(t.entries().map(([id]) => id).sort()).toEqual(['fresh', 'old-master']);
+  });
+});

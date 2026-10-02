@@ -501,3 +501,34 @@ describe('subagent detection — background (subagents/ dir)', () => {
     expect(events.some(e => e.event === 'SubagentStart')).toBe(false);
   });
 });
+
+describe('trackFile (live sessions that have been quiet for a long time)', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { JsonlWatcher } = require('../lib/jsonl-watcher');
+  const ID = '11111111-2222-4333-8444-555555555555';
+
+  test('watches a stale transcript even if the startup scan already skipped it', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'track-'));
+    const file = path.join(dir, `${ID}.jsonl`);
+    fs.writeFileSync(file, JSON.stringify({ type: 'custom-title', customTitle: 'Old Master' }) + '\n');
+    const old = new Date(Date.now() - 3 * 3600 * 1000);
+    fs.utimesSync(file, old, old);
+
+    const w = new JsonlWatcher();
+    const events = [];
+    w.on('session-event', (e) => events.push(e));
+    w._knownFiles.add(file);                       // what _registerFile does before deciding a file is stale
+    w._watchFile(file);                            // startup path: stale → skipped
+    expect(events).toEqual([]);
+
+    expect(w.trackFile(file)).toBe(true);
+    expect(events[0]).toMatchObject({ sessionId: ID, event: 'SessionSeen' });
+    expect(Math.abs(events[0].timestamp - old.getTime())).toBeLessThan(2000);   // idle, not "just now"
+    expect(events.find((e) => e.event === 'SessionTitle')).toMatchObject({ title: 'Old Master', titleKind: 'custom' });
+    expect(w.trackFile(file)).toBe(false);          // already watched
+    w.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
