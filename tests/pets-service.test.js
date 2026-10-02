@@ -11,6 +11,7 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-'));
   svc = createPetsService({ userDataDir: dir, assetsDir: ASSETS, bundled: BUNDLED });
   svc.seed('orc');
+  for (const t of svc.agentTypes.list()) svc.agentTypes.remove(t.slug);   // existing tests are about roles and tints, not seeded types
 });
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
@@ -205,5 +206,49 @@ describe('agent type supplied by The Firm', () => {
     expect(m.get('w1')).toMatchObject({ species: 'eighth-note', sub: true });
     expect(m.get('w2').species).toBe('retro-robot');               // no type: the role mapping applies
     expect(m.get('w3').species).toBe('retro-robot');               // unknown type: ignored, not a crash
+  });
+});
+
+describe('agent types', () => {
+  const root = (id, extra = {}) => ({ id, isRoot: true, rootId: id, cwd: '/w/app', agent: 'claude', hot: true, lastActive: 1, order: 0, ...extra });
+  const kid = (id, rootId, role, extra = {}) => ({ id, isRoot: false, rootId, firmRole: role, cwd: '/w/app', agent: 'claude', hot: true, lastActive: 1, order: 1, ...extra });
+  const addTypes = () => {
+    svc.agentTypes.put({ slug: 'robo', name: 'Robo', category: 'worker', species: 'retro-robot', traits: ['backend'], personality: 'careful' }, svc.typeChecks);
+    svc.agentTypes.put({ slug: 'grunt', name: 'Grunt', category: 'worker', species: 'capybara', traits: ['frontend'], personality: 'calm' }, svc.typeChecks);
+  };
+
+  test('sub-agents are matched to a type by traits: the pet changes, the root name stays, and the type rides on the look', () => {
+    addTypes();
+    const m = svc.assign([root('r'), kid('k1', 'r', 'worker', { title: 'Backend handler' }), kid('k2', 'r', 'worker', { title: 'Frontend page' })]);
+    expect(m.get('k1')).toMatchObject({ species: 'retro-robot', name: m.get('r').name, type: { slug: 'robo', personality: 'careful' } });
+    expect(m.get('k2')).toMatchObject({ species: 'capybara', type: { slug: 'grunt' } });
+    expect(m.get('r').type).toBeUndefined();   // roots only auto-pick when you turn that on
+  });
+
+  test('a session pin beats the automatic pick; a Firm agent_type beats a pin; a role→species setting beats auto-pick', () => {
+    addTypes();
+    const agents = [root('r'), kid('k1', 'r', 'worker', { title: 'Backend handler' })];
+    svc.agentTypes.pin('session', 'k1', 'grunt');
+    expect(svc.assign(agents).get('k1').type.slug).toBe('grunt');
+    const firm = [root('r'), kid('k1', 'r', 'worker', { firm: { agentType: 'robo' } })];
+    expect(svc.assign(firm).get('k1').type.slug).toBe('robo');
+    svc.agentTypes.pin('session', 'k1', null);
+    svc.setRoleSpecies({ worker: 'weeping-willow' });
+    const m = svc.assign(agents);
+    expect(m.get('k1')).toMatchObject({ species: 'weeping-willow' });
+    expect(m.get('k1').type).toBeUndefined();
+  });
+
+  test('duplicates spread across the types in their category', () => {
+    addTypes();
+    const m = svc.assign([root('r'), kid('a', 'r', 'worker', { order: 1 }), kid('b', 'r', 'worker', { order: 2 })]);
+    expect(new Set([m.get('a').type.slug, m.get('b').type.slug]).size).toBe(2);
+  });
+
+  test('autoRoots lets roots wear a type too', () => {
+    addTypes();
+    svc.agentTypes.put({ slug: 'boss', name: 'Boss', category: 'lead', species: 'capybara', traits: [], personality: '' }, svc.typeChecks);
+    svc.agentTypes.setAutoRoots(true);
+    expect(svc.assign([root('r')]).get('r').type.slug).toBe('boss');
   });
 });
