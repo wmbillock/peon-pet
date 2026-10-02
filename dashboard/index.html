@@ -5,6 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data:; script-src 'self'; style-src 'self' 'unsafe-inline';">
   <title>Peon Pet</title>
   <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="../dash/frames.css">
 </head>
 <body>
 <div id="app">
@@ -13,6 +14,7 @@
     <nav id="nav">
       <h4>Agents</h4>
       <button data-page="overview"><i>◎</i> Overview</button>
+      <button data-page="projects"><i>◆</i> Projects</button>
       <h4>Pets</h4>
       <button data-page="pets"><i>🐾</i> Roster</button>
       <button data-page="species"><i>🎨</i> Species &amp; art</button>
@@ -54,6 +56,16 @@
       <tbody id="rows"></tbody>
     </table>
     <div id="empty">No active Claude Code or Codex sessions.</div>
+    </main>
+
+    <!-- ============ Projects ============ -->
+    <main id="page-projects" class="page" hidden>
+      <section class="card">
+        <h2 class="first">Projects</h2>
+        <div class="help" style="margin:0 0 8px">A project is what a group of agents is working on. All of its agents share its <b>emoji</b>, <b>color family</b>, <b>frame</b> and <b>background</b>; same-type agents within it are told apart by shades. Projects appear on their own as agents show up; rename or restyle them here.</div>
+        <label class="inline"><input type="checkbox" id="proj-unused"> Show projects with no agents right now</label>
+      </section>
+      <div id="proj-list"></div>
     </main>
 
     <!-- ============ Pets ============ -->
@@ -180,9 +192,9 @@
     <main id="page-forge" class="page" hidden>
       <section class="card">
         <h2 class="first">Agent types</h2>
-        <div class="help" style="margin:0 0 8px">Choose which species stands for each Firm role. Sub-agents always share their lead's tint, so a robot worker still tells you which workstream it belongs to.</div>
+        <div class="help" style="margin:0 0 8px">Choose which species and which full-image <b>filter</b> stand for each Firm role — the agent <i>type</i>. Projects are told apart by their plate, emoji and frame; agents of the same type within a project by shades of the project's color (a role filter replaces its shade).</div>
         <table id="forge-table">
-          <thead><tr><th>Role</th><th>What it does</th><th>Species</th></tr></thead>
+          <thead><tr><th>Role</th><th>What it does</th><th>Species</th><th>Filter</th></tr></thead>
           <tbody id="forge-rows"></tbody>
         </table>
       </section>
@@ -198,6 +210,7 @@
   <script src="dashboard.js"></script>
   <script src="pets-tab.js"></script>
   <script src="species-tab.js"></script>
+  <script src="projects-tab.js"></script>
   <script src="firm-tab.js"></script>
   <script src="forge-tab.js"></script>
 </body>

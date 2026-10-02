@@ -138,3 +138,25 @@ test('emoji rules match whole-word starts: "display" is not "play", "carpet" is 
   expect(suggestEmoji('the-firm')).toBe('🏛️');
   expect(suggestEmoji('security-audit')).toBe('🧾');   // first matching rule wins (audit before security)
 });
+
+describe('seeds supplied from outside (The Firm)', () => {
+  test('a seed sets a new project\'s look; later seeds update only fields you have not edited', () => {
+    const s = createProjectStore({ file });
+    const p = s.resolve('firm:p1', 'Pricing CLI', { emoji: '💲', hue: 215, frame: 'gold', env: 'dungeon' });
+    expect(p).toMatchObject({ emoji: '💲', hue: 215, frame: 'gold', env: 'dungeon' });
+    // The Firm changes its mind: auto fields follow
+    expect(s.resolve('firm:p1', 'Pricing CLI', { emoji: '🏦', hue: 100 })).toMatchObject({ emoji: '🏦', hue: 100, frame: 'gold' });
+    // You edit the colour: from then on the Firm's hue no longer wins, but its other fields still do
+    s.update('firm:p1', { hue: 10 });
+    expect(s.resolve('firm:p1', 'Pricing CLI', { emoji: '🧮', hue: 300, frame: 'stone' })).toMatchObject({ hue: 10, emoji: '🧮', frame: 'stone' });
+    s.update('firm:p1', { frame: 'thin' });
+    expect(s.resolve('firm:p1', 'Pricing CLI', { frame: 'stone' }).frame).toBe('thin');
+  });
+
+  test('an absent seed changes nothing; a seeded emoji is not overridden by the name rules', () => {
+    const s = createProjectStore({ file });
+    s.resolve('firm:p2', 'peon-pet', { emoji: '🦊' });
+    expect(s.resolve('firm:p2', 'peon-pet')).toMatchObject({ emoji: '🦊' });
+    expect(s.resolve('firm:p2', 'peon-pet', {})).toMatchObject({ emoji: '🦊' });
+  });
+});

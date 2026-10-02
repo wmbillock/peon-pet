@@ -10,16 +10,17 @@ Identity model (decided 2026-10-02):
 
 ## Now
 
-- [ ] Project model: key, name, emoji, hue, **frame**, **environment** (`lib/projects.js` store exists; add frame/env fields)
-- [ ] Firm project titles (`/api/projects`) so Firm agents group under real project names
-- [ ] Shades: same-type agents in a project get distinct shades of the project hue (replaces "sub-agents inherit the lead's tint" and the tint-cycling for duplicates)
-- [ ] Tiles use the project's background (cutout species) and frame; name plate in the project shade by role
-- [ ] Emoji in group views and next to names
-- [ ] View slices: toggle by project, role/type, status, agent (Claude / Codex / Firm); presets in the corner window
-- [ ] Group by **project** (not just by agent) in Grid
-- [ ] **Dynamic frames**: status pulse, project glow, neon chase, rainbow — selectable like any frame, and settable per project
-- [ ] Projects page in the panel: rename, emoji, hue, frame, environment, which agents belong
-- [ ] Forge page: per-role filter in addition to per-role species
+- [x] Project model: emoji, hue, frame, environment (`lib/projects.js`), Firm project titles, Firm-supplied seeds
+- [x] Shades: same-type agents in a project get distinct shades of the project hue (`lib/marks.js`)
+- [x] Tiles use the project's plate, frame and background; emoji marks groups; group by project
+- [x] View slices: status, project, type, tool; presets in the corner window
+- [x] Dynamic frames: status glow, project glow, neon chase, rainbow (tiles + corner overlay)
+- [x] Projects page; Forge per-role species and filter
+- [x] Summary strip (counts, click to dive) replaces the dots; Pixoo shows the same counts
+- [x] Firm: consume `agent_type` and project look fields when provided; feature requests drafted (`docs/firm/`)
+- [ ] **Submit the Firm feature requests** (PR into affirm-builders `pricing/the-firm/develop`: ROADMAP entries + TASKS rows) — needs a go-ahead
+- [ ] Per-session override of project membership ("this session belongs to project X")
+- [ ] Project background for baked sheets (needs cutout art; see art prompts)
 
 ## Soon
 

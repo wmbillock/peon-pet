@@ -54,16 +54,34 @@ describe('poller', () => {
   });
 });
 
-describe('project titles', () => {
-  test('client reads /api/projects; poller exposes an id → title map and tolerates a missing endpoint', async () => {
+describe('projects and identity supplied at instantiation', () => {
+  const { normalizeProject } = require('../lib/firm-client');
+
+  test('normalizeProject reads the title and, when The Firm supplies it, emoji / hue / frame / background', () => {
+    expect(normalizeProject({ id: 'p1', title: 'Pricing CLI' })).toEqual({ id: 'p1', title: 'Pricing CLI', emoji: null, hue: null, frame: null, env: null });
+    expect(normalizeProject({ id: 7, name: 'X', emoji: ' 💲 ', color_hue: 215.4, frame: 'gold', environment: 'jazz-club' }))
+      .toEqual({ id: '7', title: 'X', emoji: '💲', hue: 215, frame: 'gold', env: 'jazz-club' });
+    // junk is dropped, not trusted
+    expect(normalizeProject({ id: 'p', hue: 999, emoji: 'x'.repeat(40), frame: '../etc', env: 'Has Space' }))
+      .toEqual({ id: 'p', title: null, emoji: null, hue: null, frame: null, env: null });
+  });
+
+  test('normalizeThread keeps an agent type only when it is a clean slug', () => {
+    expect(normalizeThread({ id: 't', agent_type: 'retro-robot' }).agentType).toBe('retro-robot');
+    expect(normalizeThread({ id: 't', agent_type: 'Has Space' }).agentType).toBeNull();
+    expect(normalizeThread({ id: 't' }).agentType).toBeNull();
+  });
+
+  test('client reads /api/projects; poller exposes id → project; a missing endpoint is tolerated', async () => {
     const calls = [];
-    const client = createFirmClient({ fetchImpl: async (url) => { calls.push(url); return { ok: true, json: async () => [{ id: 'p1', title: 'Pricing CLI' }, { id: 'p2', name: 'Euphonia' }, { nope: 1 }] }; } });
-    expect(await client.projects()).toEqual([{ id: 'p1', title: 'Pricing CLI' }, { id: 'p2', title: 'Euphonia' }]);
+    const client = createFirmClient({ fetchImpl: async (url) => { calls.push(url); return { ok: true, json: async () => [{ id: 'p1', title: 'Pricing CLI', emoji: '💲' }, { id: 'p2', name: 'Euphonia' }, { nope: 1 }] }; } });
+    const list = await client.projects();
+    expect(list.map((p) => [p.id, p.title, p.emoji])).toEqual([['p1', 'Pricing CLI', '💲'], ['p2', 'Euphonia', null]]);
     expect(calls).toEqual(['http://127.0.0.1:8420/api/projects']);
 
-    const p = createFirmPoller({ client: { threads: async () => [normalizeThread(RAW)], projects: async () => [{ id: 'p1', title: 'Pricing CLI' }] }, intervalMs: 1e9 });
+    const p = createFirmPoller({ client: { threads: async () => [normalizeThread(RAW)], projects: async () => [{ id: 'p1', title: 'Pricing CLI', emoji: '💲', id_: 1 }] }, intervalMs: 1e9 });
     await p.refresh();
-    expect(p.state.projects).toEqual({ p1: 'Pricing CLI' });
+    expect(p.state.projects.p1).toMatchObject({ id: 'p1', title: 'Pricing CLI', emoji: '💲' });
 
     const q = createFirmPoller({ client: { threads: async () => [normalizeThread(RAW)], projects: async () => { throw new Error('404'); } }, intervalMs: 1e9 });
     await q.refresh();

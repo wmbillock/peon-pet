@@ -246,7 +246,8 @@ onSnap((snap) => renderUnlessEditing(borderCards, () => {
   borderCards.replaceChildren(...snap.borders.map((b) => {
     const btn = h('button', { class: 'cardbtn' + (b.id === snap.activeBorder ? ' on' : ''), title: b.label,
       onclick: () => act(() => window.dashBridge.setBorder(b.id)) });
-    btn.append(b.thumb ? h('img', { class: 'ph frameprev', src: b.thumb }) : h('div', { class: 'ph frameprev' }, h('div', { style: 'padding-top:20px;color:#888' }, b.id === 'default' ? 'pet' : '')), b.label);
+    const dyn = b.id.startsWith('dyn-') ? b.id.slice(4) : null;
+    btn.append(dyn ? h('div', { class: `dprev tile f-${dyn} hot` }) : b.thumb ? h('img', { class: 'ph frameprev', src: b.thumb }) : h('div', { class: 'ph frameprev' }, h('div', { style: 'padding-top:20px;color:#888' }, b.id === 'default' ? 'pet' : '')), b.label);
     return btn;
   }));
 }));

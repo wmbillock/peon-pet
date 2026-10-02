@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 
 let dir, store, resolve;
-beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'marks-')); store = createProjectStore({ file: path.join(dir, 'p.json') }); resolve = (k, n) => store.resolve(k, n); });
+beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'marks-')); store = createProjectStore({ file: path.join(dir, 'p.json') }); resolve = (k, n, seed) => store.resolve(k, n, seed); });
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
 const agent = (id, extra = {}) => ({ id, cwd: `/w/${id}`, name: id, title: null, titleKind: null, firm: null, isRoot: true, order: 0, ...extra });
@@ -82,4 +82,11 @@ test('Firm agents group by Firm project and use its title', () => {
   const m = applyMarks({ agents, looks: new Map(), resolveProject: resolve, titles: { p9: 'Pricing CLI' } });
   expect(m.get('l').project).toMatchObject({ key: 'firm:p9', name: 'Pricing CLI', emoji: '💲' });
   expect(m.get('w').project.key).toBe('firm:p9');
+});
+
+test('Firm-supplied project looks seed the project (emoji, hue, frame, background)', () => {
+  const agents = [agent('l', { firm: { role: 'lead', projectId: 'p9' }, firmRole: 'lead', order: 0 })];
+  const m = applyMarks({ agents, looks: new Map(), resolveProject: resolve, firmProjects: { p9: { id: 'p9', title: 'Pricing CLI', emoji: '🏦', hue: 215, frame: 'gold', env: 'dungeon' } } });
+  expect(m.get('l').project).toMatchObject({ key: 'firm:p9', name: 'Pricing CLI', emoji: '🏦', hue: 215, frame: 'gold', env: 'dungeon' });
+  expect(m.get('l').mark.hue).toBe(215);
 });

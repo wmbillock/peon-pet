@@ -92,6 +92,7 @@ function initPets() {
     frames: BORDERS,
   });
   try { pets.setRoleSpecies(loadPetConfig().roleSpecies || {}); } catch (e) { console.error('[forge] ignoring stale role map:', e.message); }
+  try { pets.setRoleTint(loadPetConfig().roleTint || {}); } catch (e) { console.error('[forge] ignoring stale role filters:', e.message); }
 }
 
 const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { border: loadPetConfig().border, ...opts });
@@ -409,7 +410,7 @@ function sendSessionUpdate(now) {
   }
   const baseLooks = pets ? pets.assign(agents) : new Map();
   // Project identity (emoji, colour family, frame, environment) and per-type shades.
-  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n) => (liveReady ? pets.projects.resolve(k, n) : pets.projects.peek(k, n)), titles: firmState.projects || {} }) : new Map();
+  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n, seed) => (liveReady ? pets.projects.resolve(k, n, seed) : pets.projects.peek(k, n)), firmProjects: firmState.projects || {} }) : new Map();
   const looks = new Map([...marks].map(([id, m]) => [id, m.look]).filter(([, l]) => l));
   latestLooks = looks;
   const payload = {

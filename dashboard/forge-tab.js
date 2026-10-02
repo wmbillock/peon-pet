@@ -13,15 +13,21 @@ const ROLE_INFO = {
 
 function renderForge(st) {
   if (!st) return;
+  const refresh = () => window.dashBridge.getForge().then(renderForge);
   forgeRows.replaceChildren(...st.roles.map((role) => {
     const sel = h('select', {},
       h('option', { value: '', selected: !st.map[role] }, 'Same as its lead'),
       st.species.map((s) => h('option', { value: s.slug, selected: s.slug === st.map[role] }, s.display)));
     sel.addEventListener('change', async () => {
       try { showError(null); renderForge(await window.dashBridge.setForgeRole(role, sel.value || null)); }
-      catch (e) { showError(e); window.dashBridge.getForge().then(renderForge); }
+      catch (e) { showError(e); refresh(); }
     });
-    return h('tr', {}, h('td', {}, role), h('td', { class: 'what' }, ROLE_INFO[role] || ''), h('td', {}, sel));
+    const tintSel = h('select', {}, st.tints.map((t) => h('option', { value: t.id, selected: t.id === (st.tintMap[role] || 'none') }, t.id === 'none' ? 'None (shades)' : t.label)));
+    tintSel.addEventListener('change', async () => {
+      try { showError(null); renderForge(await window.dashBridge.setForgeTint(role, tintSel.value)); }
+      catch (e) { showError(e); refresh(); }
+    });
+    return h('tr', {}, h('td', {}, role), h('td', { class: 'what' }, ROLE_INFO[role] || ''), h('td', {}, sel), h('td', {}, tintSel));
   }));
 }
 

@@ -1,0 +1,36 @@
+/* dynamic frames (a project can pick one): --ring is the project's colour */
+@property --a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes dyn-spin { to { --a: 360deg; } }
+@keyframes dyn-breathe { 0%, 100% { box-shadow: 0 0 6px 0 var(--ring); } 50% { box-shadow: 0 0 20px 3px var(--ring); } }
+@keyframes dyn-working { 0%, 100% { border-color: #1f7a33; box-shadow: 0 0 6px 0 #44ff44; } 50% { border-color: #44ff44; box-shadow: 0 0 18px 3px #44ff44; } }
+@keyframes dyn-idle { 0%, 100% { border-color: #2a3a5a; } 50% { border-color: #4a6aa0; } }
+.tile.f-status.hot { animation: dyn-working 1.4s ease-in-out infinite; }
+.tile.f-status.warm { animation: dyn-idle 3.2s ease-in-out infinite; }
+.tile.f-status.cold { border-color: #2a2a3a; }
+.tile.f-glow { border-color: var(--ring); animation: dyn-breathe 2.8s ease-in-out infinite; }
+.tile.f-glow.cold { animation: none; box-shadow: none; }
+.tile.f-chase, .tile.f-rainbow { border-color: transparent; }
+.tile.f-chase::before, .tile.f-rainbow::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none; z-index: 5;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: dyn-spin 2.6s linear infinite;
+}
+.tile.f-chase::before { background: conic-gradient(from var(--a), transparent 0 55%, var(--ring) 100%); }
+.tile.f-rainbow::before { background: conic-gradient(from var(--a), #f44, #fa4, #ee4, #4e6, #4ae, #84f, #f4a, #f44); }
+.tile.f-chase.cold::before, .tile.f-rainbow.cold::before { animation-play-state: paused; opacity: .5; }
+
+/* window-level dynamic frame (the corner window): #dframe sits over everything */
+@keyframes dyn-alert { 0%, 100% { border-color: #ff5a3c; box-shadow: 0 0 8px #ff5a3c; } 50% { border-color: #ffd24a; box-shadow: 0 0 22px 4px #ffd24a; } }
+@keyframes dyn-celebrate { 0%, 100% { border-color: #ffd24a; box-shadow: 0 0 10px #ffd24a; } 50% { border-color: #fff3b0; box-shadow: 0 0 26px 5px #ffe066; } }
+#dframe { --ring: #7a7aff; position: fixed; inset: 0; z-index: 300; display: none; pointer-events: none; border: 3px solid transparent; border-radius: 10px; }
+#dframe.on { display: block; }
+#dframe.dyn-status.st-working { animation: dyn-working 1.4s ease-in-out infinite; }
+#dframe.dyn-status.st-idle { animation: dyn-idle 3.2s ease-in-out infinite; }
+#dframe.dyn-status.st-alert { animation: dyn-alert .7s ease-in-out infinite; }
+#dframe.dyn-status.st-celebrate { animation: dyn-celebrate .9s ease-in-out infinite; }
+#dframe.dyn-glow { border-color: var(--ring); animation: dyn-breathe 2.8s ease-in-out infinite; }
+#dframe.dyn-chase::before, #dframe.dyn-rainbow::before { content: ''; position: absolute; inset: -3px; border-radius: inherit; padding: 3px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: dyn-spin 2.6s linear infinite; }
+#dframe.dyn-chase::before { background: conic-gradient(from var(--a), transparent 0 55%, var(--ring) 100%); }
+#dframe.dyn-rainbow::before { background: conic-gradient(from var(--a), #f44, #fa4, #ee4, #4e6, #4ae, #84f, #f4a, #f44); }
+

@@ -154,3 +154,51 @@ describe('assign: roots, children and instance tints', () => {
     expect(svc.roleSpeciesMap()).toEqual({ worker: 'retro-robot' });       // a failed update leaves the old map
   });
 });
+
+describe('role filters (agent type → full-image filter)', () => {
+  const agent = (id, extra = {}) => ({ id, rootId: id, isRoot: true, cwd: '/w', agent: 'claude', hot: true, lastActive: 1, rank: 0, order: 0, ...extra });
+
+  test('every agent of a role wears that role\'s filter; a pet\'s own filter wins; validation works', () => {
+    svc.setRoleTint({ inspector: 'cyan' });
+    const m = svc.assign([
+      agent('lead', { firmRole: 'lead', order: 0 }),
+      agent('i1', { isRoot: false, rootId: 'lead', firmRole: 'inspector', order: 1 }),
+      agent('i2', { isRoot: false, rootId: 'lead', firmRole: 'inspector', order: 2 }),
+      agent('w', { isRoot: false, rootId: 'lead', firmRole: 'worker', order: 3 }),
+    ]);
+    expect(m.get('i1')).toMatchObject({ tint: 'cyan' });
+    expect(m.get('i1').tintAlpha).toBeGreaterThan(0);
+    expect(m.get('i2').tint).toBe('cyan');
+    expect(m.get('w').tint).toBe('none');
+    expect(m.get('lead').tint).toBe('none');
+
+    // a pet you tinted yourself keeps its filter
+    svc.roster.update(svc.lead().id, { tint: 'red' });
+    svc.refresh();
+    svc.setRoleTint({ lead: 'cyan' });
+    expect(svc.assign([agent('lead2', { firmRole: 'lead' })]).get('lead2').tint).toBe('red');
+
+    expect(() => svc.setRoleTint({ wizard: 'red' })).toThrow(/Unknown Firm role/);
+    expect(() => svc.setRoleTint({ worker: 'chartreuse' })).toThrow(/Unknown tint/);
+    expect(svc.setRoleTint({ worker: 'none', plan: '' })).toEqual({});
+  });
+});
+
+describe('agent type supplied by The Firm', () => {
+  const agent = (id, extra = {}) => ({ id, rootId: id, isRoot: true, cwd: '/w', agent: 'claude', hot: true, lastActive: 1, rank: 0, order: 0, ...extra });
+
+  test('decides the art outright, above the role → species mapping; unknown types are ignored', () => {
+    svc.setRoleSpecies({ worker: 'retro-robot' });
+    const m = svc.assign([
+      agent('lead', { firmRole: 'lead', firm: { agentType: 'bearded-dragon' }, order: 0 }),
+      agent('w1', { isRoot: false, rootId: 'lead', firmRole: 'worker', firm: { agentType: 'eighth-note' }, order: 1 }),
+      agent('w2', { isRoot: false, rootId: 'lead', firmRole: 'worker', firm: { agentType: null }, order: 2 }),
+      agent('w3', { isRoot: false, rootId: 'lead', firmRole: 'worker', firm: { agentType: 'not-a-species' }, order: 3 }),
+    ]);
+    expect(m.get('lead').species).toBe('bearded-dragon');
+    expect(m.get('lead').name).toBeTruthy();                       // still has a pet name
+    expect(m.get('w1')).toMatchObject({ species: 'eighth-note', sub: true });
+    expect(m.get('w2').species).toBe('retro-robot');               // no type: the role mapping applies
+    expect(m.get('w3').species).toBe('retro-robot');               // unknown type: ignored, not a crash
+  });
+});

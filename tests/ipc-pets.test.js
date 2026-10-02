@@ -138,6 +138,12 @@ test('forge: role → species round-trips, validates, and notifies', async () =>
   expect(s1.map).toEqual({ worker: 'retro-robot' });
   expect(calls.saved.at(-1)).toEqual({ roleSpecies: { worker: 'retro-robot' } });
   expect(notified).toBe(1);
+  const t1 = await invoke('forge-set-tint', 'inspector', 'cyan');
+  expect(t1.tintMap).toEqual({ inspector: 'cyan' });
+  expect(t1.tints.map((t) => t.id)).toContain('cyan');
+  expect(calls.saved.at(-1)).toEqual({ roleTint: { inspector: 'cyan' } });
+  await expect(invoke('forge-set-tint', 'inspector', 'chartreuse')).rejects.toThrow(/Unknown tint/);
+  await invoke('forge-set-tint', 'inspector', '');
   const s2 = await invoke('forge-set', 'worker', '');       // blank clears
   expect(s2.map).toEqual({});
   await expect(invoke('forge-set', 'worker', 'nope')).rejects.toThrow(/Unknown species/);
