@@ -410,7 +410,7 @@ function sendSessionUpdate(now) {
   }
   const baseLooks = pets ? pets.assign(agents) : new Map();
   // Project identity (emoji, colour family, frame, environment) and per-type shades.
-  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n, seed) => (liveReady ? pets.projects.resolve(k, n, seed) : pets.projects.peek(k, n)), firmProjects: firmState.projects || {} }) : new Map();
+  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n, seed) => (liveReady ? pets.projects.resolve(k, n, seed) : pets.projects.peek(k, n)), firmProjects: firmState.projects || {}, assignments: liveReady ? pets.projects.assignments() : {} }) : new Map();
   const looks = new Map([...marks].map(([id, m]) => [id, m.look]).filter(([, l]) => l));
   latestLooks = looks;
   const payload = {

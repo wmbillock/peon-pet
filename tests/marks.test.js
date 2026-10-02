@@ -90,3 +90,10 @@ test('Firm-supplied project looks seed the project (emoji, hue, frame, backgroun
   expect(m.get('l').project).toMatchObject({ key: 'firm:p9', name: 'Pricing CLI', emoji: '🏦', hue: 215, frame: 'gold', env: 'dungeon' });
   expect(m.get('l').mark.hue).toBe(215);
 });
+
+test('an assignment moves an agent to the chosen project, whatever its folder says', () => {
+  const agents = [agent('a', { cwd: '/w/one', order: 0 }), agent('b', { cwd: '/w/one', order: 1 })];
+  const m = applyMarks({ agents, looks: new Map(), resolveProject: resolve, assignments: { b: 'cwd:/w/two' } });
+  expect(m.get('a').project.key).toBe('cwd:/w/one');
+  expect(m.get('b').project.key).toBe('cwd:/w/two');
+});

@@ -20,7 +20,7 @@ Identity model (decided 2026-10-02):
 - [x] Firm: consume `agent_type` and project look fields when provided; feature requests drafted (`docs/firm/`)
 - [x] Firm feature requests written, aligned with T-0002/T-0003, and built into a verified patch (`docs/firm/firm-pr.patch`, `SUBMIT.md`)
 - [x] Draft PR opened: https://github.com/Affirm/affirm-builders/pull/3871 (T-0006..T-0012; waiting on human approval + swarm review)
-- [ ] Per-session override of project membership ("this session belongs to project X")
+- [x] Per-session override of project membership (Projects page → "Move an agent to a project")
 - [ ] Project background for baked sheets (needs cutout art; see art prompts)
 
 ## Soon
@@ -28,7 +28,6 @@ Identity model (decided 2026-10-02):
 - [ ] Art redo as cutouts on per-project environments (prompts in `docs/art-prompts/`; ~21 images)
 - [ ] Beardie wave strip; re-run `scripts/gen-headbob.js --custom` after the new sheet
 - [ ] Desktop "army": one small window per root agent, tinted/shaded like the dashboard
-- [ ] Per-session override of project membership ("this session belongs to project X")
 - [ ] Mark `terra-ff6` and `hello-kitty` local-only in any distribution/PR build (flag exists in species metadata; needs a build filter)
 - [ ] Split `feat/control-panel-pixoo` into reviewable upstream PRs (panel, packs, hot reload + LaunchAgent fix, pet switcher, Pixoo, Codex)
 

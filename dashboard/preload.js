@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('dashBridge', {
   onCornerView: (cb) => ipcRenderer.on('corner-view', (_e, v) => cb(v)),
   getProjects: () => ipcRenderer.invoke('projects-get'),
   updateProject: (key, patch) => ipcRenderer.invoke('projects-update', key, patch),
+  assignProject: (id, key) => ipcRenderer.invoke('projects-assign', id, key),
   forgetProject: (key) => ipcRenderer.invoke('projects-forget', key),
   getFirm: () => ipcRenderer.invoke('firm-get'),
   setFirm: (cfg) => ipcRenderer.invoke('firm-set', cfg),

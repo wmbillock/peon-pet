@@ -160,3 +160,16 @@ describe('seeds supplied from outside (The Firm)', () => {
     expect(s.resolve('firm:p2', 'peon-pet', {})).toMatchObject({ emoji: '🦊' });
   });
 });
+
+test('a session can be assigned to a project; assignments survive reload and die with the project', () => {
+  const a = createProjectStore({ file });
+  a.resolve('cwd:/w/one', 'one');
+  expect(() => a.assign('s1', 'cwd:/nope')).toThrow('Unknown project');
+  a.assign('s1', 'cwd:/w/one');
+  expect(createProjectStore({ file }).assignments()).toEqual({ s1: 'cwd:/w/one' });
+  a.assign('s1', null);
+  expect(a.assignments()).toEqual({});
+  a.assign('s2', 'cwd:/w/one');
+  a.forget('cwd:/w/one');
+  expect(a.assignments()).toEqual({});
+});
