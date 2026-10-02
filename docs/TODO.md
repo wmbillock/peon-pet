@@ -27,7 +27,7 @@ Identity model (decided 2026-10-02):
 
 - [ ] Art redo as cutouts on per-project environments (prompts in `docs/art-prompts/`; ~21 images)
 - [ ] Beardie wave strip; re-run `scripts/gen-headbob.js --custom` after the new sheet
-- [ ] Desktop "army": one small window per root agent, tinted/shaded like the dashboard
+- [x] Desktop "army": tray/dock menu → "Desktop army"; one small draggable window per root agent (`lib/army.js`, `grid/army.*`), positions remembered
 - [x] Local-only build filter: `node scripts/make-dist.js <out>` leaves out `terra-ff6`/`hello-kitty` art and `docs/firm/`; catalogs tolerate absent art (dist passes its tests)
 - [ ] Split `feat/control-panel-pixoo` into reviewable upstream PRs (panel, packs, hot reload + LaunchAgent fix, pet switcher, Pixoo, Codex)
 

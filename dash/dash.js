@@ -38,7 +38,7 @@
     return a.hot ? 'typing' : 'sleeping';
   }
 
-  function createDash({ stage, compact = false, storage = 'dash', onSize = () => {}, onViewChange = () => {} }) {
+  function createDash({ stage, compact = false, only = null, storage = 'dash', onSize = () => {}, onViewChange = () => {} }) {
     const load = (k, d) => { try { return localStorage.getItem(`${storage}.${k}`) ?? d; } catch { return d; } };
     const save = (k, v) => { try { localStorage.setItem(`${storage}.${k}`, v); } catch { /* ignore */ } };
 
@@ -71,7 +71,7 @@
       return !tokens(a).some((t) => S.slices.hidden.has(t));
     };
     const baseVisible = (a) => S.cold || a.hot || a.warm || a.role === 'master';   // masters stay, dimmed when idle
-    const visible = (a) => sliceOk(a) && (S.slices.status !== 'all' || baseVisible(a));
+    const visible = (a) => (only ? a.id === only : sliceOk(a) && (S.slices.status !== 'all' || baseVisible(a)));   // `only`: a one-agent window (desktop army)
 
     // ------------------------------------------------------------ tiles
     function makeTile(id) {
