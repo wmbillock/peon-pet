@@ -108,7 +108,14 @@ function renderRows() {
     const tr = document.createElement('tr');
     tr.className = s.hot ? 'hot' : s.warm ? 'warm' : '';
     tr.title = `${s.cwd || ''}\n${s.id}`.trim();
-    tr.append(cell(s.name || '(unknown)'));
+    const nameTd = cell(s.name || '(unknown)');
+    if (s.agent === 'codex') {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = 'codex';
+      nameTd.append(' ', tag);
+    }
+    tr.append(nameTd);
     const status = cell((s.hot ? 'active' : s.warm ? 'idle' : 'cold'));
     const dot = document.createElement('span');
     dot.className = 'dot';
@@ -116,7 +123,7 @@ function renderRows() {
 
     const voiceTd = document.createElement('td');
     const sel = document.createElement('select');
-    packOptions(sel, packState.sessionPacks[s.id], `Default (${displayName(packState.defaultPack)})`);
+    packOptions(sel, packState.sessionPacks[s.peonKey || s.id], `Default (${displayName(packState.defaultPack)})`);
     sel.addEventListener('change', async () => {
       try {
         showError(null);

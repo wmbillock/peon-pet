@@ -37,6 +37,10 @@ To remove:
 ./uninstall.sh
 ```
 
+## Agents
+
+Peon Pet follows **Claude Code** (`~/.claude/projects`) and **OpenAI Codex** (`~/.codex/sessions`, or `$CODEX_HOME`) at the same time. Each agent session is one dot; Codex sessions are tagged `codex` in the panel and tooltip.
+
 ## Control panel, menu bar, Pixoo
 
 - **Click the pet** (a click, not a drag) to open the control panel: mute/resume, global voice, per-session voices, volume, sound categories, pet picker, Pixoo settings.

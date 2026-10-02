@@ -8,6 +8,7 @@ const {
   EVENT_TO_ANIM,
 } = require('./lib/session-tracker');
 const { JsonlWatcher } = require('./lib/jsonl-watcher');
+const { CodexWatcher } = require('./lib/codex-watcher');
 const peonSound = require('./lib/peon-sound');
 const peonPacks = require('./lib/peon-packs');
 const { listCharacters, isKnownCharacter } = require('./lib/characters');
@@ -128,6 +129,10 @@ ipcMain.handle('chars-set', (_e, name) => {
 
 const tracker = createSessionTracker();
 const sessionCwds = new Map();  // session_id → cwd string
+const sessionAgents = new Map();  // session_id → 'claude' | 'codex'
+
+// peon-ping keys Codex sessions as `codex-<id>`; per-session voice pins must use its key.
+const peonKey = (id) => (sessionAgents.get(id) === 'codex' ? `codex-${id}` : id);
 const remoteSessionIds = new Set();
 const remoteLastEvents = new Map();  // session_id → last event string
 const SESSION_PRUNE_MS = 10 * 60 * 1000;  // 10min — prune cold sessions
@@ -215,8 +220,10 @@ function destroySubAgentWindow(sessionId) {
   repositionSubAgentWindows();
 }
 
-function handleSessionEvent({ sessionId, event, cwd, timestamp }) {
+function handleSessionEvent({ sessionId, event, cwd, timestamp, agent }) {
   if (!isValidSessionId(sessionId)) return;
+  if (agent && !sessionAgents.has(sessionId)) console.log(`[session] ${agent} ${sessionId.slice(0, 8)} ${event}`);
+  if (agent) sessionAgents.set(sessionId, agent);
 
   const now = Date.now();
 
@@ -232,6 +239,7 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp }) {
   if (event === 'SessionEnd') {
     tracker.remove(sessionId);
     sessionCwds.delete(sessionId);
+    sessionAgents.delete(sessionId);
   } else if (event === 'SessionSeen') {
     // File existed at startup: register with actual file mtime, no animation, no dedup
     tracker.update(sessionId, timestamp || now);
@@ -252,7 +260,7 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp }) {
 
   tracker.prune(now - SESSION_PRUNE_MS);
   for (const id of sessionCwds.keys()) {
-    if (!tracker.entries().some(([sid]) => sid === id)) sessionCwds.delete(id);
+    if (!tracker.entries().some(([sid]) => sid === id)) { sessionCwds.delete(id); sessionAgents.delete(id); }
   }
 
   sendSessionUpdate(now);
@@ -272,6 +280,8 @@ function sendSessionUpdate(now) {
       lastActive: times.get(s.id),
       cwd: sessionCwds.get(s.id) || null,
       name: sessionCwds.get(s.id) ? path.basename(sessionCwds.get(s.id)) : null,
+      agent: sessionAgents.get(s.id) || 'claude',
+      peonKey: peonKey(s.id),
     })),
   };
   latestSessions = payload;
@@ -315,13 +325,17 @@ function startPolling() {
 
   const watcher = new JsonlWatcher();
 
-  watcher.on('session-event', handleSessionEvent);
-  watcher.on('subagent-event', ({ parentToolId, event }) => {
-    if (event === 'SubagentStart') createSubAgentWindow(parentToolId);
-    if (event === 'SubagentStop')  destroySubAgentWindow(parentToolId);
-  });
+  const codexWatcher = new CodexWatcher();
+  const watchers = [watcher, codexWatcher];
 
-  watcher.start();
+  for (const w of watchers) {
+    w.on('session-event', handleSessionEvent);
+    w.on('subagent-event', ({ parentToolId, event }) => {
+      if (event === 'SubagentStart') createSubAgentWindow(parentToolId);
+      if (event === 'SubagentStop')  destroySubAgentWindow(parentToolId);
+    });
+    w.start();
+  }
 
   // Heartbeat: refresh session hot/warm status so the pet correctly decays.
   // Sessions with pending tools are kept hot so the pet stays awake during long tool runs.
@@ -334,8 +348,8 @@ function startPolling() {
     for (const sid of expired) destroySubAgentWindow(sid);
 
     if (tracker.entries().length === 0) return;
-    for (const sessionId of watcher.getActiveSessionIds()) {
-      tracker.update(sessionId, now);
+    for (const w of watchers) {
+      for (const sessionId of w.getActiveSessionIds()) tracker.update(sessionId, now);
     }
     sendSessionUpdate(now);
   }, 5000);
@@ -479,8 +493,8 @@ ipcMain.handle('packs-get', () => peonPacks.getPackState());
 
 ipcMain.handle('packs-set-session', (_e, sessionId, name) => {
   if (!isValidSessionId(sessionId)) throw new Error('Invalid session');
-  if (name) peonPacks.setSessionPacks([sessionId], name);
-  else peonPacks.clearSessionPack(sessionId);
+  if (name) peonPacks.setSessionPacks([peonKey(sessionId)], name);
+  else peonPacks.clearSessionPack(peonKey(sessionId));
   return peonPacks.getPackState();
 });
 
@@ -494,7 +508,7 @@ ipcMain.handle('packs-audition', (_e, name) => { peonPacks.auditionPack(name); }
 ipcMain.handle('packs-set-global', async (_e, name, applyToSessions) => {
   await peonPacks.setGlobalPack(name);
   if (applyToSessions) {
-    const ids = tracker.entries().map(([id]) => id);
+    const ids = tracker.entries().map(([id]) => peonKey(id));
     const pinned = Object.keys(peonPacks.getPackState().sessionPacks);
     peonPacks.setSessionPacks([...new Set([...ids, ...pinned])], name);
   }
@@ -611,7 +625,7 @@ function buildTrayMenu() {
           checked: name === st.defaultPack,
           click: () => runMenuAction(async () => {
             await peonPacks.setGlobalPack(name);
-            const ids = new Set([...tracker.entries().map(([id]) => id), ...Object.keys(st.sessionPacks)]);
+            const ids = new Set([...tracker.entries().map(([id]) => peonKey(id)), ...Object.keys(st.sessionPacks)]);
             peonPacks.setSessionPacks([...ids], name);
           }),
         })),

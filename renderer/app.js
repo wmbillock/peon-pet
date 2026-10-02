@@ -391,7 +391,8 @@ function handleMouseMove(e) {
                          : s.warm ? '<span style="color:#1aaa1a">idle</span>'
                          : '<span style="color:#555">cold</span>';
     const label = s.cwd ? s.cwd.split('/').filter(Boolean).pop() : ('\u2026' + s.id.slice(-8));
-    html = `${label} &bull; ${status}`;
+    const agentTag = s.agent === 'codex' ? ' (codex)' : '';
+    html = `${label}${agentTag} &bull; ${status}`;
   } else {
     const active = currentSessions.filter(s => s.hot).length;
     const total  = currentSessions.length;
@@ -399,7 +400,7 @@ function handleMouseMove(e) {
       html = 'Peon Pet';
     } else {
       const names = currentSessions
-        .map(s => s.cwd ? s.cwd.split('/').filter(Boolean).pop() : null)
+        .map(s => s.cwd ? s.cwd.split('/').filter(Boolean).pop() + (s.agent === 'codex' ? ' (codex)' : '') : null)
         .filter(Boolean);
       html = names.length ? names.join('<br>') : `${active}/${total} sessions`;
     }

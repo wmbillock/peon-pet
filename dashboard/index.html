@@ -47,6 +47,7 @@
     .pet { width: 76px; padding: 6px 4px; border: 2px solid transparent; border-radius: 8px; background: #1e1e2c; color: #aaa; font: inherit; font-size: 11px; cursor: pointer; text-align: center; }
     .pet img { width: 56px; height: 56px; display: block; margin: 0 auto 4px; image-rendering: pixelated; }
     .pet.active { border-color: #44ff44; color: #fff; }
+    .tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: #2a2a44; color: #9aa; vertical-align: 1px; }
     #empty { color: #666; padding: 16px 6px; display: none; }
   </style>
 </head>
@@ -102,7 +103,7 @@
     <thead><tr><th>Session</th><th>Status</th><th>Last active</th><th>Voice</th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
-  <div id="empty">No active Claude Code sessions.</div>
+  <div id="empty">No active Claude Code or Codex sessions.</div>
   <script src="dashboard.js"></script>
 </body>
 </html>
