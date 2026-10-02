@@ -36,3 +36,16 @@ test('the bob cycle starts near rest and returns to rest', () => {
   expect(BOB_OFFSETS[5]).toBe(0);
   expect(Math.min(...BOB_OFFSETS)).toBeLessThan(-10);
 });
+
+test('warpRegionXY moves a soft patch in both axes and leaves distant pixels alone', () => {
+  const { warpRegionXY, WAVE_OFFSETS } = require('../lib/bob');
+  const w = 64, h = 64, src = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = (y * w + x) * 4; src[o] = x * 4; src[o + 1] = y * 4; src[o + 3] = 255; }
+  const dst = new Uint8ClampedArray(src.length);
+  warpRegionXY(src, dst, w, h, { cx: 32, cy: 32, sigma: 5 }, 6, -8);
+  const at = (x, y) => dst[(y * w + x) * 4];
+  expect(dst[(2 * w + 2) * 4]).toBe(src[(2 * w + 2) * 4]);      // far corner untouched
+  expect(at(32, 32)).toBeLessThan(src[(32 * w + 32) * 4]);      // content moved right: pixel here now shows what was to the left
+  expect(WAVE_OFFSETS).toHaveLength(6);
+  expect(WAVE_OFFSETS[5]).toEqual([0, 0]);                       // settles back at rest
+});

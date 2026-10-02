@@ -124,8 +124,10 @@ describe('extra animations', () => {
   const { cleanExtras } = require('../lib/species');
   const make = () => createSpeciesStore({ file: path.join(dir, 'species.json'), bundledNames: ['bearded-dragon'], hasSheet: () => true });
 
-  test('the beardie ships a head bob', () => {
-    expect(make().get('bearded-dragon').extras).toEqual([{ name: 'headbob', row: 0, fps: 10, loops: 2, triggers: ['SubagentStart', 'flourish'] }]);
+  test('the beardie ships a head bob and a wave', () => {
+    expect(make().get('bearded-dragon').extras).toEqual([
+      { name: 'headbob', row: 0, fps: 10, loops: 2, triggers: ['SubagentStart', 'flourish'] },
+      { name: 'wave', row: 1, fps: 8, loops: 2, triggers: ['SessionStart'] }]);
   });
 
   test('cleanExtras normalises and validates', () => {
