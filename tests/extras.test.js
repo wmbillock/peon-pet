@@ -41,11 +41,26 @@ describe('importExtraRow', () => {
   });
 
   test('rejects wrong-shaped strips, and keys out a chroma backdrop', async () => {
-    await expect(importExtraRow({ slug: 'x', strip: strip('sq.png', 300, 300, '#fff'), customRoot: dir })).rejects.toThrow(/6:1/);
+    await expect(importExtraRow({ slug: 'x', strip: strip('sq.png', 300, 300, '#fff'), customRoot: dir })).rejects.toThrow(/one row.*3×2 grid/);
     const r = await importExtraRow({ slug: 'y', strip: strip('m.png', 600, 100, '#ff00ff'), customRoot: path.join(dir, 'c2'), chroma: '#FF00FF' });
     expect((await pixel(path.join(dir, 'c2', 'y', 'extras.png'), 5, 5))[3]).toBe(0);
     expect(r.warnings).toEqual([]);
   });
+});
+
+test('a 3×2 frame grid (what chat image tools can make) is unpacked into a 6-frame row in order', async () => {
+  const c = createCanvas(600, 400); const x = c.getContext('2d');
+  const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff', '#ffffff'];
+  colors.forEach((col, i) => { x.fillStyle = col; x.fillRect((i % 3) * 200, Math.floor(i / 3) * 200, 200, 200); });
+  const f = path.join(dir, 'grid.png'); fs.writeFileSync(f, c.toBuffer('image/png'));
+  const r = await importExtraRow({ slug: 'g', strip: f, customRoot: path.join(dir, 'chars') });
+  expect(r).toMatchObject({ row: 0, rows: 1, cell: 200 });
+  const file = path.join(dir, 'chars', 'g', 'extras.png');
+  const px = async (i) => (await pixel(file, i * 200 + 100, 100)).slice(0, 3);
+  expect(await px(0)).toEqual([255, 0, 0]);
+  expect(await px(2)).toEqual([0, 0, 255]);
+  expect(await px(3)).toEqual([255, 255, 0]);   // frame 4 = first cell of the second row
+  expect(await px(5)).toEqual([255, 255, 255]);
 });
 
 test('buildExtraPrompt describes the action, loops back to the working pose, and validates', () => {
@@ -53,6 +68,7 @@ test('buildExtraPrompt describes the action, loops back to the working pose, and
   expect(p).toContain('ANIMATION — WAVE');
   expect(p).toContain('waves one arm in a friendly hello');
   expect(p).toMatch(/Frame 1 and frame 6 are the character's normal working pose/);
+  expect(p).toMatch(/3 columns × 2 rows/);
   expect(() => buildExtraPrompt({ name: 'w', description: 'A bearded dragon.', action: '' })).toThrow(/Describe the action/);
 });
 

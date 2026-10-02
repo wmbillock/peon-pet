@@ -27,7 +27,7 @@ function renderSpeciesList(snap) {
 }
 
 async function runPrompt(slug, kind, row, label) {
-  const cell = Number($('prompt-cell') ? $('prompt-cell').value : 512) || 512;
+  const cell = Number($('prompt-cell') ? $('prompt-cell').value : 0) || 0;
   try {
     showError(null);
     promptText = await window.dashBridge.genPrompt({ kind, slug, row, cell });
@@ -175,7 +175,7 @@ function speciesDetail(snap, sp) {
     h('button', { onclick: () => runPrompt(sp.slug, 'atlas', undefined, 'Whole sheet') }, 'Whole sheet'),
     ROW_LABELS.map((r, i) => h('button', { onclick: () => runPrompt(sp.slug, 'strip', i, `Row ${i + 1} · ${r}`) }, `Row ${i + 1}`)),
     h('select', { id: 'prompt-cell', title: 'Cell size in the generated image' },
-      [512, 256, 384].map((n) => h('option', { value: n }, `${n}px cells`))));
+      [[0, 'Any size (square)'], [512, '512px cells'], [256, '256px cells']].map(([n, label]) => h('option', { value: n }, label))));
   card.append(h('div', { style: 'margin-top:12px' },
     h('h2', { class: 'first' }, 'Prompt for an image model'),
     h('div', { class: 'help', style: 'margin:0 0 6px' }, 'Built from the fields above. Whole-sheet first; if the model gets the grid wrong, generate the six rows one at a time and import them as strips.'),

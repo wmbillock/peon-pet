@@ -1,0 +1,123 @@
+{
+  "_comment": "Planned redo of every bundled pet as a cutout character on its own idiomatic environment, doing species-appropriate work (not just typing). Feeds scripts/export-art-prompts.js. Edit freely.",
+  "species": [
+    {
+      "slug": "orc",
+      "activity": "hammering a glowing blade on an iron anvil with a heavy smith's hammer, sparks flying off the metal",
+      "props": "an iron anvil with a glowing red-hot blade on it, and a heavy smith's hammer",
+      "scene": "an orcish forge workshop with a roaring furnace, racks of axes and hanging tongs, red-orange firelight",
+      "env": {
+        "name": "Orc forge",
+        "description": "The interior of an orcish blacksmith's forge: a roaring stone furnace glowing orange on the back wall, racks of crude axes and shields, hanging tongs and chains, a leather bellows, a quench barrel, soot-dark stone walls and a packed-dirt floor lit by ember glow."
+      },
+      "look": "A muscular green-skinned Warcraft-style orc with pointed ears and prominent fangs, spiked red-brown leather pauldrons with metal studs, a brown leather belt and leather wrist guards."
+    },
+    {
+      "slug": "capybara",
+      "activity": "soaking contentedly with eyes half-closed, a yuzu fruit balanced on its head, now and then lifting a tiny wooden cup of tea",
+      "props": "a small floating wooden tray holding a tea cup, and a yuzu on its head",
+      "scene": "a snowy outdoor Japanese hot spring at dusk, the capybara sitting on a flat warm rock at the pool edge with its feet in the steaming water",
+      "env": {
+        "name": "Snowy onsen",
+        "description": "An outdoor Japanese hot spring in winter at blue dusk: a steaming rock-edged pool across the lower middle, snow-dusted boulders, a bamboo fence, a glowing stone lantern, pine branches heavy with snow, drifting steam."
+      },
+      "look": "A calm, chubby capybara with warm brown fur, a blunt snout, tiny rounded ears and sleepy half-closed eyes."
+    },
+    {
+      "slug": "hello-kitty",
+      "localOnly": true,
+      "activity": "decorating a pink frosted cupcake with a piping bag and rainbow sprinkles",
+      "props": "a little counter with a cupcake, and a piping bag",
+      "scene": "a sweet pastel bakery kitchen",
+      "env": {
+        "name": "Pastel bakery",
+        "description": "A sweet pastel bakery kitchen: pink-and-cream checkered floor, a back counter with cake stands and cupcakes, a window with bunting, shelves of jars, a stand mixer, soft pink light."
+      },
+      "look": "Hello Kitty: a white cartoon kitten with a round head, small black oval eyes, a tiny yellow nose, whiskers, no mouth, and a red bow on her left ear."
+    },
+    {
+      "slug": "retro-robot",
+      "activity": "soldering a circuit board with a smoking soldering iron, tiny sparks flashing and its antenna blinking",
+      "props": "a small workbench with a circuit board and a soldering iron",
+      "scene": "a cluttered 1980s robotics garage workshop",
+      "env": {
+        "name": "Robotics garage",
+        "description": "A cluttered 1980s robotics garage workshop: a pegboard wall of tools, a shelf of half-built robot heads and gears, an oscilloscope showing a green waveform, a hanging work lamp, coiled cables on a concrete floor, blueprint posters."
+      },
+      "look": "A tiny retro robot with a rounded white-and-cream body, a dark glass visor face with two glowing blue eyes, a bobbing antenna with a small light, and orange ear pods."
+    },
+    {
+      "slug": "terra-ff6",
+      "localOnly": true,
+      "activity": "channeling a swirling green magic spell between both hands, her hair and cape lifting in the energy",
+      "props": "a swirl of green magic between her hands (part of the sprite)",
+      "scene": "the wooden deck of a fantasy airship at sunset",
+      "env": {
+        "name": "Airship deck",
+        "description": "The wooden deck of a fantasy airship at sunset: railings and rigging at the sides, a huge billowing sail in the distance, orange-pink clouds below, a ship's wheel at the back, polished brass fittings."
+      },
+      "look": "Terra Branford from Final Fantasy VI in SNES-era pixel art: long mint-green hair in a high swept ponytail with loose curled bangs and a red hair tie, a red fitted outfit, a purple cape, violet boots, gold accents, large expressive green eyes."
+    },
+    {
+      "slug": "weeping-willow",
+      "activity": "dangling one long branch like a fishing rod over the water, patiently waiting for a bite, a tiny float bobbing",
+      "props": "a branch fishing line with a small red-and-white float",
+      "scene": "a quiet riverbank at golden dusk, the willow rooted on the mossy bank",
+      "env": {
+        "name": "Willow riverbank",
+        "description": "A quiet riverbank at golden dusk: a slow stream across the foreground with lily pads and reeds, a small wooden footbridge in the background, drifting fireflies, soft mist, mossy stones and distant hills."
+      },
+      "look": "A small anthropomorphic talking WEEPING WILLOW TREE: a warm brown trunk with expressive eyes, brows and a talking mouth carved into it, a dense crown of long soft green drooping fronds, two flexible wooden branch arms with twig hands, roots forming its feet. No human head or human body."
+    },
+    {
+      "slug": "bearded-dragon",
+      "activity": "basking motionless on a warm flat rock, tongue flicking now and then, slowly chewing a leaf of greens",
+      "props": "a flat sun-warmed rock and a small dish of greens",
+      "scene": "the inside of a glass desert terrarium lit by a glowing heat lamp",
+      "env": {
+        "name": "Desert terrarium",
+        "description": "The inside of a large glass desert terrarium seen from the front: sandy substrate, stacked rocks and driftwood at the sides, a glowing heat lamp hanging at the top casting a warm cone of light, a water dish, small succulents, amber light."
+      },
+      "extras": [
+        {
+          "name": "wave",
+          "action": "raises one front arm and waves it in a slow, friendly circle, a beardie's classic acknowledging gesture, while the head stays level"
+        }
+      ],
+      "look": "A recognizable BEARDED DRAGON LIZARD, a real-world Pogona-type reptile: sandy tan and warm ochre scales, broad triangular head, spiky cheek and throat beard, dark round eyes with expressive lids, squat torso, short clawed forelegs used as hands, long tapering tail. NO wings, NO fantasy horns, NO clothing, NO mammalian face. The beard darkens slightly when alarmed or annoyed."
+    },
+    {
+      "slug": "clipart-trumpet",
+      "activity": "playing a swinging jazz solo with its bell raised, little musical notes floating out",
+      "props": "musical notes drifting from the bell (part of the sprite)",
+      "scene": "a smoky 1950s jazz club stage under a spotlight",
+      "env": {
+        "name": "Jazz club",
+        "description": "A smoky 1950s jazz club stage: a dark red curtain backdrop, a small round stage lit by a spotlight pool, stand-up bass and drum-kit silhouettes at the sides, cafe tables with candles at the bottom edges, a warm blue-purple haze."
+      },
+      "look": "An anthropomorphic golden brass TRUMPET in a bold simple clipart style: long looped tubing, THREE piston valves in a row, a mouthpiece and a large flared bell, cartoon eyes and brows and a talking mouth on the bell, two thin flexible cartoon arms with simple gloved hands and tiny feet. Flat gold fills with two or three shades and a strong dark outline."
+    },
+    {
+      "slug": "eighth-note",
+      "activity": "hopping along the lines of a musical staff in time, bouncing on each beat",
+      "props": "a short stretch of five-line musical staff under its feet",
+      "scene": "a moonlit composer's attic studio",
+      "env": {
+        "name": "Composer's studio",
+        "description": "A moonlit composer's attic studio: an upright piano on one side, sheet music scattered and pinned to the walls, a candle in a brass holder, a metronome on a shelf, a round window with a night sky, wooden floorboards."
+      },
+      "look": "A living SINGLE EIGHTH NOTE: one solid near-black/navy oval notehead at the lower left with expressive eyes, brows and a talking mouth, ONE straight stem rising from the right side of the notehead and exactly ONE curved flag at the top of the stem. Two slender cartoon arms and small feet. Preserve the single stem and single flag in every pose."
+    },
+    {
+      "slug": "lcd-creature",
+      "activity": "doing tiny pixel workouts, hopping in place and pressing its own buttons, its LCD face showing a pixel smile",
+      "props": "none",
+      "scene": "a 1990s kid's bedroom desk corner in blue evening light",
+      "env": {
+        "name": "90s bedroom",
+        "description": "A 1990s kid's bedroom desk corner: a corkboard covered in posters, a glowing lava lamp, a stack of game boxes, a chunky CRT TV, a bean bag, blue-green evening light through window blinds, a carpeted floor."
+      },
+      "look": "A cute old-school LCD talking creature evoking a 1990s Tamagotchi: a small upright egg-shaped pastel turquoise plastic shell with pink trim, a recessed gray-green LCD screen showing a simple black-pixel creature face with two pixel eyes and a changing pixel mouth, three small round pink buttons below the screen, tiny flexible cartoon arms and little feet. The face stays on the LCD."
+    }
+  ]
+}
