@@ -11,6 +11,7 @@ const { JsonlWatcher } = require('./lib/jsonl-watcher');
 const { CodexWatcher } = require('./lib/codex-watcher');
 const peonSound = require('./lib/peon-sound');
 const peonPacks = require('./lib/peon-packs');
+const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { listCharacters, isKnownCharacter } = require('./lib/characters');
 const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, drawDots } = require('./lib/pixoo');
@@ -29,24 +30,6 @@ const SUB_AGENT_TTL_MS = 10 * 60 * 1000; // 10 min — destroy stale windows if 
 
 // --- Character system ---
 // Per-character asset maps: canonical name → bundled filename
-const BUNDLED_CHARS = {
-  orc: {
-    'sprite-atlas.png': 'orc-sprite-atlas.png',
-    'borders.png':      'orc-borders.png',
-    'bg.png':           'bg-pixel.png',
-    'dock-icon.png':    'orc-dock-icon.png',
-  },
-  capybara: {
-    'sprite-atlas.png': 'capybara-sprite-atlas.png',
-    'borders.png':      'capybara-borders.png',
-    'dock-icon.png':    'capybara-dock-icon.png',
-  },
-  'hello-kitty': {
-    'sprite-atlas.png': 'hello-kitty-sprite-atlas.png',
-    'borders.png':      'hello-kitty-borders.png',
-    'dock-icon.png':    'hello-kitty-dock-icon.png',
-  },
-};
 
 function parseArgPath(flag) {
   const i = process.argv.indexOf(flag);

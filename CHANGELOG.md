@@ -8,6 +8,7 @@
 - **Menu bar item** — quick mute, voice and volume switching, Pixoo status
 - **Pet switcher** — pick the active character live from the panel; user characters in `<userData>/characters/<name>/sprite-atlas.png` are discovered automatically
 - **Divoom Pixoo 64 mirror** — streams the pet animation and session dots to a Pixoo 64 over the LAN, with brightness and LED color-match controls
+- **Seven new bundled pets** — retro robot, Terra (FF6), weeping willow, bearded dragon, clipart trumpet, eighth note, LCD creature; selectable from the panel. Sheets, prompts and validation records are in `docs/characters/`; `scripts/gen-pet-icons.js` makes their dock icons
 - **Cross-agent: Codex support** — watches `~/.codex/sessions` rollouts alongside Claude Code transcripts (turns → typing/celebrate, interrupts → annoyed, long-running tool calls → alarmed, spawned worker threads → mini pets; guardian review threads ignored). Sessions are tagged in the panel and tooltip, and per-session voice pins use peon-ping's `codex-<id>` keys
 - **Hot reload** — edits to `renderer/`/`dashboard/` reload windows; edits to `main.js`/`lib/` restart the app
 - **LaunchAgent** now restarts on crash or reload but stays quit after a clean Quit; `install.sh` uses the real Electron binary
