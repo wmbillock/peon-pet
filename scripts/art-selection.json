@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "date": "2026-10-02",
+  "publication": "Definitions only. Generated PNGs are retained in the local asset bundle and are not included in the public PR.",
+  "atlas": {
+    "columns": 6,
+    "rows": 6,
+    "width": 3072,
+    "height": 3072,
+    "cell": 512,
+    "contentBox": {
+      "x": 64,
+      "y": 64,
+      "width": 384,
+      "height": 384
+    },
+    "rowOrder": [
+      "sleeping",
+      "waking",
+      "typing",
+      "alarmed",
+      "celebrate",
+      "annoyed"
+    ],
+    "workingRow": "typing",
+    "alpha": "preserved from the generator"
+  },
+  "environments": [
+    {
+      "id": "performance-stage",
+      "display": "Performance stage",
+      "description": "An empty warm wooden performance stage with burgundy curtains, viewed from the audience side.",
+      "path": "renderer/assets/env-performance-stage.png",
+      "assetStatus": "generated-locally"
+    },
+    {
+      "id": "starship-bridge",
+      "display": "Starship bridge",
+      "description": "A cozy retro science-fiction starship bridge, curved dark-blue and charcoal walls, a wide rear panoramic viewport showing a quiet starfield and one distant planet, low amber-and-teal control consoles pushed to far left and far right, no legible markings on controls. The lower-centre area is an empty flat dark slate deck with very subtle perspective seams. Warm amber console glow from the right; comfortable restrained 1960s/1970s spacecraft aesthetic. No central captain's chair, no hologram, no people, no robots.",
+      "path": "renderer/assets/env-starship-bridge.png",
+      "assetStatus": "generated-locally"
+    },
+    {
+      "id": "rug-lounge",
+      "display": "Rug lounge",
+      "description": "A laid-back cozy 1990s apartment lounge: a large simple muted rust-and-cream rug filling the clear lower-centre floor, a low worn olive sofa along the back wall, books and vinyl records at far left, a warm shaded floor lamp at far right. Earthy honey-brown wood, muted teal, rust and cream; the rug really ties the room together. Its central pattern is quiet and uncluttered. No coffee table, bowling ball, glass or tall objects in the central character area. No portraits, people, animals, writing or brands.",
+      "path": "renderer/assets/env-rug-lounge.png",
+      "assetStatus": "generated-locally"
+    },
+    {
+      "id": "desert-terrarium",
+      "display": "Desert terrarium",
+      "description": "The interior of a spacious warm desert reptile terrarium, viewed gently from above at a three-quarter angle: ochre sand floor with a flat unobstructed sandy centre; low sandstone rocks and a gnarled branch confined to the far left edge, a shallow water dish and two small succulents at the far right edge, layered warm sandstone backdrop. Right-side heat-lamp illumination is warm gold; lamp fixture is outside the frame, keeping the top calm. No reptile, snake, lizard, insect, animal face, tracks, glass glare, or central rock obstructing the character placement zone.",
+      "path": "renderer/assets/env-desert-terrarium.png",
+      "assetStatus": "generated-locally"
+    }
+  ],
+  "species": [
+    {
+      "slug": "the-dude",
+      "display": "The Dude",
+      "theme": "The Big Lebowski",
+      "brief": "The Dude (Jeffrey Lebowski) from The Big Lebowski: laid-back middle-aged man with shoulder-length wavy sandy-brown hair, short scruffy beard and mustache, round dark sunglasses, loose tan-and-brown geometric knit cardigan over a cream T-shirt, baggy shorts and worn sandals. Recognizable relaxed slouch and easygoing expression, chibi movie-character pixel art. His small held prop is a bowling ball; no drink required.",
+      "activity": "casually polishing a dark purple bowling ball with a small cloth, with unhurried subtle hand motions",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "rug-lounge",
+      "localOnly": true,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/the-dude-sprite-atlas.png",
+      "icon": "renderer/assets/the-dude-dock-icon.png"
+    },
+    {
+      "slug": "r2-d2",
+      "display": "R2-D2",
+      "theme": "Star Wars",
+      "brief": "R2-D2 from Star Wars, faithful iconic short white astromech droid: cylindrical white barrel body, blue rectangular panel accents, silver-and-blue dome, large dark round optical lens, two side legs with broad angular feet and a small central third wheel/foot. Correct squat astromech silhouette. NO human face, NO mouth, NO eyebrows, NO human hands, NO clothing, NO spherical BB-8 body. Tiny blue/red indicator lights provide emotion.",
+      "activity": "extending a tiny utility tool arm from a front compartment, turning it slightly and retracting it in a gentle maintenance loop",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "starship-bridge",
+      "localOnly": true,
+      "assetStatus": "draft-needs-art",
+      "atlas": null,
+      "icon": null
+    },
+    {
+      "slug": "spock",
+      "display": "Spock",
+      "theme": "Star Trek",
+      "brief": "Spock from original-series Star Trek: slim adult Vulcan man with sharp pointed ears, straight dark bowl-cut hair and short level bangs, angular arched eyebrows, calm recognizable face, blue long-sleeved Starfleet science tunic with black collar and small gold delta badge on the left chest, black trousers and black boots. Chibi pixel art keeping the iconic uniform and ears. No weapon.",
+      "activity": "studying a small open handheld tricorder and making small precise adjustments with his free hand",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "starship-bridge",
+      "localOnly": true,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/spock-sprite-atlas.png",
+      "icon": "renderer/assets/spock-dock-icon.png"
+    },
+    {
+      "slug": "classic-cylon",
+      "display": "Classic Cylon",
+      "theme": "Battlestar Galactica",
+      "brief": "A classic 1978 Battlestar Galactica Cylon Centurion, recognizable silver/chrome armored robot with a smooth medieval-knight-like helmet, a single thin horizontal black visor containing one red scanning eye, ribbed black joints, silver shoulder armor, angular silver chestplate and sturdy metal legs. Faithful classic chrome Cylon silhouette in chibi pixel art. No gun or weapon. NO human face or mouth, NO two human eyes.",
+      "activity": "sweeping its single red eye light slowly left to right in the visor while making tiny servo adjustments in its arms",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "starship-bridge",
+      "localOnly": true,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/classic-cylon-sprite-atlas.png",
+      "icon": "renderer/assets/classic-cylon-dock-icon.png"
+    },
+    {
+      "slug": "marvin",
+      "display": "Marvin",
+      "theme": "The Hitchhiker's Guide to the Galaxy",
+      "brief": "Marvin the Paranoid Android as the recognizable 2005 Hitchhiker's Guide to the Galaxy movie robot: enormously oversized smooth spherical white head compared with a tiny white humanoid robot body, depressed drooping posture, deep black horizontal face recess with two glowing green eyes, short white articulated arms and legs, rounded white shell panels with gray joints. Charming chibi pixel art, world-weary, no human mouth or nose. Keep the big white ball head and tiny body throughout.",
+      "activity": "slowly checking a small handheld gadget, then sagging with a resigned little head tilt",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "starship-bridge",
+      "localOnly": true,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/marvin-sprite-atlas.png",
+      "icon": "renderer/assets/marvin-dock-icon.png"
+    },
+    {
+      "slug": "french-horn",
+      "display": "French horn",
+      "theme": "Brass instruments",
+      "brief": "A living GOLDEN FRENCH HORN: clearly recognizable circular coiled brass tubing, central cluster of three small rotary valves and levers, narrow curved mouthpipe with a small mouthpiece, and one broad flared bell. Not a trumpet, not a tuba, not a saxophone. Big expressive cartoon eyes and small talking mouth on the round coil/bell area, two thin dark cartoon arms with simple cream gloves, little feet. Clean clipart-like silhouette rendered as crisp pixel art with only a few gold shading tones. No human carrying it.",
+      "activity": "swaying gently as if playing a warm lyrical solo, one little hand delicately moving the rotary-valve levers; no floating music symbols",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "performance-stage",
+      "localOnly": false,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/french-horn-sprite-atlas.png",
+      "icon": "renderer/assets/french-horn-dock-icon.png"
+    },
+    {
+      "slug": "sixteenth-note",
+      "display": "Sixteenth note",
+      "theme": "Music notes",
+      "brief": "A living SINGLE SIXTEENTH NOTE, an unmistakable black musical symbol: ONE solid filled oval notehead lower-left, ONE straight vertical stem rising from the RIGHT of the notehead, and EXACTLY TWO short curved flags at the top of the stem, both extending RIGHT. Not an eighth note, not a beamed pair, not three flags. Friendly expressive eyes and small mouth on the oval notehead, tiny cartoon arms and feet. Dark navy-black silhouette with subtle cool-blue highlights. Keep stem short enough for the entire symbol to stay well below the top10% reserved space in every cell.",
+      "activity": "bouncing very slightly in place to an even musical rhythm, tapping one tiny foot while its two flags gently flex",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "performance-stage",
+      "localOnly": false,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/sixteenth-note-sprite-atlas.png",
+      "icon": "renderer/assets/sixteenth-note-dock-icon.png"
+    },
+    {
+      "slug": "red-bearded-dragon",
+      "display": "Red bearded dragon",
+      "theme": "Bearded dragons",
+      "brief": "A real-world red-orange bearded dragon lizard, an especially warm rust-red and tangerine color morph with pale cream belly. Broad triangular reptile head, unmistakable spiky beard and cheek scales, dark glossy round eyes, squat scaly torso, four short clawed legs and one long tapering tail. Cute realistic reptile proportions rendered as expressive pixel art. No wings, horns, clothing, human body, or fantasy dragon anatomy.",
+      "activity": "basking low to the ground, slowly lifting its head, gently chewing a small green leaf and flicking its tongue",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "desert-terrarium",
+      "localOnly": false,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/red-bearded-dragon-sprite-atlas.png",
+      "icon": "renderer/assets/red-bearded-dragon-dock-icon.png"
+    },
+    {
+      "slug": "banana-ball-python",
+      "display": "Banana ball python",
+      "theme": "Ball pythons",
+      "brief": "A cute realistic BANANA MORPH BALL PYTHON, a small stout-bodied python with buttery yellow and pale lavender-tan blotched pattern, a few tiny dark freckles, a soft cream underside, a blunt little snake head, round dark eyes, one continuous legless body and tapering tail. The snake is loosely coiled in one compact mound, head raised gently at the front. Absolutely NO arms, NO legs, NO ears, NO cobra hood, NO dragon horns. Clear snake coils, no extra heads or disconnected body pieces.",
+      "activity": "gently raising and lowering its head, a tiny forked tongue flick, and subtle breathing while keeping its compact coil anchored",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "desert-terrarium",
+      "localOnly": false,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/banana-ball-python-sprite-atlas.png",
+      "icon": "renderer/assets/banana-ball-python-dock-icon.png"
+    },
+    {
+      "slug": "kirby",
+      "display": "Kirby",
+      "theme": "Video games",
+      "brief": "Kirby, faithfully recognizable classic Nintendo pink spherical character: simple round rosy-pink body, two oval blue-dark eyes, tiny smiling mouth, small rosy cheek marks, two short round pink arm nubs and two large red oval feet. Cute clean iconic Kirby proportions with no hair, clothing, nose, fingers, extra limbs or accessories. Bright pink sphere and red feet stay consistent. Classic clean game pixel-art shading.",
+      "activity": "cheerfully admiring and gently turning one small golden star held between its pink arm nubs, with a tiny rhythmic bounce",
+      "setting": "free",
+      "layout": "cutout",
+      "defaultEnv": "rug-lounge",
+      "localOnly": true,
+      "assetStatus": "generated-locally",
+      "atlas": "renderer/assets/kirby-sprite-atlas.png",
+      "icon": "renderer/assets/kirby-dock-icon.png"
+    }
+  ]
+}

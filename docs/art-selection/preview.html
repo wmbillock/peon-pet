@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprite and background selection</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#15171b;color:#eae8e4}
+body{max-width:1020px;margin:0 auto;padding:28px}h1{font-size:24px;margin:0 0 8px;font-weight:600}p{color:#bfc2c9;line-height:1.5}
+.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:end;margin:24px 0}
+label{display:grid;gap:6px;font-size:13px}select,button{font:inherit;background:#282d35;color:inherit;border:1px solid #596171;border-radius:6px;padding:9px 12px}button{cursor:pointer;min-height:38px}button:focus-visible,select:focus-visible{outline:2px solid #ffcf79}
+.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px}
+article{min-width:0}canvas{display:block;width:200px;height:200px;image-rendering:pixelated;border-radius:8px;background:#323740}
+h2{font-size:16px;margin:9px 0 3px;font-weight:600}.theme{font-size:12px;color:#abb3bf}.draft{padding:14px 0}
+#status{font-size:13px;min-height:20px}a{color:#e8bb6c}footer{margin-top:24px;font-size:13px;color:#abb3bf}
+@media(max-width:500px){body{padding:18px}.gallery{grid-template-columns:1fr}canvas{margin:0 auto}h2,.theme{text-align:center}}
+</style></head><body>
+<h1>Sprite and background selection</h1>
+<p>Nine transparent characters, four interchangeable environments. Previews render at the pet's approximate 200px size.</p>
+<div class="controls">
+<label>Background<select id="background"></select></label>
+<label>Animation<select id="animation"><option value="0">Sleeping</option><option value="1">Waking</option><option value="2" selected>Working</option><option value="3">Alarmed</option><option value="4">Celebrate</option><option value="5">Annoyed</option></select></label>
+<button id="play" type="button">Pause</button>
+<label>Frame<select id="frame"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option><option value="4">5</option><option value="5">6</option></select></label>
+<label><span>Status dot</span><input id="dot" type="checkbox" checked aria-label="Show status-dot overlay"></label>
+</div>
+<p id="status" role="status" aria-live="polite">Loading local artwork…</p>
+<div id="gallery" class="gallery"></div>
+<p class="draft"><strong>Star Wars — R2-D2:</strong> draft definition only; no generated sheet is available.</p>
+<footer><a href="README.md">Integration handoff</a> · <a href="../../scripts/art-selection.json">Asset definitions</a> · <a href="validation.json">Validation receipt</a><p>The PNGs remain local. This preview needs the local asset bundle beside the definitions.</p></footer>
+<script>
+const catalog={"sprites":[{"name":"The Dude","theme":"The Big Lebowski","slug":"the-dude","src":"../../renderer/assets/the-dude-sprite-atlas.png"},{"name":"Spock","theme":"Star Trek","slug":"spock","src":"../../renderer/assets/spock-sprite-atlas.png"},{"name":"Classic Cylon","theme":"Battlestar Galactica","slug":"classic-cylon","src":"../../renderer/assets/classic-cylon-sprite-atlas.png"},{"name":"Marvin","theme":"The Hitchhiker's Guide to the Galaxy","slug":"marvin","src":"../../renderer/assets/marvin-sprite-atlas.png"},{"name":"French horn","theme":"Brass instruments","slug":"french-horn","src":"../../renderer/assets/french-horn-sprite-atlas.png"},{"name":"Sixteenth note","theme":"Music notes","slug":"sixteenth-note","src":"../../renderer/assets/sixteenth-note-sprite-atlas.png"},{"name":"Red bearded dragon","theme":"Bearded dragons","slug":"red-bearded-dragon","src":"../../renderer/assets/red-bearded-dragon-sprite-atlas.png"},{"name":"Banana ball python","theme":"Ball pythons","slug":"banana-ball-python","src":"../../renderer/assets/banana-ball-python-sprite-atlas.png"},{"name":"Kirby","theme":"Video games","slug":"kirby","src":"../../renderer/assets/kirby-sprite-atlas.png"}],"backgrounds":[{"name":"Performance stage","slug":"performance-stage","src":"../../renderer/assets/env-performance-stage.png"},{"name":"Starship bridge","slug":"starship-bridge","src":"../../renderer/assets/env-starship-bridge.png"},{"name":"Rug lounge","slug":"rug-lounge","src":"../../renderer/assets/env-rug-lounge.png"},{"name":"Desert terrarium","slug":"desert-terrarium","src":"../../renderer/assets/env-desert-terrarium.png"}]};
+const gallery=document.getElementById('gallery'),background=document.getElementById('background'),animation=document.getElementById('animation'),frameSelect=document.getElementById('frame'),play=document.getElementById('play'),dot=document.getElementById('dot'),status=document.getElementById('status');
+let playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,frame=0,loaded=false,lastTime=0;
+const spriteImages=[],backgroundImages=[],contexts=[];
+const load=(src)=>new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error('Unable to load '+src));image.src=src;});
+for(const b of catalog.backgrounds){const option=document.createElement('option');option.value=b.slug;option.textContent=b.name;background.append(option);}
+for(const s of catalog.sprites){const article=document.createElement('article'),canvas=document.createElement('canvas'),title=document.createElement('h2'),theme=document.createElement('div');canvas.width=200;canvas.height=200;canvas.setAttribute('role','img');canvas.setAttribute('aria-label',s.name+' animation preview');title.textContent=s.name;theme.textContent=s.theme;theme.className='theme';article.append(canvas,title,theme);gallery.append(article);const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;contexts.push(ctx);}
+function draw(){if(!loaded)return;const bg=backgroundImages[catalog.backgrounds.findIndex(b=>b.slug===background.value)];const row=Number(animation.value);for(let i=0;i<contexts.length;i++){const ctx=contexts[i];ctx.clearRect(0,0,200,200);ctx.drawImage(bg,0,0,200,200);ctx.drawImage(spriteImages[i],frame*512,row*512,512,512,0,0,200,200);if(dot.checked){ctx.fillStyle='#70e6a8';ctx.beginPath();ctx.arc(100,12,3,0,Math.PI*2);ctx.fill();}}frameSelect.value=String(frame);}
+function loop(time){if(loaded&&playing&&time-lastTime>=125){frame=(frame+1)%6;lastTime=time;draw();}requestAnimationFrame(loop);}
+play.textContent=playing?'Pause':'Play';
+play.addEventListener('click',()=>{playing=!playing;play.textContent=playing?'Pause':'Play';});
+background.addEventListener('change',draw);animation.addEventListener('change',()=>{frame=0;draw();});dot.addEventListener('change',draw);
+frameSelect.addEventListener('change',()=>{playing=false;play.textContent='Play';frame=Number(frameSelect.value);draw();});
+Promise.all([Promise.all(catalog.sprites.map(s=>load(s.src))),Promise.all(catalog.backgrounds.map(b=>load(b.src)))]).then(([sprites,bgs])=>{spriteImages.push(...sprites);backgroundImages.push(...bgs);loaded=true;status.textContent='Loaded 9 character sheets and 4 backgrounds.';draw();}).catch(error=>{status.textContent=error.message+' — open this preview from the complete local bundle.';status.setAttribute('role','alert');});
+requestAnimationFrame(loop);
+</script></body></html>
