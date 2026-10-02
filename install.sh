@@ -3,7 +3,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ELECTRON="$SCRIPT_DIR/node_modules/.bin/electron"
+# Use the real Electron binary, not .bin/electron (a node script; node isn't on launchd's PATH)
+ELECTRON="$SCRIPT_DIR/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
 PLIST_SRC="$SCRIPT_DIR/com.peonpet.app.plist"
 PLIST_DEST="$HOME/Library/LaunchAgents/com.peonpet.app.plist"
 
@@ -12,8 +13,7 @@ if [ ! -f "$ELECTRON" ]; then
   exit 1
 fi
 
-# Resolve symlink to the real binary (launchd needs the real path)
-ELECTRON_REAL="$(readlink -f "$ELECTRON" 2>/dev/null || realpath "$ELECTRON")"
+ELECTRON_REAL="$ELECTRON"
 
 echo "Installing peon-pet LaunchAgent..."
 echo "  App dir:  $SCRIPT_DIR"

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data:; script-src 'self'; style-src 'unsafe-inline';">
+  <title>Peon Pet — Agents</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font: 13px -apple-system, 'SF Mono', sans-serif; background: #12121c; color: #ccc; padding: 14px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    h1 { font-size: 14px; font-weight: 600; color: #eee; }
+    #mute { padding: 6px 12px; border-radius: 6px; border: 1px solid #444; background: #1e1e2c; color: #ddd; cursor: pointer; font: inherit; }
+    #mute.muted { border-color: #ff6060; color: #ff6060; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-weight: 500; color: #777; font-size: 11px; padding: 4px 6px; }
+    td { padding: 6px; border-top: 1px solid #222232; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #555; }
+    .hot .dot { background: #44ff44; } .warm .dot { background: #1aaa1a; }
+    h2 { font-size: 12px; font-weight: 600; color: #aaa; margin: 14px 0 6px; }
+    #global { background: #1a1a28; border: 1px solid #262638; border-radius: 8px; padding: 10px 12px; }
+    #global .row { display: flex; align-items: center; gap: 8px; }
+    #global label[for] { color: #999; }
+    .check { display: block; margin-top: 8px; color: #999; font-size: 12px; }
+    select, #global-apply, .play { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid #444; background: #1e1e2c; color: #ddd; }
+    #global-pack { flex: 1; min-width: 0; }
+    #global-apply, .play { cursor: pointer; }
+    .play { padding: 4px 8px; }
+    td .play { padding: 1px 6px; font-size: 11px; margin-left: 4px; }
+    #global-apply:disabled { opacity: 0.5; cursor: default; }
+    td select { max-width: 200px; padding: 2px 6px; font-size: 12px; }
+    #global-note { margin-top: 6px; font-size: 11px; color: #777; }
+    #error { margin-top: 6px; font-size: 11px; color: #ff6060; display: none; }
+    #categories { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    #categories label { font-size: 12px; color: #aaa; white-space: nowrap; }
+    #global h2 { margin-top: 12px; }
+    #pixoo { margin-top: 12px; background: #1a1a28; border: 1px solid #262638; border-radius: 8px; padding: 4px 12px 10px; }
+    #pixoo .row { display: flex; align-items: center; gap: 10px; }
+    #pixoo-ip { flex: 1; min-width: 0; font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid #444; background: #1e1e2c; color: #ddd; }
+    label.inline { color: #aaa; white-space: nowrap; font-size: 12px; }
+    #pixoo-status { font-size: 11px; color: #777; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #pixoo-status.ok { color: #44ff44; } #pixoo-status.bad { color: #ff6060; }
+    .val { width: 34px; text-align: right; color: #999; font-size: 12px; }
+    #pixoo-help { margin-top: 6px; font-size: 11px; color: #666; }
+    #pets { background: #1a1a28; border: 1px solid #262638; border-radius: 8px; padding: 10px 12px; }
+    #pet-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pet { width: 76px; padding: 6px 4px; border: 2px solid transparent; border-radius: 8px; background: #1e1e2c; color: #aaa; font: inherit; font-size: 11px; cursor: pointer; text-align: center; }
+    .pet img { width: 56px; height: 56px; display: block; margin: 0 auto 4px; image-rendering: pixelated; }
+    .pet.active { border-color: #44ff44; color: #fff; }
+    #empty { color: #666; padding: 16px 6px; display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Peon Pet</h1>
+    <button id="mute">Mute sounds</button>
+  </header>
+  <section id="pets">
+    <h2 style="margin-top:0">Pet</h2>
+    <div id="pet-cards"></div>
+  </section>
+  <section id="global" style="margin-top:12px">
+    <div class="row">
+      <label for="global-pack">Global voice</label>
+      <select id="global-pack"></select>
+      <button id="audition" class="play" title="Audition this voice">▶</button>
+      <button id="global-apply">Set as global</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label for="volume">Volume</label>
+      <input type="range" id="volume" min="0" max="100" step="1" style="flex:1">
+      <span id="volume-val" style="width:34px;text-align:right;color:#999">50%</span>
+    </div>
+    <label class="check"><input type="checkbox" id="global-all" checked> Also switch all open sessions now</label>
+    <div id="global-note"></div>
+    <h2>Sound categories</h2>
+    <div id="categories"></div>
+    <label class="check"><input type="checkbox" id="notif"> Desktop notification popups</label>
+    <div id="error"></div>
+  </section>
+  <section id="pixoo">
+    <h2>Pixoo 64 display</h2>
+    <div class="row">
+      <input type="text" id="pixoo-ip" placeholder="Device IP, e.g. 192.168.1.50" spellcheck="false">
+      <label class="inline"><input type="checkbox" id="pixoo-on"> Mirror pet</label>
+      <span id="pixoo-status"></span>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label for="pixoo-bright" class="inline" style="width:88px">Brightness</label>
+      <input type="range" id="pixoo-bright" min="5" max="100" style="flex:1">
+      <span id="pixoo-bright-val" class="val">–</span>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <label for="pixoo-look" class="inline" style="width:88px">Color match</label>
+      <input type="range" id="pixoo-look" min="0" max="100" style="flex:1">
+      <span id="pixoo-look-val" class="val">60</span>
+    </div>
+    <div id="pixoo-help">IP is in the Divoom app: Device Settings → Device Info. Same Wi-Fi network required. Color match 0 = raw colors; higher pulls the LED look toward your screen.</div>
+  </section>
+  <h2>Agents <span id="count" style="color:#777;font-weight:400"></span></h2>
+  <table>
+    <thead><tr><th>Session</th><th>Status</th><th>Last active</th><th>Voice</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="empty">No active Claude Code sessions.</div>
+  <script src="dashboard.js"></script>
+</body>
+</html>

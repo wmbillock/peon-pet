@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Control panel** — click the pet (or right-click / dock menu) to open it: mute/resume all sounds, global voice override, per-session voice swap, ▶ audition, volume, sound-category toggles, desktop-notification toggle (reads and writes peon-ping's own `config.json` / `.state.json`)
+- **Menu bar item** — quick mute, voice and volume switching, Pixoo status
+- **Pet switcher** — pick the active character live from the panel; user characters in `<userData>/characters/<name>/sprite-atlas.png` are discovered automatically
+- **Divoom Pixoo 64 mirror** — streams the pet animation and session dots to a Pixoo 64 over the LAN, with brightness and LED color-match controls
+- **Hot reload** — edits to `renderer/`/`dashboard/` reload windows; edits to `main.js`/`lib/` restart the app
+- **LaunchAgent** now restarts on crash or reload but stays quit after a clean Quit; `install.sh` uses the real Electron binary
+
 ## [1.0.0-alpha] - 2026-02-18
 
 First working release of peon-pet — a desktop pet for [Peon-Ping](https://peonping.com).

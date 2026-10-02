@@ -305,6 +305,7 @@ function playAnim(animName) {
   pendingIdle = false;
   if (!ANIM_CONFIG[animName]) return;
   currentAnim = animName;
+  window.peonBridge.reportAnim(animName);
   currentFrame = 0;
   frameTimer = 0;
   const loops = ANIM_CONFIG[animName].loops ?? REACTION_LOOPS;
@@ -342,10 +343,15 @@ function hitTestDots(px, py) {
 
 // --- Drag handling ---
 let dragging = false;
+let downX = 0;
+let downY = 0;
+const CLICK_SLOP_PX = 4;  // pointer travel below this counts as a click, not a drag
 
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;  // left-click only
   dragging = true;
+  downX = e.screenX;
+  downY = e.screenY;
   tooltip.style.display = 'none';
   canvas.setPointerCapture(e.pointerId);
   window.peonBridge.startDrag();
@@ -355,6 +361,10 @@ canvas.addEventListener('pointerup', (e) => {
   if (e.button !== 0 || !dragging) return;
   dragging = false;
   window.peonBridge.stopDrag();
+  // A click without movement opens the control panel
+  if (Math.hypot(e.screenX - downX, e.screenY - downY) < CLICK_SLOP_PX) {
+    window.peonBridge.openDashboard();
+  }
 });
 
 canvas.addEventListener('lostpointercapture', () => {
@@ -410,6 +420,23 @@ function handleMouseLeave() {
 canvas.addEventListener('mousemove', handleMouseMove);
 canvas.addEventListener('mouseleave', handleMouseLeave);
 
+// Right-click the pet to open the dashboard
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  window.peonBridge.openDashboard();
+});
+
+// --- Master sound toggle ---
+const soundBtn = document.getElementById('sound-btn');
+soundBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+soundBtn.addEventListener('click', () => window.peonBridge.toggleSound());
+window.peonBridge.onSoundState(({ muted }) => {
+  soundBtn.classList.toggle('muted', muted);
+  const label = muted ? 'Sounds muted — click to unmute' : 'Mute sounds';
+  soundBtn.title = label;
+  soundBtn.setAttribute('aria-label', label);
+});
+
 // --- Sub-agent config ---
 let isSubAgent = false;
 
@@ -451,6 +478,9 @@ window.peonBridge.onConfig(({ size, subAgent }) => {
     mesh.geometry.dispose();
     mesh.material.dispose();
   }
+
+  // Sub-agents have no controls
+  soundBtn.style.display = 'none';
 
   // Disable tooltip
   tooltip.style.display = 'none';

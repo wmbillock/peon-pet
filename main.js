@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Menu, protocol, net, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const {
@@ -8,9 +8,17 @@ const {
   EVENT_TO_ANIM,
 } = require('./lib/session-tracker');
 const { JsonlWatcher } = require('./lib/jsonl-watcher');
+const peonSound = require('./lib/peon-sound');
+const peonPacks = require('./lib/peon-packs');
+const { listCharacters, isKnownCharacter } = require('./lib/characters');
+const { watchApp } = require('./lib/hot-reload');
+const { PixooClient, isValidDeviceIp, applyLook, drawDots } = require('./lib/pixoo');
+const { buildAnimFrames } = require('./lib/pixoo-frames');
 
 let win;
 let petVisible = true;
+let dashWin = null;
+let latestSessions = { sessions: [] };
 const subAgentWindows = new Map(); // session_id → BrowserWindow
 const subAgentCreatedAt = new Map(); // session_id → creation timestamp (ms)
 const dummySessionIds = new Set(); // dev-only: protected from sync cleanup
@@ -54,26 +62,69 @@ function loadPetConfig() {
   } catch { return {}; }
 }
 
-function registerCharacterProtocol() {
-  const cfg = loadPetConfig();
-  const char = argCharacter || cfg.character || 'orc';
-  const assetsDir = path.join(__dirname, 'renderer', 'assets');
-  const customCharDir = path.join(app.getPath('userData'), 'characters', char);
-  const charMap = BUNDLED_CHARS[char] || {};
+function savePetConfig(patch) {
+  const file = path.join(app.getPath('userData'), 'peon-pet-config.json');
+  const next = { ...loadPetConfig(), ...patch };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(next, null, 2));
+  return next;
+}
 
+let activeChar = 'orc';
+const bundledAssetsDir = path.join(__dirname, 'renderer', 'assets');
+const customCharRoot = () => path.join(app.getPath('userData'), 'characters');
+
+// 1. User-installed character dir, 2. bundled map: char-specific → orc fallback → filename as-is
+function resolveAsset(filename) {
+  const custom = path.join(customCharRoot(), activeChar, filename);
+  if (fs.existsSync(custom)) return custom;
+  const charMap = BUNDLED_CHARS[activeChar] || {};
+  return path.join(bundledAssetsDir, charMap[filename] || BUNDLED_CHARS.orc[filename] || filename);
+}
+
+function registerCharacterProtocol() {
+  activeChar = argCharacter || loadPetConfig().character || 'orc';
   protocol.handle('peon-asset', (request) => {
     const filename = new URL(request.url).hostname;
-    // 1. User-installed character dir
-    if (fs.existsSync(path.join(customCharDir, filename))) {
-      return net.fetch('file://' + path.join(customCharDir, filename));
-    }
-    // 2. Bundled map: char-specific → orc fallback → filename as-is
-    const mapped = charMap[filename] || BUNDLED_CHARS.orc[filename] || filename;
-    return net.fetch('file://' + path.join(assetsDir, mapped));
+    return net.fetch('file://' + resolveAsset(filename));
   });
-
-  return { char, assetsDir, customCharDir };
 }
+
+function characterList() { return listCharacters(Object.keys(BUNDLED_CHARS), customCharRoot()); }
+
+function charThumb(name) {
+  const prev = activeChar;
+  activeChar = name;
+  try { return nativeImage.createFromPath(resolveAsset('dock-icon.png')).resize({ width: 56, height: 56 }).toDataURL(); }
+  catch { return null; }
+  finally { activeChar = prev; }
+}
+
+function applyCharacterIcons() {
+  if (process.platform === 'darwin') app.dock.setIcon(resolveAsset('dock-icon.png'));
+  if (tray && !tray.isDestroyed()) {
+    tray.setImage(nativeImage.createFromPath(resolveAsset('dock-icon.png')).resize({ width: 18, height: 18 }));
+  }
+}
+
+ipcMain.handle('chars-get', () => ({
+  active: activeChar,
+  chars: characterList().map((c) => ({ ...c, thumb: charThumb(c.name) })),
+}));
+
+// Live-switch the pet: no restart needed.
+ipcMain.handle('chars-set', (_e, name) => {
+  if (!isKnownCharacter(name, characterList())) throw new Error(`Unknown pet: ${name}`);
+  activeChar = name;
+  savePetConfig({ character: name });
+  pixooFrameCache.clear();
+  pixoo.lastSig = null;
+  applyCharacterIcons();
+  for (const id of [...subAgentWindows.keys()]) destroySubAgentWindow(id);
+  if (win && !win.isDestroyed()) win.webContents.reloadIgnoringCache();
+  schedulePixooSync(0);
+  return name;
+});
 
 const tracker = createSessionTracker();
 const sessionCwds = new Map();  // session_id → cwd string
@@ -213,15 +264,20 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp }) {
 }
 
 function sendSessionUpdate(now) {
-  if (!win || win.isDestroyed()) return;
   const sessions = buildSessionStates(tracker.entries(), now, HOT_MS, WARM_MS, 10);
-  win.webContents.send('session-update', {
+  const times = new Map(tracker.entries());
+  const payload = {
     sessions: sessions.map(s => ({
       ...s,
+      lastActive: times.get(s.id),
       cwd: sessionCwds.get(s.id) || null,
       name: sessionCwds.get(s.id) ? path.basename(sessionCwds.get(s.id)) : null,
     })),
-  });
+  };
+  latestSessions = payload;
+  if (pixooConfig().enabled) schedulePixooSync();
+  if (win && !win.isDestroyed()) win.webContents.send('session-update', payload);
+  if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('dash-sessions', payload);
 }
 
 function syncRemoteSessionsToTracker(state) {
@@ -290,6 +346,167 @@ function startPolling() {
   }, 5000);
 }
 
+// --- Pixoo 64 mirror ---
+// Pushes the pet's current animation (plus session dots) to a Divoom Pixoo 64 on the LAN.
+const pixoo = { client: null, status: 'off', lastSig: null, busy: false, dirty: false, timer: null };
+const pixooFrameCache = new Map();  // anim → { frames, speedMs }
+let petAnim = 'sleeping';
+
+function pixooConfig() {
+  const c = loadPetConfig().pixoo || {};
+  return {
+    enabled: !!c.enabled,
+    ip: c.ip || '',
+    look: Number.isFinite(c.look) ? c.look : 60,
+    brightness: Number.isFinite(c.brightness) ? c.brightness : null,  // null = leave the device alone
+  };
+}
+
+function setPixooStatus(status) {
+  if (status !== pixoo.status) console.log(`[pixoo] ${status}`);
+  pixoo.status = status;
+  if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('pixoo-state', { ...pixooConfig(), status });
+}
+
+function pixooAnimFrames(anim) {
+  if (!pixooFrameCache.has(anim)) {
+    pixooFrameCache.set(anim, buildAnimFrames(nativeImage, resolveAsset('sprite-atlas.png'), anim));
+  }
+  return pixooFrameCache.get(anim);
+}
+
+function schedulePixooSync(delayMs = 300) {
+  clearTimeout(pixoo.timer);
+  pixoo.timer = setTimeout(runPixooSync, delayMs);
+}
+
+async function runPixooSync() {
+  const { enabled, ip, look, brightness } = pixooConfig();
+  if (!enabled || !ip) { pixoo.client = null; setPixooStatus('off'); return; }
+  if (pixoo.busy) { pixoo.dirty = true; return; }
+  pixoo.busy = true;
+  try {
+    if (!pixoo.client || pixoo.client.ip !== ip) { pixoo.client = new PixooClient(ip); pixoo.lastSig = null; }
+    const sessions = latestSessions.sessions || [];
+    const sig = `${petAnim}|${look}|${brightness}|${sessions.map((s) => (s.hot ? 2 : s.warm ? 1 : 0)).join('')}`;
+    if (sig !== pixoo.lastSig) {
+      const { frames, speedMs } = pixooAnimFrames(petAnim);
+      if (brightness !== null) await pixoo.client.setBrightness(brightness);
+      await pixoo.client.showAnimation(frames.map((f) => drawDots(applyLook(f, look), sessions)), speedMs);
+      pixoo.lastSig = sig;
+    }
+    setPixooStatus('connected');
+  } catch (e) {
+    pixoo.lastSig = null;
+    setPixooStatus(`error: ${e.message}`);
+    schedulePixooSync(15000);  // device asleep / wrong IP: retry quietly
+  } finally {
+    pixoo.busy = false;
+    if (pixoo.dirty) { pixoo.dirty = false; schedulePixooSync(); }
+  }
+}
+
+ipcMain.on('anim-changed', (e, anim) => {
+  if (!win || win.isDestroyed() || e.sender !== win.webContents) return;  // ignore sub-agent windows
+  if (typeof anim !== 'string' || anim === petAnim) return;
+  petAnim = anim;
+  schedulePixooSync();
+});
+
+ipcMain.handle('pixoo-get', () => ({ ...pixooConfig(), status: pixoo.status }));
+ipcMain.handle('pixoo-set', (_e, patch) => {
+  const cur = pixooConfig();
+  const next = { ...cur };
+  if ('ip' in patch) {
+    const clean = String(patch.ip || '').trim();
+    if (clean && !isValidDeviceIp(clean)) throw new Error('Pixoo address must be a private IPv4 address, e.g. 192.168.1.50');
+    next.ip = clean;
+  }
+  if ('enabled' in patch) next.enabled = !!patch.enabled;
+  if ('look' in patch) next.look = Math.min(100, Math.max(0, Math.round(Number(patch.look) || 0)));
+  if ('brightness' in patch) next.brightness = Math.min(100, Math.max(0, Math.round(Number(patch.brightness) || 0)));
+  if (next.enabled && !next.ip) throw new Error('Enter the Pixoo\'s IP address first (shown in the Divoom app)');
+  savePetConfig({ pixoo: next });
+  pixoo.lastSig = null;
+  setPixooStatus(next.enabled ? 'connecting\u2026' : 'off');
+  schedulePixooSync(0);
+  return { ...next, status: pixoo.status };
+});
+
+// --- Master sound toggle (peon-ping .paused) ---
+let soundMuted = peonSound.isMuted();
+
+function broadcastSoundState() {
+  if (win && !win.isDestroyed()) win.webContents.send('sound-state', { muted: soundMuted });
+  if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('sound-state', { muted: soundMuted });
+  refreshMenus();
+}
+
+async function setSoundMuted(muted) {
+  soundMuted = await peonSound.setMuted(muted);
+  broadcastSoundState();
+}
+
+function openDashboard() {
+  if (dashWin && !dashWin.isDestroyed()) { dashWin.show(); dashWin.focus(); return; }
+  dashWin = new BrowserWindow({
+    width: 720,
+    height: 520,
+    minWidth: 520,
+    minHeight: 320,
+    title: 'Peon Pet — Control Panel',
+    backgroundColor: '#12121c',
+    webPreferences: {
+      preload: path.join(__dirname, 'dashboard', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  dashWin.loadFile('dashboard/index.html');
+  dashWin.on('closed', () => { dashWin = null; });
+}
+
+ipcMain.on('dash-ready', (e) => {
+  e.sender.send('dash-sessions', latestSessions);
+  e.sender.send('sound-state', { muted: soundMuted });
+});
+ipcMain.on('open-dashboard', openDashboard);
+
+ipcMain.on('sound-toggle', () => { setSoundMuted(!soundMuted); });
+
+// --- Voice packs ---
+ipcMain.handle('packs-get', () => peonPacks.getPackState());
+
+ipcMain.handle('packs-set-session', (_e, sessionId, name) => {
+  if (!isValidSessionId(sessionId)) throw new Error('Invalid session');
+  if (name) peonPacks.setSessionPacks([sessionId], name);
+  else peonPacks.clearSessionPack(sessionId);
+  return peonPacks.getPackState();
+});
+
+ipcMain.handle('packs-set-volume', (_e, v) => { peonPacks.setVolume(v); return peonPacks.getPackState(); });
+ipcMain.handle('packs-set-category', (_e, cat, on) => { peonPacks.setCategory(cat, on); return peonPacks.getPackState(); });
+ipcMain.handle('packs-set-notifications', (_e, on) => { peonPacks.setDesktopNotifications(on); return peonPacks.getPackState(); });
+ipcMain.handle('packs-audition', (_e, name) => { peonPacks.auditionPack(name); });
+
+// Global override: new default_pack, and (optionally) re-pin every open session so it
+// takes effect immediately instead of only for sessions that have no pin.
+ipcMain.handle('packs-set-global', async (_e, name, applyToSessions) => {
+  await peonPacks.setGlobalPack(name);
+  if (applyToSessions) {
+    const ids = tracker.entries().map(([id]) => id);
+    const pinned = Object.keys(peonPacks.getPackState().sessionPacks);
+    peonPacks.setSessionPacks([...new Set([...ids, ...pinned])], name);
+  }
+  return peonPacks.getPackState();
+});
+
+// Pick up `peon toggle` / `/peon-ping-toggle` done outside the pet.
+setInterval(() => {
+  const muted = peonSound.isMuted();
+  if (muted !== soundMuted) { soundMuted = muted; broadcastSoundState(); }
+}, 2000);
+
 // --- Drag state ---
 let isDragging = false;
 let dragOffsetX = 0;
@@ -346,35 +563,95 @@ function startMouseTrackingForWindow(targetWin) {
   }, 50);
 }
 
+function togglePet() {
+  if (!win || win.isDestroyed()) return;
+  const windows = [win, ...[...subAgentWindows.values()].filter((w) => !w.isDestroyed())];
+  for (const w of windows) { if (petVisible) w.hide(); else w.show(); }
+  petVisible = !petVisible;
+  refreshMenus();
+}
+
+function refreshMenus() {
+  if (process.platform === 'darwin') app.dock.setMenu(buildDockMenu());
+  if (tray && !tray.isDestroyed()) tray.setTitle(soundMuted ? '\u{1F507}' : '');
+}
+
 function buildDockMenu() {
   return Menu.buildFromTemplate([
+    { label: soundMuted ? 'Unmute Sounds' : 'Mute Sounds', click() { setSoundMuted(!soundMuted); } },
+    { label: 'Open Control Panel', click: openDashboard },
+    { label: petVisible ? 'Hide Pet' : 'Show Pet', click: togglePet },
+    { type: 'separator' },
+    { label: 'Quit', click() { app.quit(); } },
+  ]);
+}
+
+// --- Menu bar item ---
+let tray = null;
+
+function runMenuAction(fn) {
+  Promise.resolve().then(fn).catch((e) => console.error('[menu]', e.message));
+}
+
+function buildTrayMenu() {
+  const st = peonPacks.getPackState();
+  const label = (name) => (st.packs.find((p) => p.name === name) || {}).display || name;
+  const quick = [...new Set([st.defaultPack, ...st.rotation])].filter((n) => st.packs.some((p) => p.name === n));
+  const px = pixooConfig();
+  return Menu.buildFromTemplate([
+    { label: 'Open Control Panel', click: openDashboard },
+    { type: 'separator' },
+    { label: soundMuted ? 'Resume Sounds' : 'Silence All Sounds', click() { setSoundMuted(!soundMuted); } },
     {
-      label: petVisible ? 'Hide Pet' : 'Show Pet',
-      click() {
-        if (!win || win.isDestroyed()) return;
-        if (petVisible) {
-          win.hide();
-          for (const [, subWin] of subAgentWindows) {
-            if (!subWin.isDestroyed()) subWin.hide();
-          }
-        } else {
-          win.show();
-          for (const [, subWin] of subAgentWindows) {
-            if (!subWin.isDestroyed()) subWin.show();
-          }
-        }
-        petVisible = !petVisible;
-        app.dock.setMenu(buildDockMenu());
-      },
+      label: `Voice: ${label(st.defaultPack)}`,
+      submenu: [
+        ...quick.map((name) => ({
+          label: label(name),
+          type: 'radio',
+          checked: name === st.defaultPack,
+          click: () => runMenuAction(async () => {
+            await peonPacks.setGlobalPack(name);
+            const ids = new Set([...tracker.entries().map(([id]) => id), ...Object.keys(st.sessionPacks)]);
+            peonPacks.setSessionPacks([...ids], name);
+          }),
+        })),
+        { type: 'separator' },
+        { label: 'More voices\u2026', click: openDashboard },
+      ],
+    },
+    {
+      label: `Volume: ${Math.round(st.volume * 100)}%`,
+      submenu: [0, 25, 50, 75, 100].map((pct) => ({
+        label: pct === 0 ? '0% (silent)' : `${pct}%`,
+        type: 'radio',
+        checked: Math.round(st.volume * 100) === pct,
+        click: () => runMenuAction(() => peonPacks.setVolume(pct / 100)),
+      })),
     },
     { type: 'separator' },
     {
-      label: 'Quit',
-      click() {
-        app.quit();
-      },
+      label: px.enabled ? `Pixoo 64: ${pixoo.status}` : 'Pixoo 64: off',
+      click: openDashboard,
     },
+    { label: petVisible ? 'Hide Desktop Pet' : 'Show Desktop Pet', click: togglePet },
+    { type: 'separator' },
+    { label: 'Quit Peon Pet', click() { app.quit(); } },
   ]);
+}
+
+function createTray() {
+  try {
+    const icon = nativeImage.createFromPath(resolveAsset('dock-icon.png')).resize({ width: 18, height: 18 });
+    tray = new Tray(icon);
+  } catch (e) {
+    console.error('[tray] disabled:', e.message);
+    return;
+  }
+  tray.setToolTip('Peon Pet');
+  const pop = () => tray.popUpContextMenu(buildTrayMenu());
+  tray.on('click', pop);
+  tray.on('right-click', pop);
+  refreshMenus();
 }
 
 const { WIN_SIZE, WIN_MARGIN, cornerPosition } = require('./lib/window-position');
@@ -408,14 +685,7 @@ function createWindow() {
   win.loadFile('renderer/index.html');
 
   if (process.platform === 'darwin') {
-    const cfg = loadPetConfig();
-    const char = argCharacter || cfg.character || 'orc';
-    const assetsDir = path.join(__dirname, 'renderer', 'assets');
-    const customIcon = path.join(app.getPath('userData'), 'characters', char, 'dock-icon.png');
-    const charMap = BUNDLED_CHARS[char] || {};
-    const iconFile = charMap['dock-icon.png'] || BUNDLED_CHARS.orc['dock-icon.png'];
-    const iconPath = fs.existsSync(customIcon) ? customIcon : path.join(assetsDir, iconFile);
-    app.dock.setIcon(iconPath);
+    app.dock.setIcon(resolveAsset('dock-icon.png'));
     app.dock.setMenu(buildDockMenu());
   }
 
@@ -424,7 +694,10 @@ function createWindow() {
   }
 
   // Reset drag if renderer reloads or crashes
-  win.webContents.on('did-finish-load', () => { isDragging = false; });
+  win.webContents.on('did-finish-load', () => {
+    isDragging = false;
+    win.webContents.send('sound-state', { muted: soundMuted });
+  });
 
   // Clean up sub-agent windows when main window closes
   win.on('closed', () => {
@@ -438,6 +711,7 @@ function createWindow() {
   win.webContents.once('did-finish-load', () => {
     startPolling();
     startMouseTrackingForWindow(win);
+    if (pixooConfig().enabled) schedulePixooSync(0);
 
     // Dev-only: spawn dummy sub-agents for visual testing
     if (process.argv.includes('--spawn-test')) {
@@ -456,6 +730,32 @@ function createWindow() {
   });
 }
 
+// --- Hot reload: pick up code changes without a manual restart ---
+const RELOAD_EXIT_CODE = 75;  // non-zero so launchd's KeepAlive.SuccessfulExit=false restarts us
+const underLaunchd = process.env.XPC_SERVICE_NAME === 'com.peonpet.app';
+
+function restartApp() {
+  if (underLaunchd) app.exit(RELOAD_EXIT_CODE);
+  else { app.relaunch(); app.exit(0); }
+}
+
+function startHotReload() {
+  if (process.argv.includes('--no-reload')) return;
+  try {
+    watchApp(__dirname, (kind, file) => {
+      console.log(`[hot-reload] ${file} changed → ${kind}`);
+      if (kind === 'app') return restartApp();
+      // Sub-agent windows get their config once at load; they're transient, so drop them.
+      for (const id of [...subAgentWindows.keys()]) destroySubAgentWindow(id);
+      for (const w of [win, dashWin]) {
+        if (w && !w.isDestroyed()) w.webContents.reloadIgnoringCache();
+      }
+    });
+  } catch (e) {
+    console.error('[hot-reload] disabled:', e.message);
+  }
+}
+
 app.setName('Peon Pet');
 
 const gotLock = app.requestSingleInstanceLock();
@@ -465,6 +765,8 @@ if (!gotLock) {
   app.whenReady().then(() => {
     registerCharacterProtocol();
     createWindow();
+    createTray();
+    startHotReload();
   });
   app.on('window-all-closed', () => app.quit());
 }

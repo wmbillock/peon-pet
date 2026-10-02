@@ -15,12 +15,21 @@
   <key>RunAtLoad</key>
   <true/>
 
+  <!-- Restart on crash or hot-reload (non-zero exit); a clean Quit stays quit -->
   <key>KeepAlive</key>
-  <true/>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
 
-  <!-- Restart immediately if it crashes -->
   <key>ThrottleInterval</key>
-  <integer>5</integer>
+  <integer>2</integer>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
 
   <key>StandardOutPath</key>
   <string>/tmp/peon-pet.log</string>

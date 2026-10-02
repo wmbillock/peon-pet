@@ -37,6 +37,14 @@ To remove:
 ./uninstall.sh
 ```
 
+## Control panel, menu bar, Pixoo
+
+- **Click the pet** (a click, not a drag) to open the control panel: mute/resume, global voice, per-session voices, volume, sound categories, pet picker, Pixoo settings.
+- **Menu bar icon**: quick mute, voice, volume.
+- **Pixoo 64**: enter the device IP (Divoom app → Device Settings → Device Info) and tick *Mirror pet*. Private IPv4 addresses only.
+- **Add a pet**: create `~/Library/Application Support/Peon Pet/characters/<name>/` containing `sprite-atlas.png` (6×6 grid, see [sprite-art-guide](docs/sprite-art-guide.md)), optionally `borders.png`, `bg.png`, `dock-icon.png`. It appears in the panel automatically.
+- **Hot reload** is on by default; pass `--no-reload` to disable.
+
 ## Dock controls
 
 Right-click the dock icon:
