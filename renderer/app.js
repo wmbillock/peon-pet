@@ -120,6 +120,7 @@ window.peonBridge.onPetLook((look) => {
   tintMesh.material.opacity = look.tintAlpha;
   // The dungeon backdrop is dimmed to sit behind baked art; environment plates should be full colour.
   bgMesh.material.color.set(look.layout === 'cutout' ? 0xffffff : 0x888888);
+  setupExtras(look.extras || []);
 });
 
 // --- Session dots (glowing orbs) ---
@@ -302,13 +303,20 @@ function resetIdleTimer() {
   }, IDLE_TIMEOUT_MS);
 }
 
+// --- Extra animations (e.g. the beardie's head bob) live on a second sheet: peon-asset://extras.png ---
+let extrasTex = null;
+let extrasRows = 1;
+let extraTriggers = {};   // event name (or 'flourish') → ['x:<name>', …]
+let flourishTimer = null;
+
 function setFrame(animName, frame) {
-  const { row } = ANIM_CONFIG[animName];
+  const { row, extra } = ANIM_CONFIG[animName];
+  const rows = extra ? extrasRows : ATLAS_ROWS;
   // UV coords: u left→right, v bottom=0/top=1 (Three.js convention)
   const u0 = frame / ATLAS_COLS;
   const u1 = (frame + 1) / ATLAS_COLS;
-  const v0 = (ATLAS_ROWS - 1 - row) / ATLAS_ROWS;  // bottom of this row
-  const v1 = (ATLAS_ROWS - row) / ATLAS_ROWS;       // top of this row
+  const v0 = (rows - 1 - row) / rows;  // bottom of this row
+  const v1 = (rows - row) / rows;       // top of this row
   // PlaneGeometry vertex UV order: [0]=TL, [1]=TR, [2]=BL, [3]=BR
   const uv = geometry.attributes.uv;
   uv.setXY(0, u0, v1); // TL
@@ -322,7 +330,10 @@ function playAnim(animName) {
   pendingIdle = false;
   if (!ANIM_CONFIG[animName]) return;
   currentAnim = animName;
-  window.peonBridge.reportAnim(animName);
+  const cfg = ANIM_CONFIG[animName];
+  material.map = cfg.extra ? extrasTex : atlas;
+  if (!cfg.extra) window.peonBridge.reportAnim(animName);   // extras are desktop-only: the Pixoo keeps its state
+  if (cfg.extra) console.info('[extra] play', animName);
   currentFrame = 0;
   frameTimer = 0;
   const loops = ANIM_CONFIG[animName].loops ?? REACTION_LOOPS;
@@ -512,7 +523,44 @@ window.peonBridge.onConfig(({ size, subAgent }) => {
 // --- IPC events ---
 let anySessionActive = false;
 
-window.peonBridge.onEvent(({ anim }) => {
+// Play an extra bound to this trigger, but only while the pet is busy typing (never over a reaction).
+function maybePlayExtra(trigger) {
+  const names = extraTriggers[trigger];
+  if (!names || !names.length || isSubAgent || !extrasTex || currentAnim !== 'typing') return false;
+  playAnim(names[Math.floor(Math.random() * names.length)]);
+  return true;
+}
+
+function scheduleFlourish() {
+  clearTimeout(flourishTimer);
+  if (!(extraTriggers.flourish || []).length || isSubAgent) return;
+  flourishTimer = setTimeout(() => { maybePlayExtra('flourish'); scheduleFlourish(); }, 40000 + Math.random() * 50000);
+}
+
+function setupExtras(list) {
+  for (const k of Object.keys(ANIM_CONFIG)) if (k.startsWith('x:')) delete ANIM_CONFIG[k];
+  extraTriggers = {};
+  extrasTex = null;
+  clearTimeout(flourishTimer);
+  if (!list.length || isSubAgent) return;
+  loader.load(`peon-asset://extras.png?v=${Date.now()}`, (tex) => {
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    extrasRows = Math.max(1, Math.round(tex.image.height / (tex.image.width / ATLAS_COLS)));
+    extrasTex = tex;
+    for (const e of list) {
+      if (e.row >= extrasRows) continue;   // listed in settings but the sheet has no such row
+      ANIM_CONFIG[`x:${e.name}`] = { row: e.row, frames: 6, fps: e.fps, loop: false, loops: e.loops, extra: true };
+      for (const t of e.triggers) (extraTriggers[t] = extraTriggers[t] || []).push(`x:${e.name}`);
+    }
+    scheduleFlourish();
+  }, undefined, () => { /* no extras sheet: carry on without */ });
+}
+
+window.peonBridge.onEvent(({ anim, event }) => {
+  if (maybePlayExtra(event)) return;
+  if (!anim) return;   // events with no standard animation (e.g. SubagentStart) only matter to extras
   // Sub-agents only respond to the initial waking event
   if (isSubAgent && anim !== 'waking') return;
   // Don't wake if already active — only wake from sleep

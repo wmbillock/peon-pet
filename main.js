@@ -58,7 +58,7 @@ function savePetConfig(patch) {
 }
 
 const bundledAssetsDir = path.join(__dirname, 'renderer', 'assets');
-const ASSET_NAMES = new Set(['sprite-atlas.png', 'borders.png', 'bg.png', 'dock-icon.png']);
+const ASSET_NAMES = new Set(['sprite-atlas.png', 'borders.png', 'bg.png', 'dock-icon.png', 'extras.png']);
 let pets = null;  // pets service (species, environments, roster); created once the app is ready
 
 // Resized data-URL thumbnails, cached by file + mtime.
@@ -89,6 +89,7 @@ function registerCharacterProtocol() {
     const u = new URL(request.url);
     if (!ASSET_NAMES.has(u.hostname)) return new Response('not found', { status: 404 });
     const file = resolveAsset(u.hostname, { char: u.searchParams.get('char') || undefined, env: u.searchParams.get('env') || undefined });
+    if (!fs.existsSync(file)) return new Response('not found', { status: 404 });
     return net.fetch('file://' + file);
   });
 }
@@ -350,6 +351,7 @@ function startPolling() {
   for (const w of watchers) {
     w.on('session-event', handleSessionEvent);
     w.on('subagent-event', ({ parentToolId, event }) => {
+      if (event === 'SubagentStart' && win && !win.isDestroyed()) win.webContents.send('peon-event', { anim: null, event });  // lets pets react to a newcomer
       if (event === 'SubagentStart') createSubAgentWindow(parentToolId);
       if (event === 'SubagentStop')  destroySubAgentWindow(parentToolId);
     });

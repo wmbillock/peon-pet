@@ -14,6 +14,7 @@
 - **Tints** — translucent colour filters so many pets of one species can be told apart (desktop, grid and Pixoo)
 - **Agent grid** — a zoom window with one animated tile per active agent session showing its assigned pet (menu bar / dock / panel → Grid)
 - **Frame styles** — 12 selectable borders independent of the pet (`scripts/gen-borders.js`)
+- **Extra animations** — per-species clips beyond the six standard states, fired by triggers (a sub-agent appears, a session starts, a task completes, waiting on you, a tool fails, or an occasional idle flourish). The beardie ships a procedural head bob (`scripts/gen-headbob.js`, a soft local warp of the head so nothing tears). Add your own (a wave, a yawn) by generating a 6-frame strip from the species' prompt and importing it; extras are desktop-only
 - **Seven new bundled pets** — retro robot, Terra (FF6), weeping willow, bearded dragon, clipart trumpet, eighth note, LCD creature; selectable from the panel. Sheets, prompts and validation records are in `docs/characters/`; `scripts/gen-pet-icons.js` makes their dock icons
 - **Cross-agent: Codex support** — watches `~/.codex/sessions` rollouts alongside Claude Code transcripts (turns → typing/celebrate, interrupts → annoyed, long-running tool calls → alarmed, spawned worker threads → mini pets; guardian review threads ignored). Sessions are tagged in the panel and tooltip, and per-session voice pins use peon-ping's `codex-<id>` keys
 - **Hot reload** — edits to `renderer/`/`dashboard/` reload windows; edits to `main.js`/`lib/` restart the app

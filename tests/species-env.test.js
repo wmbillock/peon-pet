@@ -119,3 +119,28 @@ describe('chroma key + cutout import', () => {
     expect((await importCharacter({ name: 'bk', atlas: sheet, destRoot: path.join(dir, 'chars') })).layout).toBe('baked');
   });
 });
+
+describe('extra animations', () => {
+  const { cleanExtras } = require('../lib/species');
+  const make = () => createSpeciesStore({ file: path.join(dir, 'species.json'), bundledNames: ['bearded-dragon'], hasSheet: () => true });
+
+  test('the beardie ships a head bob', () => {
+    expect(make().get('bearded-dragon').extras).toEqual([{ name: 'headbob', row: 0, fps: 10, loops: 2, triggers: ['SubagentStart', 'flourish'] }]);
+  });
+
+  test('cleanExtras normalises and validates', () => {
+    expect(cleanExtras([{ name: ' Wave ', row: 1, fps: 99, loops: 0, triggers: ['SessionStart', 'bogus', 'SessionStart'] }]))
+      .toEqual([{ name: 'wave', row: 1, fps: 30, loops: 1, triggers: ['SessionStart'] }]);
+    expect(cleanExtras([{ name: 'x', row: 0 }])[0]).toMatchObject({ fps: 10, loops: 1, triggers: [] });
+    expect(() => cleanExtras([{ name: 'Bad Name!', row: 0 }])).toThrow(/Invalid extra/);
+    expect(() => cleanExtras([{ name: 'a', row: 0 }, { name: 'a', row: 1 }])).toThrow(/Duplicate/);
+    expect(() => cleanExtras([{ name: 'a', row: 99 }])).toThrow(/0-15/);
+    expect(() => cleanExtras('nope')).toThrow(/list/);
+  });
+
+  test('update persists extras, overriding the defaults', () => {
+    const st = make();
+    st.update('bearded-dragon', { extras: [{ name: 'wave', row: 1, fps: 8, loops: 1, triggers: ['SessionStart'] }] });
+    expect(make().get('bearded-dragon').extras.map((e) => e.name)).toEqual(['wave']);
+  });
+});

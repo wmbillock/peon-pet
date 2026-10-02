@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('dashBridge', {
   removeDraft: (slug) => ipcRenderer.invoke('species-remove-draft', slug),
   genPrompt: (req) => ipcRenderer.invoke('gen-prompt', req),
   importSheet: (req) => ipcRenderer.invoke('species-import', req),
+  importExtra: (req) => ipcRenderer.invoke('extra-import', req),
   previewSheet: (slug) => ipcRenderer.invoke('species-preview', slug),
   importEnv: (req) => ipcRenderer.invoke('env-import', req),
   updateEnv: (id, patch) => ipcRenderer.invoke('env-update', id, patch),

@@ -110,3 +110,14 @@ test('borders-set validates, saves, and reloads windows', async () => {
 test('species-preview returns a data URL', async () => {
   expect(await invoke('species-preview', 'orc')).toMatch(/^data:image\/png/);
 });
+
+test('extra-import: cancel is a no-op; a chosen strip adds a named extra', async () => {
+  expect((await invoke('extra-import', { slug: 'bearded-dragon', name: 'wave' })).canceled).toBe(true);
+  const f = path.join(dir, 'strip.png');
+  const c = createCanvas(3072, 512); const x = c.getContext('2d'); x.fillStyle = '#ff00ff'; x.fillRect(0, 0, 3072, 512);
+  fs.writeFileSync(f, c.toBuffer('image/png'));
+  picked = { canceled: false, filePaths: [f] };
+  const r = await invoke('extra-import', { slug: 'bearded-dragon', name: 'wave', fps: 8, triggers: ['SessionStart'] });
+  expect(r.row).toBe(1);
+  expect(r.species.find((s) => s.slug === 'bearded-dragon').extras.map((e) => e.name)).toEqual(['headbob', 'wave']);
+});

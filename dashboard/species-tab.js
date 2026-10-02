@@ -48,6 +48,72 @@ async function runImport(slug, mode) {
   renderSpecies();
 }
 
+const TRIGGER_LABELS = {
+  SubagentStart: 'a sub-agent appears', SessionStart: 'a session starts', Stop: 'a task completes',
+  PermissionRequest: 'it is waiting on you', PostToolUseFailure: 'a tool fails', flourish: 'now and then while working',
+};
+const extraDraft = { name: '', action: '' };
+
+// Extra animations: rows beyond the six standard states, each fired by a trigger.
+function extrasSection(sp) {
+  const save = (extras) => saveSp(sp.slug, { extras });
+  const list = h('div');
+  const collect = () => sp.extras.map((e) => {
+    const row = list.querySelector(`[data-extra="${e.name}"]`);
+    if (!row) return e;
+    return {
+      name: e.name, row: e.row,
+      fps: Number(row.querySelector('.fps').value) || e.fps,
+      loops: Number(row.querySelector('.loops').value) || e.loops,
+      triggers: [...row.querySelectorAll('input[data-trigger]')].filter((c) => c.checked).map((c) => c.dataset.trigger),
+    };
+  });
+  for (const e of sp.extras) {
+    list.append(h('div', { class: 'extra', 'data-extra': e.name },
+      h('div', { class: 'line' },
+        h('b', {}, e.name), h('span', { class: 'dim' }, `row ${e.row + 1}`),
+        h('label', { class: 'inline' }, 'fps ', h('input', { type: 'number', class: 'fps', value: e.fps, min: 1, max: 30, style: 'width:52px', onchange: () => save(collect()) })),
+        h('label', { class: 'inline' }, 'plays ', h('input', { type: 'number', class: 'loops', value: e.loops, min: 1, max: 6, style: 'width:46px', onchange: () => save(collect()) }), '×'),
+        h('span', { style: 'flex:1' }),
+        h('button', { class: 'danger iconbtn', title: 'Stop using this extra',
+          onclick: () => save(sp.extras.filter((x) => x.name !== e.name)) }, '×')),
+      h('div', { class: 'line', style: 'margin-top:4px' }, h('span', { class: 'dim' }, 'Plays when:'),
+        Object.entries(TRIGGER_LABELS).map(([t, label]) => h('label', { class: 'inline' },
+          h('input', { type: 'checkbox', 'data-trigger': t, checked: e.triggers.includes(t), onchange: () => save(collect()) }), ` ${label}`)))));
+  }
+  if (!sp.extras.length) list.append(h('div', { class: 'help' }, 'None yet. Extras play only while the pet is busy working, never over a reaction.'));
+
+  const nameIn = h('input', { type: 'text', placeholder: 'Name, e.g. wave', maxlength: 24, value: extraDraft.name, style: 'width:140px',
+    oninput: (e) => { extraDraft.name = e.target.value; } });
+  const actionIn = h('input', { type: 'text', placeholder: 'What it does, e.g. "waves one arm in a friendly hello"', value: extraDraft.action,
+    oninput: (e) => { extraDraft.action = e.target.value; } });
+  const need = () => {
+    if (!/^[a-z0-9][a-z0-9-]{0,23}$/i.test(extraDraft.name.trim())) { showError('Name the extra with letters, digits or dashes (e.g. "wave").'); return false; }
+    return true;
+  };
+  return h('div', { style: 'margin-top:12px' },
+    h('h2', { class: 'first' }, 'Extra animations'),
+    h('div', { class: 'help', style: 'margin:0 0 6px' }, 'Short clips beyond the six standard states — a head bob, a wave. Each is one 6-frame strip.'),
+    list,
+    h('div', { class: 'row', style: 'margin-top:8px' }, nameIn, actionIn),
+    h('div', { class: 'row', style: 'margin-top:6px' },
+      h('button', { onclick: async () => {
+        if (!need()) return;
+        try {
+          showError(null);
+          promptText = await window.dashBridge.genPrompt({ kind: 'extra', slug: sp.slug, spec: { name: extraDraft.name.trim(), action: extraDraft.action } });
+          promptLabel = `Extra: ${extraDraft.name.trim()}`;
+        } catch (e) { showError(e); }
+        renderSpecies();
+      } }, 'Make prompt'),
+      h('button', { onclick: async () => {
+        if (!need()) return;
+        const chroma = $('sheet-chroma') && $('sheet-chroma').checked ? '#FF00FF' : null;
+        const r = await act(() => window.dashBridge.importExtra({ slug: sp.slug, name: extraDraft.name.trim(), chroma }));
+        if (r && !r.canceled) { importNote = `Added "${extraDraft.name.trim()}" on row ${r.row + 1} — tick when it should play.`; extraDraft.name = ''; extraDraft.action = ''; renderSpecies(); }
+      } }, 'Import strip…')));
+}
+
 function sheetView(slug) {
   const wrap = h('div', { class: 'sheet' }, h('div', { class: 'help' }, 'Loading sheet…'));
   window.dashBridge.previewSheet(slug).then((url) => {
@@ -88,6 +154,8 @@ function speciesDetail(snap, sp) {
         h('input', { type: 'checkbox', checked: sp.localOnly, onchange: (e) => saveSp(sp.slug, { localOnly: e.target.checked }) }),
         ' Local only (third-party or private art; leave out of any shared build)'))),
     factsEditor(sp.facts, (facts) => saveSp(sp.slug, { facts }), openSpFacts, sp.slug, 'Durable notes: origin, license, behavior…'));
+
+  card.append(extrasSection(sp));
 
   // --- Sheet ---
   const sheetBox = h('div', { style: 'margin-top:12px' },
