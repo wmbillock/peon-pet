@@ -3,7 +3,8 @@ const typesList = $('types-list');
 const autoRootsBox = $('types-auto-roots');
 let typesState = null;
 
-const refreshTypes = () => window.dashBridge.getTypes().then((st) => { typesState = st; renderTypes(); }).catch(showError);
+// The Projects page shows a per-agent type pin from this state, so redraw it too once the types are in.
+const refreshTypes = () => window.dashBridge.getTypes().then((st) => { typesState = st; renderTypes(); if (typeof renderProjects === 'function') renderProjects(); }).catch(showError);
 const saveType = (t) => window.dashBridge.putType(t).then((st) => { typesState = st; renderTypes(); }).catch((e) => { showError(e); refreshTypes(); });
 const clip = (t) => ({ slug: t.slug, name: t.name, category: t.category, species: t.species, traits: t.traits, personality: t.personality, tint: t.tint, allow: t.allow, deny: t.deny, bounds: t.bounds });
 
