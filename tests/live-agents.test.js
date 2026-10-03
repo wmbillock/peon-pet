@@ -60,8 +60,8 @@ describe('process parsing', () => {
 });
 
 test('encodeProjectDir matches Claude\'s directory naming', () => {
-  expect(A.encodeProjectDir('/Users/matt.billock/Claude/Projects/Notes and Performance')).toBe('-Users-matt-billock-Claude-Projects-Notes-and-Performance');
-  expect(A.encodeProjectDir('/Users/matt.billock/.firm/worktrees/ws_1/_base')).toBe('-Users-matt-billock--firm-worktrees-ws-1--base');
+  expect(A.encodeProjectDir('/Users/someone/Notes/Projects and Performance')).toBe('-Users-someone-Notes-Projects-and-Performance');
+  expect(A.encodeProjectDir('/Users/someone/.firm/worktrees/ws_1/_base')).toBe('-Users-someone--firm-worktrees-ws-1--base');
 });
 
 describe('matchMasters', () => {
