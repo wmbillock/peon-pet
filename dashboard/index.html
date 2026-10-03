@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data:; script-src 'self'; style-src 'self' 'unsafe-inline';">
@@ -11,38 +11,38 @@
 <div id="app">
   <aside id="side">
     <div class="brand">Peon Pet</div>
-    <nav id="nav">
+    <nav id="nav" aria-label="Sections">
       <h4>Agents</h4>
-      <button data-page="overview"><i>◎</i> Overview</button>
-      <button data-page="projects"><i>◆</i> Projects</button>
+      <button data-page="overview"><i aria-hidden="true">◎</i> Overview</button>
+      <button data-page="projects"><i aria-hidden="true">◆</i> Projects</button>
       <h4>Pets</h4>
-      <button data-page="pets"><i>🐾</i> Roster</button>
-      <button data-page="species"><i>🎨</i> Species &amp; art</button>
-      <button data-page="environs"><i>🏞</i> Environments</button>
+      <button data-page="pets"><i aria-hidden="true">🐾</i> Roster</button>
+      <button data-page="species"><i aria-hidden="true">🎨</i> Species &amp; art</button>
+      <button data-page="environs"><i aria-hidden="true">🏞</i> Environments</button>
       <h4>Look &amp; sound</h4>
-      <button data-page="display"><i>▣</i> Frames &amp; Pixoo</button>
-      <button data-page="sound"><i>♪</i> Voice &amp; sound</button>
+      <button data-page="display"><i aria-hidden="true">▣</i> Frames &amp; Pixoo</button>
+      <button data-page="sound"><i aria-hidden="true">♪</i> Voice &amp; sound</button>
       <h4>The Firm</h4>
-      <button data-page="firm"><i>⚑</i> Connection</button>
-      <button data-page="forge"><i>⚒</i> Agent Forge</button>
+      <button data-page="firm"><i aria-hidden="true">⚑</i> Connection</button>
+      <button data-page="forge"><i aria-hidden="true">⚒</i> Agent Forge</button>
     </nav>
   </aside>
 
   <div id="content">
     <header>
-      <button id="burger" title="Menu">☰</button>
+      <button id="burger" aria-label="Menu" aria-expanded="true" aria-controls="side">☰</button>
       <h1 id="page-title">Overview</h1>
       <span class="spacer"></span>
       <button id="grid-btn" title="Open the big agent dashboard">Dashboard</button>
       <button id="mute">Mute sounds</button>
     </header>
-    <div id="error"></div>
+    <div id="error" role="alert"></div>
 
     <!-- ============ Overview ============ -->
     <main id="page-overview" class="page">
       <section class="card">
         <h2 class="first">Corner window</h2>
-        <div class="seg" id="corner-seg">
+        <div class="seg" id="corner-seg" role="group" aria-label="Corner window view">
           <button data-v="pet">Pet</button>
           <button data-v="grid">Grid</button>
           <button data-v="speaker">Speaker</button>
@@ -76,9 +76,9 @@
     <section class="card">
       <h2 class="first">Add pets</h2>
       <div class="row">
-        <select id="add-species"></select>
-        <input type="text" id="add-name" placeholder="Name (optional)" maxlength="32">
-        <label class="inline">×</label>
+        <select id="add-species" aria-label="Species"></select>
+        <input type="text" id="add-name" aria-label="Pet name" placeholder="Name (optional)" maxlength="32">
+        <label class="inline" for="add-count">Count</label>
         <input type="number" id="add-count" value="1" min="1" max="24" style="width:56px">
         <button id="add-btn">Add</button>
       </div>
@@ -92,10 +92,10 @@
     <section class="card">
       <h2 class="first">New species</h2>
       <div class="row">
-        <input type="text" id="new-sp-name" placeholder="Name, e.g. Jazz Trumpet" maxlength="40" style="flex:1">
+        <input type="text" id="new-sp-name" aria-label="Species name" placeholder="Name, e.g. Jazz Trumpet" maxlength="40" style="flex:1">
         <button id="new-sp-btn">Create draft</button>
       </div>
-      <textarea id="new-sp-brief" rows="3" placeholder="Describe the character: what it looks like, its personality…"></textarea>
+      <textarea id="new-sp-brief" aria-label="Character description" rows="3" placeholder="Describe the character: what it looks like, its personality…"></textarea>
       <div class="help">A draft holds the description and generates the prompt to feed an image model. Import the sheet when you have it.</div>
     </section>
     <div id="sp-list" class="cards"></div>
@@ -112,13 +112,13 @@
       <div id="env-detail"></div>
       <h2>New environment</h2>
       <div class="row">
-        <input type="text" id="env-name" placeholder="Name, e.g. Smoky jazz club" maxlength="40" style="flex:1">
+        <input type="text" id="env-name" aria-label="Environment name" placeholder="Name, e.g. Smoky jazz club" maxlength="40" style="flex:1">
         <button id="env-import-btn">Import image…</button>
       </div>
-      <textarea id="env-desc" rows="2" placeholder="Describe the place (used for the prompt and kept as a note)…"></textarea>
+      <textarea id="env-desc" aria-label="Environment description" rows="2" placeholder="Describe the place (used for the prompt and kept as a note)…"></textarea>
       <div class="row" style="margin-top:6px"><button id="env-prompt-btn">Make prompt</button></div>
       <div id="env-prompt-box" hidden>
-        <textarea id="env-prompt" rows="9" readonly></textarea>
+        <textarea id="env-prompt" aria-label="Generated prompt" rows="9" readonly></textarea>
         <button class="copy" data-copy="env-prompt">Copy prompt</button>
       </div>
     </section>
@@ -134,9 +134,9 @@
     <section class="card" id="pixoo">
       <h2 class="first">Pixoo 64 display</h2>
       <div class="row">
-        <input type="text" id="pixoo-ip" placeholder="Device IP, e.g. 192.168.1.50" spellcheck="false">
+        <input type="text" id="pixoo-ip" aria-label="Pixoo device IP" placeholder="Device IP, e.g. 192.168.1.50" spellcheck="false">
         <label class="inline"><input type="checkbox" id="pixoo-on"> Mirror lead pet</label>
-        <span id="pixoo-status"></span>
+        <span id="pixoo-status" role="status"></span>
       </div>
       <div class="row" style="margin-top:8px">
         <label for="pixoo-bright" class="inline" style="width:88px">Brightness</label>
@@ -159,7 +159,7 @@
       <div class="row">
         <label for="global-pack">Global voice</label>
         <select id="global-pack"></select>
-        <button id="audition" class="play" title="Audition this voice">▶</button>
+        <button id="audition" class="play" title="Audition this voice" aria-label="Audition this voice">▶</button>
         <button id="global-apply">Set as global</button>
       </div>
       <div class="row" style="margin-top:8px">
@@ -182,7 +182,7 @@
         <h2 class="first">Connection</h2>
         <div class="row">
           <span id="firm-status" class="chip">checking…</span>
-          <input type="text" id="firm-url" placeholder="http://127.0.0.1:8420" spellcheck="false">
+          <input type="text" id="firm-url" aria-label="Firm backend URL" placeholder="http://127.0.0.1:8420" spellcheck="false">
           <label class="inline"><input type="checkbox" id="firm-on"> Connect</label>
           <button id="firm-save">Save</button>
         </div>
@@ -195,7 +195,7 @@
     <main id="page-forge" class="page" hidden>
       <section class="card">
         <h2 class="first">Agent types</h2>
-        <div class="help" style="margin:0 0 8px">Choose which species and which full-image <b>filter</b> stand for each Firm role — the agent <i>type</i>. Projects are told apart by their plate, emoji and frame; agents of the same type within a project by shades of the project's color (a role filter replaces its shade).</div>
+        <div class="help" style="margin:0 0 8px">Choose which species and which full-image <b>filter</b> stand for each Firm role — the agent <i aria-hidden="true">type</i>. Projects are told apart by their plate, emoji and frame; agents of the same type within a project by shades of the project's color (a role filter replaces its shade).</div>
         <table id="forge-table">
           <thead><tr><th>Role</th><th>What it does</th><th>Species</th><th>Filter</th></tr></thead>
           <tbody id="forge-rows"></tbody>

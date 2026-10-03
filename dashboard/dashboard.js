@@ -117,6 +117,7 @@ function renderRows() {
 
     const voiceTd = document.createElement('td');
     const sel = document.createElement('select');
+    sel.setAttribute('aria-label', `Voice for ${s.name || s.id}`);
     packOptions(sel, packState.sessionPacks[s.peonKey || s.id], `Default (${displayName(packState.defaultPack)})`);
     sel.addEventListener('change', async () => {
       try {

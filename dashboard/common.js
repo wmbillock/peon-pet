@@ -134,3 +134,42 @@ try { showPage(localStorage.getItem('page') || 'overview'); } catch { showPage('
 
 window.addEventListener('focus', refreshSnap);
 refreshSnap();
+
+// Accessibility: tabs build their markup dynamically, so name unlabeled controls and mirror the
+// visual `.on` state into ARIA after every DOM change instead of threading it through each builder.
+const TOGGLE_SEL = '.seg button, .cardbtn, .emojis button, .sw';
+function a11yPass(root = document) {
+  for (const el of root.querySelectorAll('input:not([type=hidden]), select, textarea')) {
+    if (el.labels && el.labels.length) continue;
+    if (el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')) continue;
+    const row = el.closest('.pet, .projcard, .card, tr');
+    const owner = row && row.querySelector('input.name, input.pname, input[type=text]');
+    const base = el.title || el.getAttribute('placeholder')
+      || (el.previousElementSibling && el.previousElementSibling.tagName === 'LABEL' && el.previousElementSibling.textContent.trim())
+      || (el.type === 'range' ? 'Slider' : el.tagName === 'SELECT' ? 'Choose' : el.type === 'checkbox' ? 'Toggle' : 'Value');
+    const who = owner && owner !== el && owner.value ? ` (${owner.value})` : '';
+    el.setAttribute('aria-label', base.replace(/\s+/g, ' ').trim() + who);
+  }
+  for (const b of root.querySelectorAll(TOGGLE_SEL)) b.setAttribute('aria-pressed', b.classList.contains('on') || b.classList.contains('sel') ? 'true' : 'false');
+  for (const b of root.querySelectorAll('#nav button')) {
+    if (b.classList.contains('on')) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
+  for (const b of root.querySelectorAll('button:not([aria-label])')) {
+    if (!b.textContent.trim() && b.title) b.setAttribute('aria-label', b.title);
+  }
+  for (const im of root.querySelectorAll('img:not([alt])')) im.setAttribute('alt', '');
+  const burger = $('burger');
+  if (burger) burger.setAttribute('aria-expanded', String(!document.body.classList.contains('nav-collapsed')));
+}
+let a11yQueued = false;
+new MutationObserver(() => {
+  if (a11yQueued) return;
+  a11yQueued = true;
+  queueMicrotask(() => { a11yQueued = false; a11yPass(); });
+}).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+a11yPass();
+
+// Move focus to the page heading on navigation so keyboard/screen-reader users land in the new content.
+for (const b of document.querySelectorAll('#nav button')) {
+  b.addEventListener('click', () => { const t = $('page-title'); t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }); });
+}
