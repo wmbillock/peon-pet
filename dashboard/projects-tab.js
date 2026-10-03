@@ -41,7 +41,26 @@ function projectCard(p) {
       h('div', { class: 'help', style: 'margin:0' }, p.key)));
 }
 
+const projAssign = $('proj-assign');
+function renderAssign() {
+  const agents = app.sessions.filter((a) => a.project && a.isRoot);
+  const mine = projState.assignments || {};
+  renderUnlessEditing(projAssign, () => projAssign.replaceChildren(...(agents.length ? agents.map((a) => {
+    const sel = h('select', { onchange: () => window.dashBridge.assignProject(a.id, sel.value || null).then((st) => { projState = st; renderProjects(); }).catch((e) => { showError(e); refreshProjects(); }) },
+      h('option', { value: '', selected: !mine[a.id] }, `Automatic (${a.project.name})`),
+      projState.projects.map((p) => h('option', { value: p.key, selected: mine[a.id] === p.key }, `${p.emoji} ${p.name}`)));
+    // Pin a kind of agent on this one (Agent Forge → Kinds of agent); automatic otherwise.
+    const ts = typeof typesState !== 'undefined' && typesState;
+    const pinned = ts ? ts.pins.sessions[a.id] : null;
+    const typeSel = ts ? h('select', { title: 'Kind of agent', onchange: () => window.dashBridge.pinType('session', a.id, typeSel.value || null).then((st) => { typesState = st; renderProjects(); }).catch((e) => { showError(e); refreshProjects(); }) },
+      h('option', { value: '', selected: !pinned }, a.pet && a.pet.type ? `Automatic (${a.pet.type.name})` : 'Automatic'),
+      ts.types.map((t) => h('option', { value: t.slug, selected: pinned === t.slug }, `${t.name} · ${t.category}`))) : null;
+    return h('div', { class: 'line' }, h('span', {}, a.name || a.id), sel, typeSel);
+  }) : [h('div', { class: 'help' }, 'No agents running right now.')])));
+}
+
 function renderProjects() {
+  renderAssign();
   const list = projState.projects
     .filter((p) => projUnused.checked || countFor(p.key) > 0)
     .sort((a, b) => countFor(b.key) - countFor(a.key) || a.name.localeCompare(b.name));

@@ -11,6 +11,7 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svc-'));
   svc = createPetsService({ userDataDir: dir, assetsDir: ASSETS, bundled: BUNDLED });
   svc.seed('orc');
+  for (const t of svc.agentTypes.list()) svc.agentTypes.remove(t.slug);   // existing tests are about roles and tints, not seeded types
 });
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
@@ -41,7 +42,10 @@ test('createPets makes distinct individuals and auto-tints duplicates of a speci
 test('resolveAsset: lead species by default, ?char= override, orc fallbacks, border override', () => {
   const lead = svc.resolveAsset('sprite-atlas.png');
   expect(lead).toBe(path.join(ASSETS, 'orc-sprite-atlas.png'));
-  expect(svc.resolveAsset('sprite-atlas.png', { char: 'terra-ff6' })).toBe(path.join(ASSETS, 'terra-ff6-sprite-atlas.png'));
+  expect(svc.resolveAsset('sprite-atlas.png', { char: 'weeping-willow' })).toBe(path.join(ASSETS, 'weeping-willow-sprite-atlas.png'));
+  // terra-ff6 is local-only art: it resolves to its own atlas where present and falls back to the lead in a distribution
+  const terra = path.join(ASSETS, 'terra-ff6-sprite-atlas.png');
+  expect(svc.resolveAsset('sprite-atlas.png', { char: 'terra-ff6' })).toBe(require('fs').existsSync(terra) ? terra : lead);
   expect(svc.resolveAsset('sprite-atlas.png', { char: '../../etc' })).toBe(lead);   // invalid → lead
   expect(svc.resolveAsset('borders.png', { char: 'lcd-creature' })).toBe(path.join(ASSETS, 'orc-borders.png'));
   expect(svc.resolveAsset('borders.png', { border: 'gold' })).toBe(path.join(ASSETS, 'borders/gold.png'));
@@ -54,7 +58,7 @@ test('assign maps active sessions to individual pets with looks', () => {
   const sessions = [{ id: 'a', cwd: '/w', agent: 'claude', hot: true, lastActive: 2 }, { id: 'b', cwd: '/w', agent: 'codex', hot: false, lastActive: 1 }];
   const m = svc.assign(sessions);
   expect(m.get('a').petId).not.toBe(m.get('b').petId);
-  expect(m.get('a')).toMatchObject({ layout: 'baked', env: null });
+  expect(m.get('a')).toMatchObject({ layout: 'cutout', env: 'orc-forge' });   // bundled art is cutouts on per-species environments
   svc.roster.update(m.get('b').petId, { assignment: { type: 'agent', value: 'codex' } });
   svc.refresh();
   expect(svc.assign(sessions).get('b').petId).toBe(m.get('b').petId);
@@ -80,6 +84,8 @@ test('importSheet with a chroma backdrop turns a species into a cutout that uses
 });
 
 test('baked species ignore environments', () => {
+  svc.species.update(svc.lead().species, { layout: 'baked' });   // a sheet that paints its own scene
+  svc.refresh();
   expect(svc.lookOf(svc.lead())).toMatchObject({ layout: 'baked', env: null });
 });
 
@@ -200,5 +206,49 @@ describe('agent type supplied by The Firm', () => {
     expect(m.get('w1')).toMatchObject({ species: 'eighth-note', sub: true });
     expect(m.get('w2').species).toBe('retro-robot');               // no type: the role mapping applies
     expect(m.get('w3').species).toBe('retro-robot');               // unknown type: ignored, not a crash
+  });
+});
+
+describe('agent types', () => {
+  const root = (id, extra = {}) => ({ id, isRoot: true, rootId: id, cwd: '/w/app', agent: 'claude', hot: true, lastActive: 1, order: 0, ...extra });
+  const kid = (id, rootId, role, extra = {}) => ({ id, isRoot: false, rootId, firmRole: role, cwd: '/w/app', agent: 'claude', hot: true, lastActive: 1, order: 1, ...extra });
+  const addTypes = () => {
+    svc.agentTypes.put({ slug: 'robo', name: 'Robo', category: 'worker', species: 'retro-robot', traits: ['backend'], personality: 'careful' }, svc.typeChecks);
+    svc.agentTypes.put({ slug: 'grunt', name: 'Grunt', category: 'worker', species: 'capybara', traits: ['frontend'], personality: 'calm' }, svc.typeChecks);
+  };
+
+  test('sub-agents are matched to a type by traits: the pet changes, the root name stays, and the type rides on the look', () => {
+    addTypes();
+    const m = svc.assign([root('r'), kid('k1', 'r', 'worker', { title: 'Backend handler' }), kid('k2', 'r', 'worker', { title: 'Frontend page' })]);
+    expect(m.get('k1')).toMatchObject({ species: 'retro-robot', name: m.get('r').name, type: { slug: 'robo', personality: 'careful' } });
+    expect(m.get('k2')).toMatchObject({ species: 'capybara', type: { slug: 'grunt' } });
+    expect(m.get('r').type).toBeUndefined();   // roots only auto-pick when you turn that on
+  });
+
+  test('a session pin beats the automatic pick; a Firm agent_type beats a pin; a role→species setting beats auto-pick', () => {
+    addTypes();
+    const agents = [root('r'), kid('k1', 'r', 'worker', { title: 'Backend handler' })];
+    svc.agentTypes.pin('session', 'k1', 'grunt');
+    expect(svc.assign(agents).get('k1').type.slug).toBe('grunt');
+    const firm = [root('r'), kid('k1', 'r', 'worker', { firm: { agentType: 'robo' } })];
+    expect(svc.assign(firm).get('k1').type.slug).toBe('robo');
+    svc.agentTypes.pin('session', 'k1', null);
+    svc.setRoleSpecies({ worker: 'weeping-willow' });
+    const m = svc.assign(agents);
+    expect(m.get('k1')).toMatchObject({ species: 'weeping-willow' });
+    expect(m.get('k1').type).toBeUndefined();
+  });
+
+  test('duplicates spread across the types in their category', () => {
+    addTypes();
+    const m = svc.assign([root('r'), kid('a', 'r', 'worker', { order: 1 }), kid('b', 'r', 'worker', { order: 2 })]);
+    expect(new Set([m.get('a').type.slug, m.get('b').type.slug]).size).toBe(2);
+  });
+
+  test('autoRoots lets roots wear a type too', () => {
+    addTypes();
+    svc.agentTypes.put({ slug: 'boss', name: 'Boss', category: 'lead', species: 'capybara', traits: [], personality: '' }, svc.typeChecks);
+    svc.agentTypes.setAutoRoots(true);
+    expect(svc.assign([root('r')]).get('r').type.slug).toBe('boss');
   });
 });

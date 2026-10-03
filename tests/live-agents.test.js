@@ -60,8 +60,8 @@ describe('process parsing', () => {
 });
 
 test('encodeProjectDir matches Claude\'s directory naming', () => {
-  expect(A.encodeProjectDir('/Users/matt.billock/Claude/Projects/Notes and Performance')).toBe('-Users-matt-billock-Claude-Projects-Notes-and-Performance');
-  expect(A.encodeProjectDir('/Users/matt.billock/.firm/worktrees/ws_1/_base')).toBe('-Users-matt-billock--firm-worktrees-ws-1--base');
+  expect(A.encodeProjectDir('/Users/someone/Notes/Projects and Performance')).toBe('-Users-someone-Notes-Projects-and-Performance');
+  expect(A.encodeProjectDir('/Users/someone/.firm/worktrees/ws_1/_base')).toBe('-Users-someone--firm-worktrees-ws-1--base');
 });
 
 describe('matchMasters', () => {
@@ -152,5 +152,19 @@ describe('session registry', () => {
   test('pidAlive is true for this process and false for an impossible pid', () => {
     expect(A.pidAlive(process.pid)).toBe(true);
     expect(A.pidAlive(2 ** 22 + 12345)).toBe(false);
+  });
+});
+
+describe('codexMasters', () => {
+  const { codexMasters } = require('../lib/live-agents');
+  const now = 1_000_000_000;
+  test('recently written interactive sessions are masters; scripted and stale ones are not', () => {
+    const mains = [
+      { sessionId: 'tui', cwd: '/w/a', originator: 'codex-tui', mtime: now - 60_000 },
+      { sessionId: 'app', cwd: '/w/b', originator: null, mtime: now - 10 * 60_000 },
+      { sessionId: 'exec', cwd: '/w/c', originator: 'codex_exec', mtime: now - 1000 },
+      { sessionId: 'old', cwd: '/w/d', originator: 'codex-tui', mtime: now - 3 * 3600_000 },
+    ];
+    expect(codexMasters(mains, now).map((m) => m.sessionId)).toEqual(['tui', 'app']);
   });
 });

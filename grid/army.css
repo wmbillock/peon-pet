@@ -1,0 +1,8 @@
+/* One agent, one small window: the whole body drags it; double-click opens the big dashboard. */
+html, body { height: 100%; margin: 0; background: transparent; overflow: hidden; }
+body { font: 11px -apple-system, 'SF Mono', sans-serif; color: #ccc; -webkit-app-region: drag; user-select: none; }
+#stage { height: 100%; padding: 4px; }
+#stage .groups { --tile: 138px; gap: 0; }
+#stage .group { padding: 0; border: 0; background: transparent; }
+#stage .group-title { display: none; }
+#stage .tile { width: 138px; }

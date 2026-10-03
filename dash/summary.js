@@ -34,5 +34,48 @@
     return out;
   }
 
-  return { summarizeAgents, isWorking, isIdle, needsAttention, ATTENTION_MS };
+  // ---- tooltip text for the summary strip ---------------------------------------------------
+  const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+  const ageWord = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`; };
+  const labelOf = (a) => a.title || a.name || String(a.id).replace(/^firm:/, '').slice(0, 8);
+
+  // One line per agent: "🐾 peon-pet · lead · 3s"
+  function agentLine(a, now) {
+    const role = a.firmRole || (a.role === 'master' ? 'master' : '');
+    const parts = [`${a.project && a.project.emoji ? `${a.project.emoji} ` : ''}${clip(labelOf(a), 26)}`];
+    if (role) parts.push(role);
+    parts.push(ageWord(now - (a.lastActive || now)));
+    return parts.join(' · ');
+  }
+
+  // Heading, then the busiest agents first (working before idle), capped with "+N more".
+  function describe(heading, list, now, { max = 7, hint = '' } = {}) {
+    const sorted = [...list].sort((x, y) => (isWorking(y) - isWorking(x)) || ((y.lastActive || 0) - (x.lastActive || 0)));
+    const lines = [heading, ...sorted.slice(0, max).map((a) => agentLine(a, now))];
+    if (sorted.length > max) lines.push(`+${sorted.length - max} more`);
+    if (hint) lines.push(hint);
+    return lines.join('\n');
+  }
+
+  // Tooltip text for every clickable part of the strip.
+  function summaryTips(agents, now = Date.now()) {
+    const all = agents || [];
+    const working = all.filter(isWorking), idle = all.filter(isIdle), alert = all.filter((a) => needsAttention(a, now));
+    const plural = (n, w) => `${n} ${w}`;
+    const out = {
+      working: describe(plural(working.length, 'working'), working, now, { hint: 'Click to see them' }),
+      idle: describe(plural(idle.length, 'idle — between turns'), idle, now, { hint: 'Click to see them' }),
+      attention: describe(plural(alert.length, alert.length === 1 ? 'needs you — alarmed or interrupted' : 'need you — alarmed or interrupted'), alert, now, { hint: 'Click to see them' }),
+      projects: {},
+    };
+    const byProject = new Map();
+    for (const a of all) { if ((isWorking(a) || isIdle(a)) && a.project) byProject.set(a.project.key, [...(byProject.get(a.project.key) || []), a]); }
+    for (const [key, list] of byProject) {
+      const p = list[0].project, w = list.filter(isWorking).length;
+      out.projects[key] = describe(`${p.emoji || ''} ${p.name} — ${w} working, ${list.length - w} idle`.trim(), list, now, { hint: 'Click to see only this project' });
+    }
+    return out;
+  }
+
+  return { summarizeAgents, summaryTips, isWorking, isIdle, needsAttention, ATTENTION_MS };
 });

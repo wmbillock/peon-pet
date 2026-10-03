@@ -71,6 +71,7 @@ window.addEventListener('wheel', (e) => {
   bumpZoom(-Math.sign(e.deltaY) * 16);
 }, { passive: false });
 
+Tip.attach();
 window.gridBridge.onSessions((data) => dash.update(data));
 window.gridBridge.onView((v) => dash.setView(v));
 window.gridBridge.ready();

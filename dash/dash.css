@@ -104,3 +104,13 @@
 /* group-by-project: sections flow side by side, wide projects take their own row */
 .projects { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-start; }
 .projects .proj { margin: 0; max-width: 100%; }
+
+/* ---------- tooltips (dash/tip.js) ---------- */
+.tip { position: fixed; z-index: 1000; display: none; pointer-events: none; padding: 5px 8px; border-radius: 6px; max-width: 240px;
+       background: rgba(10, 10, 20, 0.97); border: 1px solid rgba(160, 160, 255, 0.35); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+       font: 11px/1.45 -apple-system, 'SF Mono', sans-serif; color: #c9c9dc; white-space: nowrap; width: max-content; overflow: hidden; box-sizing: border-box; }
+.tip.on { display: block; }
+.tip .tip-head, .tip .tip-line { overflow: hidden; text-overflow: ellipsis; }
+.tip .tip-head { color: #fff; font-weight: 600; margin-bottom: 2px; }
+.tip .tip-line { color: #b4b4cc; }
+.tip .tip-line:last-child { color: #7f86d8; }

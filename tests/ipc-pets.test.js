@@ -90,12 +90,12 @@ test('environments: import, edit, remove', async () => {
   const c = createCanvas(500, 400); const x = c.getContext('2d'); x.fillStyle = '#335'; x.fillRect(0, 0, 500, 400);
   fs.writeFileSync(f, c.toBuffer('image/png'));
   picked = { canceled: false, filePaths: [f] };
-  let snap = await invoke('env-import', { display: 'Jazz Club', description: 'smoky' });
-  expect(snap.created).toBe('jazz-club');
-  snap = await invoke('env-update', 'jazz-club', { description: 'very smoky' });
-  expect(snap.environs.find((e) => e.id === 'jazz-club').description).toBe('very smoky');
-  snap = await invoke('env-remove', 'jazz-club');
-  expect(snap.environs.some((e) => e.id === 'jazz-club')).toBe(false);
+  let snap = await invoke('env-import', { display: 'Test Lagoon', description: 'smoky' });
+  expect(snap.created).toBe('test-lagoon');
+  snap = await invoke('env-update', 'test-lagoon', { description: 'very smoky' });
+  expect(snap.environs.find((e) => e.id === 'test-lagoon').description).toBe('very smoky');
+  snap = await invoke('env-remove', 'test-lagoon');
+  expect(snap.environs.some((e) => e.id === 'test-lagoon')).toBe(false);
   await expect(invoke('env-remove', 'dungeon')).rejects.toThrow(/Built-in/);
 });
 
@@ -173,4 +173,22 @@ test('projects: list, edit (frame/env validated against the catalogs), forget; c
   await expect(invoke('projects-update', 'nope', { name: 'x' })).rejects.toThrow(/Unknown project/);
   const s2 = await invoke('projects-forget', 'cwd:/w/peon-pet');
   expect(s2.projects).toEqual([]);
+});
+
+test('agent types: list, edit with permissions, pin, auto roots, and ask "can it?"', async () => {
+  let st = await invoke('types-get');
+  expect(st.categories).toContain('worker');
+  expect(st.types.find((t) => t.slug === 'tinkerer').can).toContain('edit-code');
+  st = await invoke('types-put', { slug: 'careful', name: 'Careful', category: 'worker', species: 'orc', traits: 'security', deny: ['write-tests'] });
+  expect(st.types.find((t) => t.slug === 'careful').can).not.toContain('write-tests');
+  await expect(invoke('types-put', { slug: 'bad', name: 'Bad', category: 'inspector', species: 'orc', allow: ['edit-code'] })).rejects.toThrow(/only narrow/);
+  expect(await invoke('types-check', 'careful', 'edit-code')).toMatchObject({ decision: 'allow' });
+  expect(await invoke('types-check', 'careful', 'merge')).toMatchObject({ decision: 'delegate', route: 'human' });
+  st = await invoke('types-pin', 'session', 's1', 'careful');
+  expect(st.pins.sessions).toEqual({ s1: 'careful' });
+  st = await invoke('types-pin', 'session', 's1', null);
+  expect(st.pins.sessions).toEqual({});
+  expect((await invoke('types-auto-roots', true)).autoRoots).toBe(true);
+  st = await invoke('types-remove', 'careful');
+  expect(st.types.some((t) => t.slug === 'careful')).toBe(false);
 });

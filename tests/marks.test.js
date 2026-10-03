@@ -1,4 +1,4 @@
-const { applyMarks, shadeTint, hslToRgb, SHADE_LIGHTNESS } = require('../lib/marks');
+const { applyMarks, shadeTint, hslToRgb, hsvToRgb, HUE_STEPS } = require('../lib/marks');
 const { createProjectStore, HUES } = require('../lib/projects');
 const fs = require('fs');
 const os = require('os');
@@ -18,11 +18,20 @@ test('hslToRgb sanity', () => {
   expect(hslToRgb(215, 70, 0)).toEqual([0, 0, 0]);
 });
 
-test('shades alternate dark and light and cycle', () => {
-  const dark = shadeTint(215, 1), light = shadeTint(215, 2);
-  expect(dark.tintRgb.reduce((a, b) => a + b)).toBeLessThan(light.tintRgb.reduce((a, b) => a + b));
-  expect(shadeTint(215, 1 + SHADE_LIGHTNESS.length)).toEqual(dark);
-  expect(dark.tintCss).toMatch(/^rgba\(\d+,\d+,\d+,0\.32\)$/);
+test('hsvToRgb sanity', () => {
+  expect(hsvToRgb(0, 1, 1)).toEqual([255, 0, 0]);
+  expect(hsvToRgb(120, 1, 1)).toEqual([0, 255, 0]);
+  expect(hsvToRgb(240, 1, 1)).toEqual([0, 0, 255]);
+  expect(hsvToRgb(-120, 1, 1)).toEqual([0, 0, 255]);   // negative hues wrap
+  expect(hsvToRgb(10, 0, 0.5)).toEqual([128, 128, 128]);
+});
+
+test('duplicate shades are bright, different from each other, and cycle', () => {
+  const shades = HUE_STEPS.map((_, i) => shadeTint(215, i + 1));
+  for (const s of shades) expect(Math.max(...s.tintRgb)).toBe(255);            // full value: never dim
+  expect(new Set(shades.map((s) => s.tintRgb.join())).size).toBe(HUE_STEPS.length);
+  expect(shadeTint(215, 1 + HUE_STEPS.length)).toEqual(shades[0]);
+  expect(shades[0].tintCss).toMatch(/^rgba\(\d+,\d+,\d+,0\.4\)$/);
 });
 
 test('agents of one project share its identity; same-type agents get distinct shades; the first stays natural', () => {
@@ -89,4 +98,11 @@ test('Firm-supplied project looks seed the project (emoji, hue, frame, backgroun
   const m = applyMarks({ agents, looks: new Map(), resolveProject: resolve, firmProjects: { p9: { id: 'p9', title: 'Pricing CLI', emoji: '🏦', hue: 215, frame: 'gold', env: 'dungeon' } } });
   expect(m.get('l').project).toMatchObject({ key: 'firm:p9', name: 'Pricing CLI', emoji: '🏦', hue: 215, frame: 'gold', env: 'dungeon' });
   expect(m.get('l').mark.hue).toBe(215);
+});
+
+test('an assignment moves an agent to the chosen project, whatever its folder says', () => {
+  const agents = [agent('a', { cwd: '/w/one', order: 0 }), agent('b', { cwd: '/w/one', order: 1 })];
+  const m = applyMarks({ agents, looks: new Map(), resolveProject: resolve, assignments: { b: 'cwd:/w/two' } });
+  expect(m.get('a').project.key).toBe('cwd:/w/one');
+  expect(m.get('b').project.key).toBe('cwd:/w/two');
 });

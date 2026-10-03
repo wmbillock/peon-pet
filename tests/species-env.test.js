@@ -23,7 +23,7 @@ describe('species store', () => {
 
   test('built-ins get friendly names and facts; edits persist as overrides without touching defaults', () => {
     const st = make();
-    expect(st.get('bearded-dragon')).toMatchObject({ display: 'Beardie', builtin: true, ready: true, layout: 'baked', setting: 'desk' });
+    expect(st.get('bearded-dragon')).toMatchObject({ display: 'Beardie', builtin: true, ready: true, layout: 'cutout', setting: 'free', defaultEnv: 'beardie-terrarium' });
     st.update('bearded-dragon', { display: 'Spike the Beardie', facts: [{ key: 'Mood', value: 'regal' }], activity: 'basking under a heat lamp', setting: 'free', layout: 'cutout', defaultEnv: 'terrarium', localOnly: true });
     const again = make().get('bearded-dragon');
     expect(again).toMatchObject({ display: 'Spike the Beardie', activity: 'basking under a heat lamp', setting: 'free', layout: 'cutout', defaultEnv: 'terrarium', localOnly: true });
@@ -124,8 +124,10 @@ describe('extra animations', () => {
   const { cleanExtras } = require('../lib/species');
   const make = () => createSpeciesStore({ file: path.join(dir, 'species.json'), bundledNames: ['bearded-dragon'], hasSheet: () => true });
 
-  test('the beardie ships a head bob', () => {
-    expect(make().get('bearded-dragon').extras).toEqual([{ name: 'headbob', row: 0, fps: 10, loops: 2, triggers: ['SubagentStart', 'flourish'] }]);
+  test('the beardie ships a head bob and a wave', () => {
+    expect(make().get('bearded-dragon').extras).toEqual([
+      { name: 'headbob', row: 0, fps: 10, loops: 2, triggers: ['SubagentStart', 'flourish'] },
+      { name: 'wave', row: 1, fps: 8, loops: 2, triggers: ['SessionStart'] }]);
   });
 
   test('cleanExtras normalises and validates', () => {

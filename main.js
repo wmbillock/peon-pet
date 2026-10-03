@@ -15,7 +15,7 @@ const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
 const { registerPetIpc } = require('./lib/ipc-pets');
-const { readSessionRegistry, transcriptFor } = require('./lib/live-agents');
+const { readSessionRegistry, transcriptFor, codexMasters } = require('./lib/live-agents');
 const { createFirmClient, createFirmPoller, parseBaseUrl } = require('./lib/firm-client');
 const { buildAgents } = require('./lib/agent-graph');
 const { applyMarks } = require('./lib/marks');
@@ -81,6 +81,7 @@ function thumb(file, px) {
 function initPets() {
   const savedView = loadPetConfig().cornerView;
   if (CORNER_VIEWS.includes(savedView)) cornerView = savedView;
+  armyOn = loadPetConfig().army === true;
   pets = createPetsService({ userDataDir: app.getPath('userData'), assetsDir: bundledAssetsDir, bundled: BUNDLED_CHARS, thumb });
   pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
   registerPetIpc({
@@ -410,7 +411,7 @@ function sendSessionUpdate(now) {
   }
   const baseLooks = pets ? pets.assign(agents) : new Map();
   // Project identity (emoji, colour family, frame, environment) and per-type shades.
-  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n, seed) => (liveReady ? pets.projects.resolve(k, n, seed) : pets.projects.peek(k, n)), firmProjects: firmState.projects || {} }) : new Map();
+  const marks = pets ? applyMarks({ agents, looks: baseLooks, resolveProject: (k, n, seed) => (liveReady ? pets.projects.resolve(k, n, seed) : pets.projects.peek(k, n)), firmProjects: firmState.projects || {}, assignments: liveReady ? pets.projects.assignments() : {} }) : new Map();
   const looks = new Map([...marks].map(([id, m]) => [id, m.look]).filter(([, l]) => l));
   latestLooks = looks;
   const payload = {
@@ -419,6 +420,8 @@ function sendSessionUpdate(now) {
   };
   latestSessions = payload;
   if (gridWin && !gridWin.isDestroyed()) gridWin.webContents.send('grid-sessions', payload);
+  syncArmy();
+  for (const w of armyWins.values()) if (!w.isDestroyed()) w.webContents.send('grid-sessions', payload);
   if (pixooConfig().enabled) schedulePixooSync();
   if (win && !win.isDestroyed()) win.webContents.send('session-update', payload);
   if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('dash-sessions', payload);
@@ -491,6 +494,12 @@ function startPolling() {
         sessionRegistry.set(r.sessionId, r);
       }
       for (const id of [...sessionRegistry.keys()]) if (!liveIds.has(id)) sessionRegistry.delete(id);
+      // Codex: no registry, so "recently written main session" stands in for "a live master".
+      for (const m of codexMasters(codexWatcher.getMainSessions())) {
+        masterIds.add(m.sessionId); liveIds.add(m.sessionId);
+        tracker.update(m.sessionId, m.mtime);
+        if (m.cwd && !sessionCwds.has(m.sessionId)) sessionCwds.set(m.sessionId, m.cwd);
+      }
       liveReady = true;
       sendSessionUpdate(Date.now());
     } catch (e) {
@@ -650,6 +659,47 @@ const cornerMenu = () => ({
   label: 'Corner view',
   submenu: CORNER_VIEWS.map((v) => ({ label: v[0].toUpperCase() + v.slice(1), type: 'radio', checked: v === cornerView, click: () => setCornerView(v) })),
 });
+
+
+// --- Desktop army: one small always-on-top window per root agent ---
+const armyWins = new Map();   // agent id → BrowserWindow
+let armyOn = false;           // restored from the config in initPets()
+
+function armyRoots() {
+  return (latestSessions.sessions || []).filter((a) => a.isRoot !== false && (a.hot || a.warm || a.role === 'master')).map((a) => a.id);
+}
+
+function openArmyWindow(id, index) {
+  const area = screen.getPrimaryDisplay().workArea;
+  const saved = (loadPetConfig().armyPos || {})[id];
+  const { x, y } = saved ? clampToArea(saved, area) : armyPosition(index, area);
+  const w = new BrowserWindow({
+    width: ARMY_SIZE.w, height: ARMY_SIZE.h, x, y,
+    transparent: true, frame: false, alwaysOnTop: true, skipTaskbar: true, resizable: false, hasShadow: false, focusable: false,
+    webPreferences: { preload: path.join(__dirname, 'grid', 'army-preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  w.setAlwaysOnTop(true, 'floating');
+  w.loadFile('grid/army.html', { query: { id } });
+  w.on('moved', () => { const b = w.getBounds(); savePetConfig({ armyPos: { ...(loadPetConfig().armyPos || {}), [id]: { x: b.x, y: b.y } } }); });
+  w.on('closed', () => { if (armyWins.get(id) === w) armyWins.delete(id); });
+  armyWins.set(id, w);
+}
+
+function syncArmy() {
+  const plan = planArmy(armyOn ? armyRoots() : [], [...armyWins.keys()]);
+  for (const id of plan.close) { const w = armyWins.get(id); armyWins.delete(id); if (w && !w.isDestroyed()) w.destroy(); }
+  let i = armyWins.size;
+  for (const id of plan.open) openArmyWindow(id, i++);
+}
+
+function setArmy(on) {
+  armyOn = !!on;
+  savePetConfig({ army: armyOn });
+  syncArmy();
+  refreshMenus();
+}
+
+const armyMenuItem = () => ({ label: 'Desktop army (one window per agent)', type: 'checkbox', checked: armyOn, click: (item) => setArmy(item.checked) });
 
 // --- Master sound toggle (peon-ping .paused) ---
 let soundMuted = peonSound.isMuted();
@@ -817,6 +867,7 @@ function buildDockMenu() {
     { label: soundMuted ? 'Unmute Sounds' : 'Mute Sounds', click() { setSoundMuted(!soundMuted); } },
     { label: 'Open Control Panel', click: openDashboard },
     cornerMenu(),
+    armyMenuItem(),
     { label: 'Open Agent Dashboard (big window)', click: () => openGrid() },
     { label: petVisible ? 'Hide Pet' : 'Show Pet', click: togglePet },
     { type: 'separator' },
@@ -839,6 +890,7 @@ function buildTrayMenu() {
   return Menu.buildFromTemplate([
     { label: 'Open Control Panel', click: openDashboard },
     cornerMenu(),
+    armyMenuItem(),
     { label: 'Agent Dashboard (big window)', submenu: [
       { label: 'Grid', click: () => openGrid('grid') },
       { label: 'Speaker', click: () => openGrid('speaker') },
@@ -898,18 +950,21 @@ function createTray() {
   refreshMenus();
 }
 
-const { WIN_SIZE, WIN_MARGIN, cornerPosition } = require('./lib/window-position');
+const { WIN_SIZE, WIN_MARGIN, cornerPosition, restoreBounds } = require('./lib/window-position');
+const { planArmy, armyPosition, clampToArea, ARMY_SIZE } = require('./lib/army');
 
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   const cfg = loadPetConfig();
   const { x, y } = cornerPosition(cfg.corner, width, height);
+  // Reopen where it was last left (dragged, or resized by a view change), if that spot is still on a display.
+  const restored = restoreBounds(cfg.winBounds, screen.getAllDisplays().map((d) => d.workArea), { min: CORNER_MIN, max: CORNER_MAX });
 
   win = new BrowserWindow({
-    width: WIN_SIZE,
-    height: WIN_SIZE,
-    x,
-    y,
+    width: restored ? restored.width : WIN_SIZE,
+    height: restored ? restored.height : WIN_SIZE,
+    x: restored ? restored.x : x,
+    y: restored ? restored.y : y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -923,6 +978,15 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+
+  // Remember where it sits (debounced: a drag fires many moves).
+  let saveBoundsTimer = null;
+  const rememberBounds = () => {
+    clearTimeout(saveBoundsTimer);
+    saveBoundsTimer = setTimeout(() => { if (win && !win.isDestroyed()) savePetConfig({ winBounds: win.getBounds() }); }, 400);
+  };
+  win.on('move', rememberBounds);
+  win.on('resize', rememberBounds);
 
   win.setIgnoreMouseEvents(true);
 

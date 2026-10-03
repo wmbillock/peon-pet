@@ -83,17 +83,17 @@
   <canvas id="c"></canvas>
   <div id="tooltip"></div>
   <div id="dframe"></div>
-  <div id="summary" title="Click to dive in"></div>
+  <div id="summary" data-tip="Agents right now\nClick for everyone"></div>
   <div id="dash"></div>
-  <div id="bar" title="Drag here to move">
-    <button data-v="pet" title="Pet">🐾</button>
-    <button data-v="grid" title="Grid — everyone">▦</button>
-    <button data-v="speaker" title="Speaker — whoever is working">◉</button>
-    <button data-v="presenter" title="Presenter — a master and its sub-agents">▣</button>
+  <div id="bar" data-tip="Drag here to move">
+    <button data-v="pet" data-tip="Pet">🐾</button>
+    <button data-v="grid" data-tip="Grid — everyone">▦</button>
+    <button data-v="speaker" data-tip="Speaker — whoever is working">◉</button>
+    <button data-v="presenter" data-tip="Presenter — a master and its sub-agents">▣</button>
     <span class="sep"></span>
-    <button id="flt" class="dashonly" title="Filter: all">◔</button>
-    <button id="grp" class="dashonly" title="Group by project">🗂</button>
-    <button id="gear" title="Settings">⚙</button>
+    <button id="flt" class="dashonly" data-tip="Filter: all">◔</button>
+    <button id="grp" class="dashonly" data-tip="Group by project">🗂</button>
+    <button id="gear" data-tip="Settings">⚙</button>
   </div>
   <button id="sound-btn" title="Mute sounds" aria-label="Mute sounds">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -103,6 +103,7 @@
     </svg>
   </button>
   <script src="../dash/summary.js"></script>
+  <script src="../dash/tip.js"></script>
   <script src="../dash/dash.js"></script>
   <script type="module" src="app.js"></script>
 </body>

@@ -37,7 +37,7 @@ describe('importExtraRow', () => {
   test('extends the bundled sheet instead of discarding it', async () => {
     const bundled = path.join(ASSETS, 'bearded-dragon-extras.png');
     const r = await importExtraRow({ slug: 'bearded-dragon', strip: strip('w.png', 3072, 512, '#ff00ff'), customRoot: path.join(dir, 'chars'), bundledExtras: bundled });
-    expect(r).toMatchObject({ row: 1, rows: 2, cell: 512 });
+    expect(r).toMatchObject({ row: 2, rows: 3, cell: 209 });   // head bob (row 1) and wave (row 2) are kept; the new strip is appended
   });
 
   test('rejects wrong-shaped strips, and keys out a chroma backdrop', async () => {
