@@ -33,7 +33,8 @@ Identity model (decided 2026-10-02):
 - [x] Beardie wave: procedural arm wave, row 2 of the extras (`node scripts/gen-headbob.js bearded-dragon --wave`; add `--custom` after replacing the sheet)
 - [x] Desktop "army": tray/dock menu → "Desktop army"; one small draggable window per root agent (`lib/army.js`, `grid/army.*`), positions remembered
 - [x] Local-only build filter: `node scripts/make-dist.js <out>` leaves out `terra-ff6`/`hello-kitty` art and `docs/firm/`; catalogs tolerate absent art (dist passes its tests)
-- [ ] Split `feat/control-panel-pixoo` into reviewable upstream PRs (panel, packs, hot reload + LaunchAgent fix, pet switcher, Pixoo, Codex)
+- [x] Published to the fork as a filtered snapshot (2026-10-02, `c351149`); future pushes: `scripts/publish-fork.sh "message" [--push]` (local history and local-only art are never pushed)
+- [ ] Split into reviewable PRs against upstream `PeonPing/peon-pet` (panel, packs, hot reload + LaunchAgent fix, pet switcher, Pixoo, Codex) — not started; not requested
 
 ## Agent Forge / The Firm
 
