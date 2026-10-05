@@ -268,3 +268,26 @@ for (const b of cornerSeg.querySelectorAll('button')) {
 }
 window.dashBridge.onCornerView(markCornerView);
 window.dashBridge.getCornerView().then(markCornerView);
+
+// --- Euphonia voice (its own sound pack, separate from the agents' rotation) ---
+const euphPack = document.getElementById('euph-pack');
+const euphNote = document.getElementById('euph-note');
+async function loadEuphonia() {
+  try {
+    const r = await window.dashBridge.euphoniaGetConfig();
+    if (!r) return;
+    euphPack.replaceChildren(...r.packs.map((p) => {
+      const o = document.createElement('option');
+      o.value = p.name; o.textContent = p.display === p.name ? p.name : `${p.display} (${p.name})`;
+      return o;
+    }));
+    euphPack.value = r.config.soundPack;
+  } catch (e) { showError(e); }
+}
+document.getElementById('euph-audition').addEventListener('click', () => audition(euphPack.value));
+document.getElementById('euph-apply').addEventListener('click', async () => {
+  const r = await window.dashBridge.euphoniaSetConfig({ soundPack: euphPack.value });
+  euphNote.textContent = r.ok ? 'Saved' : r.error;
+  setTimeout(() => { euphNote.textContent = ''; }, 2500);
+});
+loadEuphonia();

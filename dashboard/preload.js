@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('dashBridge', {
   checkType: (slug, action, opts) => ipcRenderer.invoke('types-check', slug, action, opts),
   recordLedger: (entry) => ipcRenderer.invoke('ledger-record', entry),
   openGrid: (view) => ipcRenderer.send('open-grid', view),
+  euphoniaGetConfig: () => ipcRenderer.invoke('euphonia-get-config'),
+  euphoniaSetConfig: (patch) => ipcRenderer.invoke('euphonia-set-config', patch),
   audition: (name) => ipcRenderer.invoke('packs-audition', name),
   setGlobalPack: (name, applyToSessions) => ipcRenderer.invoke('packs-set-global', name, applyToSessions),
 });

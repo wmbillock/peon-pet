@@ -47,6 +47,7 @@
           <button data-v="grid">Grid</button>
           <button data-v="speaker">Speaker</button>
           <button data-v="presenter">Presenter</button>
+          <button data-v="chat">Euphonia</button>
         </div>
         <div class="help">The small window on your desktop. Hover it for the same switch, or click the pet to step through the views.</div>
       </section>
@@ -159,6 +160,17 @@
 
     <!-- ============ Voice & sound ============ -->
     <main id="page-sound" class="page" hidden>
+    <section class="card" id="euphonia-voice">
+      <h2 class="first">Euphonia's voice</h2>
+      <div class="row">
+        <label for="euph-pack">Sound pack</label>
+        <select id="euph-pack"></select>
+        <button id="euph-audition" class="play" title="Audition this voice" aria-label="Audition this voice">▶</button>
+        <button id="euph-apply">Save</button>
+        <span id="euph-note" role="status"></span>
+      </div>
+      <div class="help">Plays when Euphonia finishes a reply. Separate from the voices your agents use.</div>
+    </section>
     <section class="card" id="global">
       <div class="row">
         <label for="global-pack">Global voice</label>
