@@ -280,4 +280,26 @@ describe('agent types', () => {
     svc.agentTypes.pin('session', 'k4', 'robo');
     expect(svc.assign([root('r'), ...kids]).get('k4').species).toBe('retro-robot');
   });
+
+  test('seeded casting: an orc-typed fleet is not an orc army; installs differ; a Forge pin wins; Euphonia is out of the pool', () => {
+    svc.agentTypes.put({ slug: 'smith', name: 'Smith', category: 'worker', species: 'orc', traits: ['backend'], personality: 'blunt' }, svc.typeChecks);
+    const kids = Array.from({ length: 24 }, (_, i) => kid(`k${i}`, 'r', 'worker', { order: i + 1, title: 'Backend handler' }));
+    const agents = [root('r'), ...kids];
+    const species = (s) => kids.map((k) => s.assign(agents).get(k.id).species);
+    const mine = species(svc);
+    expect(mine.filter((s) => s === 'orc').length).toBeLessThanOrEqual(2);
+    for (const n of new Map(mine.map((s) => [s, mine.filter((x) => x === s).length])).values()) expect(n).toBeLessThanOrEqual(6);   // 25% of 24
+    expect(species(svc)).toEqual(mine);   // stable between refreshes
+
+    const other = createPetsService({ userDataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'svc2-')), assetsDir: ASSETS, bundled: BUNDLED, getSeed: () => 'another-install' });
+    other.seed('orc');
+    other.agentTypes.put({ slug: 'smith', name: 'Smith', category: 'worker', species: 'orc', traits: ['backend'], personality: 'blunt' }, other.typeChecks);
+    expect(species(other)).not.toEqual(mine);
+
+    svc.agentTypes.pin('session', 'k3', 'smith');   // Forge pin: exactly the kind's own pet
+    expect(svc.assign(agents).get('k3').species).toBe('orc');
+    svc.agentTypes.pin('session', 'k3', null);      // cleared: back to the seeded pick
+    expect(svc.assign(agents).get('k3').species).toBe(mine[3]);
+  });
 });
+

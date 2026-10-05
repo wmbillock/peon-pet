@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "_doc": "Shipped character preferences. weight(species, kind) = kinds[kind][species] ?? default[species], times rare[species] (if any). A species in neither map, or in exclude, is never auto-picked. See docs/character-preferences.md.",
+  "variety": { "maxShare": 0.25, "minAgentsForShare": 8, "maxConsecutive": 2, "repeatPenalty": 1 },
+  "exclude": [],
+  "rare": { "orc": 0.15 },
+  "default": {
+    "capybara": 1, "retro-robot": 1, "weeping-willow": 1, "bearded-dragon": 1, "clipart-trumpet": 1, "eighth-note": 1,
+    "lcd-creature": 1, "orc": 1, "french-horn": 1, "sixteenth-note": 1, "red-bearded-dragon": 1, "banana-ball-python": 1,
+    "leopard-gecko": 1, "panther-chameleon": 1, "blue-tongue-skink": 1, "dubia-roach": 1, "house-cricket": 1,
+    "ska-hepcat": 1, "living-trombone": 1, "living-tenor-sax": 1, "offbeat-quarter-note": 1, "checkerboard-bot": 1,
+    "speed-of-blight": 1, "we-are-the-stars": 1, "cooler-by-the-lake": 1, "camp-song": 1, "ballroom-moon": 1,
+    "willow-maestro": 1, "brass-scale-dragon": 1, "crt-garden-spirit": 1, "starchart-python": 1, "checker-comet": 1
+  },
+  "kinds": {
+    "lead":       { "brass-scale-dragon": 3, "red-bearded-dragon": 3, "willow-maestro": 3, "french-horn": 2, "we-are-the-stars": 2 },
+    "management": { "willow-maestro": 3, "eighth-note": 3, "offbeat-quarter-note": 2, "living-trombone": 2, "starchart-python": 2 },
+    "worker":     { "retro-robot": 3, "checkerboard-bot": 3, "crt-garden-spirit": 3, "dubia-roach": 2, "house-cricket": 2, "speed-of-blight": 2 },
+    "inspector":  { "panther-chameleon": 3, "blue-tongue-skink": 3, "leopard-gecko": 2, "bearded-dragon": 2, "banana-ball-python": 2 },
+    "scout":      { "capybara": 3, "house-cricket": 2, "camp-song": 3, "cooler-by-the-lake": 2, "weeping-willow": 2 },
+    "plan":       { "sixteenth-note": 3, "eighth-note": 3, "offbeat-quarter-note": 2, "ballroom-moon": 2, "starchart-python": 2 },
+    "critique":   { "clipart-trumpet": 3, "living-tenor-sax": 3, "ska-hepcat": 2, "checker-comet": 2 },
+    "review":     { "capybara": 2, "weeping-willow": 3, "lcd-creature": 2, "cooler-by-the-lake": 2, "french-horn": 2 }
+  }
+}
