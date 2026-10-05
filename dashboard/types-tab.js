@@ -1,6 +1,7 @@
 // Agent Forge: kinds of agent (Firm role · species · personality · traits · permissions).
 const typesList = $('types-list');
 const autoRootsBox = $('types-auto-roots');
+const spreadBox = $('types-spread');
 let typesState = null;
 
 // The Projects page shows a per-agent type pin from this state, so redraw it too once the types are in.
@@ -72,11 +73,13 @@ function typeCard(t) {
 function renderTypes() {
   if (!typesState) return;
   autoRootsBox.checked = typesState.autoRoots;
+  spreadBox.checked = typesState.spread;
   const order = (c) => typesState.categories.indexOf(c);
   const list = [...typesState.types].sort((a, b) => order(a.category) - order(b.category) || a.name.localeCompare(b.name));
   renderUnlessEditing(typesList, () => typesList.replaceChildren(...(list.length ? list.map(typeCard) : [h('div', { class: 'help' }, 'No kinds of agent yet.')])));
 }
 
+spreadBox.addEventListener('change', () => window.dashBridge.setSpread(spreadBox.checked).then((st) => { typesState = st; renderTypes(); }).catch(showError));
 autoRootsBox.addEventListener('change', () => window.dashBridge.setAutoRoots(autoRootsBox.checked).then((st) => { typesState = st; renderTypes(); }).catch(showError));
 $('types-new').addEventListener('click', () => {
   const n = typesState.types.length + 1;

@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('dashBridge', {
   putType: (t) => ipcRenderer.invoke('types-put', t),
   removeType: (slug) => ipcRenderer.invoke('types-remove', slug),
   pinType: (kind, key, slug) => ipcRenderer.invoke('types-pin', kind, key, slug),
+  setSpread: (on) => ipcRenderer.invoke('types-spread', on),
   setAutoRoots: (on) => ipcRenderer.invoke('types-auto-roots', on),
   checkType: (slug, action, opts) => ipcRenderer.invoke('types-check', slug, action, opts),
   recordLedger: (entry) => ipcRenderer.invoke('ledger-record', entry),
