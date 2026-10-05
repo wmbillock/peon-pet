@@ -13,6 +13,7 @@ const peonSound = require('./lib/peon-sound');
 const peonPacks = require('./lib/peon-packs');
 const { createEuphonia } = require('./lib/euphonia/service');
 const { registerEuphoniaIpc } = require('./lib/euphonia/ipc');
+const euphLaunch = require('./lib/euphonia/launch');
 const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
@@ -94,12 +95,40 @@ function thumb(file, px) {
   } catch { return null; }
 }
 
+// Euphonia's service is created on first use (here: at start, because she is the lead pet).
+let euphonia = null;
+function getEuphonia() {
+  if (!euphonia) euphonia = createEuphonia({ home: process.env.EUPHONIA_HOME || undefined, hubDir: process.env.EUPHONIA_HUB || undefined });
+  return euphonia;
+}
+const euphoniaLeads = () => !!(pets && pets.lead() && pets.lead().id === euphLaunch.RESERVED_ID);
+// The lead window wears Euphonia's own border while she leads; everything else keeps the global choice.
+const leadBorder = () => (euphoniaLeads() ? getEuphonia().getConfig().border || euphLaunch.DEFAULT_BORDER : loadPetConfig().border);
+
+function pinEuphonia() {
+  const cfg = getEuphonia().getConfig();
+  pets.pinReserved({ id: euphLaunch.RESERVED_ID, name: 'Euphonia', species: euphLaunch.species(cfg) });
+}
+
+// Per-install seed for casting auto-picked agent pets: two installs get different casts, one install keeps its own.
+function installSeed() {
+  const cur = loadPetConfig().characterSeed;
+  if (typeof cur === 'string' && cur) return cur;
+  const seed = require('crypto').randomBytes(8).toString('hex');
+  savePetConfig({ characterSeed: seed });
+  return seed;
+}
+
 function initPets() {
   const savedView = loadPetConfig().cornerView;
   if (CORNER_VIEWS.includes(savedView)) cornerView = savedView;
   armyOn = loadPetConfig().army === true;
-  pets = createPetsService({ userDataDir: app.getPath('userData'), assetsDir: bundledAssetsDir, bundled: BUNDLED_CHARS, thumb });
+  pets = createPetsService({ userDataDir: app.getPath('userData'), assetsDir: bundledAssetsDir, bundled: BUNDLED_CHARS, thumb, getSeed: installSeed });
   pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
+  try {
+    pinEuphonia();   // Euphonia is always the lead pet, ahead of every agent
+    cornerView = euphLaunch.initialCornerView({ saved: loadPetConfig().cornerView, views: CORNER_VIEWS, openChatOnLaunch: getEuphonia().getConfig().openChatOnLaunch, leadId: euphLaunch.RESERVED_ID });
+  } catch (e) { console.error('[euphonia] could not pin the lead pet:', e.message); }
   registerPetIpc({
     ipcMain, dialog, nativeImage, pets, mutate, petSnapshot, savePetConfig, reloadPetWindows, borderById,
     getParentWindow: () => dashWin || undefined,
@@ -112,7 +141,7 @@ function initPets() {
   try { pets.setRoleTint(loadPetConfig().roleTint || {}); } catch (e) { console.error('[forge] ignoring stale role filters:', e.message); }
 }
 
-const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { border: loadPetConfig().border, ...opts });
+const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { border: leadBorder(), ...opts });
 
 function registerCharacterProtocol() {
   // peon-asset://<file>[?char=<species>&env=<environment>] — defaults to the lead pet.
@@ -688,12 +717,12 @@ function resizeCorner(w, h) {
 }
 
 // --- Euphonia: the user's personal assistant, chatted with from the pet window ---
-let euphonia = null;
 registerEuphoniaIpc({
   ipcMain,
   getPetWebContents: () => (win && !win.isDestroyed() ? win.webContents : null),
   getSenders: () => (dashWin && !dashWin.isDestroyed() ? [dashWin.webContents] : []),
-  getService: () => (euphonia = euphonia || createEuphonia({ home: process.env.EUPHONIA_HOME || undefined, hubDir: process.env.EUPHONIA_HUB || undefined })),
+  getService: getEuphonia,
+  onConfigChanged: () => { mutate(() => pinEuphonia()); reloadPetWindows(); },
   peonDir: () => peonSound.peonDir(),
   listPacks: () => peonPacks.listPacks(),
   isMuted: () => soundMuted || peonSound.isMuted(),
@@ -1057,7 +1086,7 @@ function createWindow() {
     sendLook(win);
     win.webContents.send('corner-view', cornerView);
     applyChatFocus();
-    win.webContents.send('frame-style', { id: loadPetConfig().border || 'default' });
+    win.webContents.send('frame-style', { id: leadBorder() || 'default' });
   });
 
   // Clean up sub-agent windows when main window closes

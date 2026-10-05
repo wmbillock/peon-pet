@@ -389,8 +389,9 @@ canvas.addEventListener('pointerup', (e) => {
   window.peonBridge.stopDrag();
   // A click without movement steps to the next view (Pet → Grid → Speaker → Presenter); settings are on the gear
   if (Math.hypot(e.screenX - downX, e.screenY - downY) < CLICK_SLOP_PX && !isSubAgent) {
+    // Euphonia leads: one click on her sprite opens her chat. Otherwise step through the views.
     const i = CORNER_VIEWS.indexOf(cornerView);
-    requestCornerView(CORNER_VIEWS[(i + 1) % CORNER_VIEWS.length]);
+    requestCornerView(petLook && petLook.petId === 'euphonia' && cornerView === 'pet' ? 'chat' : CORNER_VIEWS[(i + 1) % CORNER_VIEWS.length]);
   }
 });
 

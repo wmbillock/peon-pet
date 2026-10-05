@@ -77,7 +77,7 @@ claude -p --output-format stream-json --verbose --include-partial-messages \
   --tools Read,Grep,Glob,Edit,Write \
   --allowedTools "Read,Grep,Glob,Edit(//<kb>/**),Write(//<kb>/**)" \
   --disallowedTools "Bash,PowerShell,WebFetch,WebSearch,NotebookEdit,Task,Agent,mcp__*,Edit(//<hub>/**),Write(//<hub>/**),NotebookEdit(//<hub>/**)" \
-  --strict-mcp-config --disable-slash-commands --add-dir <hub> --restricted [--model M] [--resume <id>]
+  --disable-slash-commands --add-dir <hub> --restricted [--model M] [--resume <id>]
 ```
 
 ## Authority rules (security)
@@ -91,7 +91,25 @@ Four stacked layers, all computed in `buildToolPolicy`:
    on the hub. Deny beats allow.
 4. `--restricted` ignores the user's own Claude settings files (so their hooks, allow-rules and plugins
    cannot widen or disturb the session) and confines file tools to the working directories
-   (`<home>` and the `--add-dir` hub). `--strict-mcp-config` with no config loads no MCP servers.
+   (`<home>` and the `--add-dir` hub). MCP is closed without `--strict-mcp-config` (see below).
+
+### How MCP is blocked (and what is not proven)
+
+`--strict-mcp-config` is NOT used: this machine has a managed (enterprise) MCP config and the CLI refuses
+the flag ("You cannot use --strict-mcp-config when an enterprise MCP config is present"). MCP servers may
+therefore still connect. A call to an MCP tool is meant to have no path through three controls:
+
+1. `--tools` lists built-ins only, and no `mcp__` rule is in `--allowedTools`.
+2. `--permission-mode dontAsk` denies every tool call that is not allowed, so a call such as
+   `mcp__slack__slack_send_message` is denied without a prompt.
+3. `mcp__*` is in `--disallowedTools`. `claude --help` documents no MCP deny pattern, so whether this wildcard
+   matches is **unproven**; controls 1 and 2 do not depend on it.
+
+Not proven: that dontAsk denies MCP calls on this machine (needs a real prompt, which the owner must run),
+and whether the managed config adds allow rules that override a deny. `--safe-mode` (disables MCP servers,
+hooks and customizations) exists in the help but was not adopted because its effect on the appended system
+prompt and on managed policy is unverified. Unit tests assert the argv has no `--strict-mcp-config` and that
+no MCP tool is allowed or listed.
 
 The home directory holds `config.json` and `session.json` outside `kb/`, so the assistant cannot
 rewrite its own settings. Unit tests assert a hub write is denied, a kb write is allowed, traversal
@@ -116,9 +134,25 @@ expiry checked at use time. Not built.
   peon-ping rotation (`peon`, `peasant`, `zugzug`, `wc3_lich`, `murloc`) and the movie-pack rotation. Change it in
   the dashboard (Sound page, "Euphonia's voice") or `config.json`. Plays a `task.complete` cue when a reply
   finishes, at the peon-ping volume; skipped when muted.
-- Species: `trillian` by default, shown in the chat header (`peon-asset://dock-icon.png?char=trillian`). No
-  agent type uses it. Key: `config.json` `species`.
-  Limitation: the pet window's own sprite is still the lead pet; Euphonia as the lead pet is a later step.
+- Species: `trillian` by default (`config.json` `species`); no agent type uses it.
+
+## Euphonia is the lead pet
+
+Her roster entry is reserved: id `euphonia`, name `Euphonia`, species from `species` (falling back to
+`trillian`, then `orc`, whichever is installed), `reserved: true`, `assignment: {type: "bench"}`.
+`roster.pinReserved` re-asserts it on every start: first in the roster, the lead. Consequences:
+
+- The pet window's sprite, name plate and dock icon are hers. Her frame is `border` (default `neon-cyan`), used only
+  while she leads; the global border setting still applies to other windows.
+- Bench means automatic assignment never gives her to an agent session, and `assignPets` will not fall back to her
+  even when no other pet is free. She is not a Firm agent and does not appear in agent summaries (those count sessions).
+- She cannot be removed (`roster.remove` throws) and no other pet can be made lead (`roster.setLead` throws).
+- One click on her sprite opens the chat; with `openChatOnLaunch` (default true) the window opens on the chat at
+  launch with the input focused.
+
+Config keys, in Euphonia's own `config.json` (the `euphonia.*` settings): `species`, `border`, `openChatOnLaunch`,
+`soundPack`, `model`, `restricted`. `openChatOnLaunch: false` restores the last-used corner view.
+Changing `species` or `border` through the dashboard re-pins and reloads the pet window.
 
 ## Not built yet
 
@@ -129,14 +163,13 @@ expiry checked at use time. Not built.
 | Slack transport | A persistent per-user DM conversation. The core is transport-independent for this. |
 | Multi-tenancy | One user per machine; `home` is derived from the OS username. No per-user isolation or auth. |
 | Bounded retention | `transcript.jsonl` and the CLI session grow without limit; no compaction or pruning. |
-| Euphonia as the lead pet | Its sprite is not yet the main pet animation. |
 | Retries and cancel | No cancel button; a stuck turn ends at the 5 minute timeout. |
 
 ## Tests
 
 `npm test`. New suites: `euphonia-service` (fake `claude`: session capture, `--resume`, ordered deltas, errors,
 serialization, argv policy), `euphonia-authority` (policy, kb seeding, approvals stub, voice, stream fallback),
-`euphonia-chat-model` (reducer, key handling), `euphonia-ipc` (pet-only sender gating, cue on done). No test
+`euphonia-chat-model` (reducer, key handling), `euphonia-ipc` (pet-only sender gating, cue on done), `euphonia-lead` (roster pinning, bench, open-on-launch, click target). No test
 spawns the real CLI.
 
 ## Manual smoke test (the owner runs this once)
@@ -151,9 +184,13 @@ separate single-instance lock and never touches the running app's config.
    ```
    `EUPHONIA_HOME` keeps the smoke test's state apart from the real default; omit it to use `~/.euphonia/<user>`.
    Launch from a terminal, not Finder, so the app inherits your PATH and finds `claude`.
-2. A second pet window appears in the default corner, possibly on top of the first. Drag it by the grip along its bottom edge.
-3. Hover that window and click the chat button in its toolbar (speech bubble), or open its dashboard and pick
-   Euphonia in the corner switch. The window grows to a chat bubble and the input takes focus.
+2. A second window appears in the default corner, possibly on top of the first; drag it by the grip along its bottom edge.
+   Expected at launch: the window opens straight into Euphonia's chat (header with her avatar and "Euphonia", an empty
+   message list, the input focused). Her frame is cyan. Click the pet button in the toolbar to see her sprite and plate: the
+   sprite is Trillian, the plate says Euphonia, and she is the lead in the dashboard Pets tab. Clicking her sprite
+   opens the chat again.
+3. If you set `"openChatOnLaunch": false` in `~/.euphonia/willow-smoke/config.json`, relaunch opens the pet view and one
+   click on her sprite opens the chat.
 4. Type, in order:
    - `Say hello in one sentence.` Text streams in; a cue plays on completion. `session.json` appears with an id.
    - `What did I just ask you?` Confirms `--resume`; `session.json` shows `turns: 2`.
