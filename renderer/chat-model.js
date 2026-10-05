@@ -75,5 +75,17 @@
     return 'send';
   }
 
-  return { initial, reduce, keyAction, MAX_MESSAGES };
+  // Header line: session state at a glance.
+  function describeSession(session, now = Date.now()) {
+    if (!session || !session.turns) return 'new conversation';
+    const t = Date.parse(session.updated_at || '');
+    let when = '';
+    if (Number.isFinite(t)) {
+      const mins = Math.max(0, Math.floor((now - t) / 60000));
+      when = mins < 1 ? ', active just now' : mins < 60 ? `, last active ${mins} min ago` : mins < 1440 ? `, last active ${Math.round(mins / 60)} h ago` : `, last active ${Math.round(mins / 1440)} d ago`;
+    }
+    return `${session.turns} turn${session.turns === 1 ? '' : 's'}${when}`;
+  }
+
+  return { initial, reduce, keyAction, describeSession, MAX_MESSAGES };
 });

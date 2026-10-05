@@ -14,9 +14,8 @@ contextBridge.exposeInMainWorld('peonBridge', {
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   toggleSound: () => ipcRenderer.send('sound-toggle'),
   onSoundState: (callback) => ipcRenderer.on('sound-state', (_e, data) => callback(data)),
-  euphoniaSend: (text) => ipcRenderer.invoke('euphonia-send', text),
-  euphoniaHistory: () => ipcRenderer.invoke('euphonia-history'),
-  euphoniaReset: () => ipcRenderer.invoke('euphonia-reset'),
-  onEuphoniaEvent: (cb) => ipcRenderer.on('euphonia-event', (_e, ev) => cb(ev)),
+  openChat: () => ipcRenderer.send('euphonia-open-chat'),
+  euphoniaUnreadGet: () => ipcRenderer.invoke('euphonia-unread-get'),
+  onEuphoniaUnread: (cb) => ipcRenderer.on('euphonia-unread', (_e, d) => cb(d)),
   onConfig: (callback) => ipcRenderer.on('peon-config', (_e, data) => callback(data)),
 });

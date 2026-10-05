@@ -1,12 +1,18 @@
 // The Euphonia chat bubble: a thin DOM view over the pure model in chat-model.js.
 // It talks only to the main process (window.peonBridge.euphonia*); it never sees the CLI or the files.
-const { initial, reduce, keyAction } = window.EuphoniaChat;
+const EuphoniaChat = window.EuphoniaChat;
+const { initial, reduce, keyAction } = EuphoniaChat;
 
 export function initChat({ onShow } = {}) {
   const $ = (id) => document.getElementById(id);
   const list = $('chat-list'), input = $('chat-input'), sendBtn = $('chat-send'), status = $('chat-status'), errBox = $('chat-error');
   let state = initial();
   let loaded = false;
+
+  // "new conversation" until a turn has completed, then the turn count and when it was last active.
+  function sessionLine(session) {
+    $('chat-sub').textContent = EuphoniaChat.describeSession(session);
+  }
 
   function render() {
     // Rebuild only what changed: messages are few (capped), so a keyed rebuild is fine.
@@ -51,8 +57,12 @@ export function initChat({ onShow } = {}) {
     if (state.busy) return;
     await window.peonBridge.euphoniaReset();
     dispatch({ type: 'history', records: [] });
+    sessionLine(null);
   });
-  window.peonBridge.onEuphoniaEvent((event) => dispatch({ type: 'event', event }));
+  window.peonBridge.onEuphoniaEvent((event) => {
+    dispatch({ type: 'event', event });
+    if (event.type === 'done') window.peonBridge.euphoniaHistory().then((h) => sessionLine(h.session)).catch(() => {});
+  });
 
   // Called each time the chat view is shown.
   async function show() {
@@ -62,13 +72,14 @@ export function initChat({ onShow } = {}) {
         const h = await window.peonBridge.euphoniaHistory();
         const cfg = h.config || {};
         $('chat-avatar').src = `peon-asset://dock-icon.png?char=${encodeURIComponent(cfg.species || 'trillian')}`;
-        $('chat-sub').textContent = h.session ? `${h.session.turns} turns` : 'no history yet';
+        sessionLine(h.session);
         dispatch({ type: 'history', records: h.records || [] });
       } catch (e) { dispatch({ type: 'send-failed', message: `Could not load history: ${e.message}` }); }
     }
-    setTimeout(() => input.focus(), 50);
+    focusInput();
     if (onShow) onShow();
   }
+  function focusInput() { setTimeout(() => input.focus(), 50); }
   render();
-  return { show };
+  return { show, focusInput };
 }

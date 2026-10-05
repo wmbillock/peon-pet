@@ -3,7 +3,7 @@ const os = require('os');
 const path = require('path');
 const { createRoster } = require('../lib/roster');
 const { assignPets } = require('../lib/assignment');
-const { initialCornerView, clickTarget, species } = require('../lib/euphonia/launch');
+const { shouldOpenChatOnLaunch, migrateCornerView, species } = require('../lib/euphonia/launch');
 
 const mkRoster = (installed = ['orc', 'capybara', 'trillian']) => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ros-')), 'pets.json');
@@ -45,18 +45,24 @@ test('agent sessions are never assigned to her, even with no other pet free', ()
   expect(assignPets({ pets: only.list(), lead: 'euphonia', sessions }).get('s1')).toBe('euphonia');
 });
 
-test('open chat on launch: default true when she leads; config false restores the saved view', () => {
-  const views = ['pet', 'grid', 'speaker', 'presenter', 'chat'];
-  expect(initialCornerView({ saved: 'grid', views, leadId: 'euphonia' })).toBe('chat');
-  expect(initialCornerView({ saved: 'grid', views, leadId: 'euphonia', openChatOnLaunch: true })).toBe('chat');
-  expect(initialCornerView({ saved: 'grid', views, leadId: 'euphonia', openChatOnLaunch: false })).toBe('grid');
-  expect(initialCornerView({ saved: 'nope', views, leadId: 'euphonia', openChatOnLaunch: false })).toBe('pet');
-  expect(initialCornerView({ saved: 'grid', views, leadId: 'pet_1' })).toBe('grid');
+test('open chat on launch: default false; true only for the reserved lead; saved chat view migrates to pet', () => {
+  const views = ['pet', 'grid', 'speaker', 'presenter'];
+  expect(shouldOpenChatOnLaunch({ leadId: 'euphonia' })).toBe(false);
+  expect(shouldOpenChatOnLaunch({ openChatOnLaunch: true, leadId: 'euphonia' })).toBe(true);
+  expect(shouldOpenChatOnLaunch({ openChatOnLaunch: true, leadId: 'pet_1' })).toBe(false);
+  expect(migrateCornerView('chat', views)).toBe('pet');
+  expect(migrateCornerView('grid', views)).toBe('grid');
+  expect(migrateCornerView(undefined, views)).toBe('pet');
 });
 
-test('clicking her sprite opens chat; other leads keep stepping through views', () => {
-  const views = ['pet', 'grid', 'chat'];
-  expect(clickTarget({ isEuphoniaLead: true, cornerView: 'pet', views })).toBe('chat');
-  expect(clickTarget({ isEuphoniaLead: false, cornerView: 'pet', views })).toBe('grid');
-  expect(species({ species: 'x' })).toEqual(['x', 'trillian', 'orc']);
+test('the pet window has no chat view anywhere in its source', () => {
+  for (const f of ['../main.js', '../renderer/app.js']) {
+    const src = fs.readFileSync(path.join(__dirname, f), 'utf8');
+    const line = src.split('\n').find((l) => l.startsWith('const CORNER_VIEWS'));
+    expect(line).toBeTruthy();
+    expect(line).not.toMatch(/chat/);
+  }
+  expect(fs.readFileSync(path.join(__dirname, '../renderer/index.html'), 'utf8')).not.toMatch(/data-v="chat"|id="chat-list"/);
 });
+
+test('species candidates', () => { expect(species({ species: 'x' })).toEqual(['x', 'trillian', 'orc']); });

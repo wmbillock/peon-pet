@@ -17,7 +17,7 @@ built; this slice is the chat bubble and a persistent session behind it.
 ## Architecture at a glance
 
 ```
- pet window (view)  --IPC-->  main.js glue  -->  lib/euphonia/service.js (core)  --spawn-->  claude CLI
+ pet window (button + dot)  --open-->  chat window  --IPC-->  main.js glue  -->  lib/euphonia/service.js (core)  --spawn-->  claude CLI
  renderer/chat.js            lib/euphonia/ipc.js     |  state in ~/.euphonia/<user>/            (resumed session)
  renderer/chat-model.js                              |  kb/ (own store, writable)
                                                      +- hub (user's Libretto, READ ONLY)
@@ -33,7 +33,7 @@ built; this slice is the chat bubble and a persistent session behind it.
 | Approvals seam | `lib/euphonia/approvals.js` | Stub. Always "not granted". |
 | Prompt | `lib/euphonia/prompt.md` | The appended system prompt. |
 | Glue | `lib/euphonia/ipc.js`, `main.js`, `preload.js` | Pet-window-only IPC; events out; cue on reply. |
-| View | `renderer/chat.js`, `renderer/chat-model.js`, `renderer/index.html` | The `chat` corner view. The model is pure and unit tested. |
+| View | `chat/` (window), `renderer/chat.js`, `renderer/chat-model.js`, `lib/euphonia/chat-window.js`, `lib/euphonia/unread.js` | The dedicated chat window and the pet's chat button with its unread dot. The model and unread logic are pure and unit tested. |
 
 The pet is a view. The service is the core and knows nothing about windows, so a Slack transport
 can later call `send()` and `subscribe()` unchanged. The kb is Euphonia's own store. The hub is
@@ -55,15 +55,15 @@ Default home: `~/.euphonia/<os username>` (override with `EUPHONIA_HOME`). Direc
 
 ## How a turn runs
 
-1. The pet sends text over `euphonia-send`. Main accepts it only from the pet window and stamps
+1. The chat window sends text over `euphonia-send`. Main accepts it only from that window and stamps
    `origin: "user"`. The message is appended to `transcript.jsonl` and queued (turns run one at a time).
 2. The service spawns `claude` with `cwd` = the home directory and the message on **stdin** (not argv,
    so variadic flags can never swallow it and a message starting with `-` is harmless).
 3. First turn: no `--resume`; the session id is read from the stream-json `system` or `result` event.
    Later turns pass `--resume <id>`. `session.json` is updated only on success.
 4. Events go to subscribers: `start`, `delta` (text as it streams), `tool` (name only, never arguments),
-   `done` (full text), `error` (message). Each carries the turn id. The pet window receives them on
-   `euphonia-event`.
+   `done` (full text), `error` (message). Each carries the turn id. The chat window receives them on
+   `euphonia-event`; the pet window never gets content, only `euphonia-unread {count}`.
 5. On `done`, main plays a cue from Euphonia's sound pack unless sound is muted.
 
 An error (CLI missing, non-zero exit, `is_error` result, timeout after 5 minutes) emits `error`
@@ -117,7 +117,7 @@ out of the kb and a sibling-prefix directory are denied.
 
 ### The rule for future authority changes
 
-Authority settings change only on a message with `origin: "user"` from the pet UI, never because of
+Authority settings change only on a message with `origin: "user"` from the chat window (the user's own UI), never because of
 text the agent read or produced. Hub files, tool output and the agent's own replies are data. A grant
 is never stored where the agent can write, and never inferred from conversation content.
 
@@ -125,7 +125,7 @@ is never stored where the agent can write, and never inferred from conversation 
 
 `lib/euphonia/approvals.js` exports `isGranted(action, ctx)` and always returns
 `{ granted: false }`. When hub writes and external actions arrive they go through it. Planned shape:
-the user grants an action class for a duration ("for 30 minutes") or blanket, from the pet UI, with
+the user grants an action class for a duration ("for 30 minutes") or blanket, from the chat window, with
 expiry checked at use time. Not built.
 
 ## Voice and identity
@@ -135,6 +135,23 @@ expiry checked at use time. Not built.
   the dashboard (Sound page, "Euphonia's voice") or `config.json`. Plays a `task.complete` cue when a reply
   finishes, at the peon-ping volume; skipped when muted.
 - Species: `trillian` by default (`config.json` `species`); no agent type uses it.
+
+## Interaction model
+
+- **Chat button.** A round button is always drawn on the lower-right of Euphonia's sprite in the pet view (not hover-only,
+  34 px, clear of the bottom-centre drag grip and the frame corners). It appears only in the main window while she leads.
+  Clicking it opens the dedicated chat window, or focuses it if open. The pet window stays on the pet view; the old
+  takeover, the toolbar chat entry and the `chat` corner view are gone, and a saved `cornerView: "chat"` is migrated to `pet`.
+- **Unread dot.** A red dot (with a count above 1) shows on the button when an assistant message arrives while the chat window is
+  closed, minimised, hidden or unfocused. It clears when the chat window is focused and showing. The marker of the last assistant
+  message read (timestamp and turn id) is persisted in `read.json`, so a relaunch shows neither a stale dot nor loses a real one.
+  Euphonia-initiated messages count the same way (any assistant transcript entry).
+- **Chat window.** A normal framed, resizable, focusable window titled "Euphonia" (320x360 minimum). Single instance. Bounds are
+  remembered. Closing it does not quit the app or touch the session; the conversation and the dot logic live in main, so the
+  window can close and the pet window can reload without losing anything. The header shows the session state ("new
+  conversation", or turns and last-active time), one "New" action (the old session file is kept; the window shows only the
+  current conversation), and the error banner, which names a rejected flag and the next step.
+- **Launch.** `openChatOnLaunch: true` opens the chat window at launch. Default is false: the button and dot are the primary path.
 
 ## Euphonia is the lead pet
 
@@ -147,11 +164,11 @@ Her roster entry is reserved: id `euphonia`, name `Euphonia`, species from `spec
 - Bench means automatic assignment never gives her to an agent session, and `assignPets` will not fall back to her
   even when no other pet is free. She is not a Firm agent and does not appear in agent summaries (those count sessions).
 - She cannot be removed (`roster.remove` throws) and no other pet can be made lead (`roster.setLead` throws).
-- One click on her sprite opens the chat; with `openChatOnLaunch` (default true) the window opens on the chat at
-  launch with the input focused.
+- The chat is not a pet-window mode (see "Interaction model" below).
 
-Config keys, in Euphonia's own `config.json` (the `euphonia.*` settings): `species`, `border`, `openChatOnLaunch`,
-`soundPack`, `model`, `restricted`. `openChatOnLaunch: false` restores the last-used corner view.
+Config keys, in Euphonia's own `config.json` (the `euphonia.*` settings): `species`, `border`, `openChatOnLaunch`
+(default **false**), `soundPack`, `model`, `restricted`. Window position and size of the chat window are saved in the
+app config as `chatBounds`. The last-read marker is `read.json` beside `session.json`.
 Changing `species` or `border` through the dashboard re-pins and reloads the pet window.
 
 ## Not built yet
@@ -184,20 +201,21 @@ separate single-instance lock and never touches the running app's config.
    ```
    `EUPHONIA_HOME` keeps the smoke test's state apart from the real default; omit it to use `~/.euphonia/<user>`.
    Launch from a terminal, not Finder, so the app inherits your PATH and finds `claude`.
-2. A second window appears in the default corner, possibly on top of the first; drag it by the grip along its bottom edge.
-   Expected at launch: the window opens straight into Euphonia's chat (header with her avatar and "Euphonia", an empty
-   message list, the input focused). Her frame is cyan. Click the pet button in the toolbar to see her sprite and plate: the
-   sprite is Trillian, the plate says Euphonia, and she is the lead in the dashboard Pets tab. Clicking her sprite
-   opens the chat again.
-3. If you set `"openChatOnLaunch": false` in `~/.euphonia/willow-smoke/config.json`, relaunch opens the pet view and one
-   click on her sprite opens the chat.
+2. A second pet window appears in the default corner, possibly on top of the first; drag it by the grip along its bottom edge.
+   Expected: Euphonia (Trillian) in a cyan frame, name plate "Euphonia", and a round speech-bubble button on the lower-right of
+   the sprite, always visible. No dot yet. No chat window yet (unless `openChatOnLaunch` is true).
+3. Click the button. A separate Euphonia window opens (header "Euphonia", "new conversation", one New button, input focused).
+   The pet stays visible behind it. Click the button again: the same window is focused, not duplicated. Move and resize it,
+   close it, click the button again: it returns at the same place.
 4. Type, in order:
    - `Say hello in one sentence.` Text streams in; a cue plays on completion. `session.json` appears with an id.
    - `What did I just ask you?` Confirms `--resume`; `session.json` shows `turns: 2`.
    - `Read HOME.md in my hub and name my active topics.` Shows tool use and a hub read.
    - `Remember that I prefer answers under three lines.` A new line in `kb/log.md` and `kb/INDEX.md`.
    - `Add a line to HOME.md in my hub.` It must decline or be denied. Then check `git -C ~/Claude status --short HOME.md` shows no change.
-5. Quit the app (tray menu), relaunch with the same command, open chat, ask `What was my first question?`.
+5. Unread dot: send a message, then click on the pet window (chat unfocused) before the reply finishes. When the reply lands the
+   button shows a red dot; focusing the chat window clears it. Quit with an unread reply, relaunch: the dot is still there; read it
+   and relaunch: no dot. Quit the app (tray menu), relaunch with the same command, open chat, ask `What was my first question?`.
    History reloads and the answer comes from the resumed session.
 6. Inspect: `ls ~/.euphonia/willow-smoke ~/.euphonia/willow-smoke/kb` and `tail -4 ~/.euphonia/willow-smoke/transcript.jsonl`.
 7. To swap instead of running two: quit the running app, then start the worktree copy without `--user-data-dir`
