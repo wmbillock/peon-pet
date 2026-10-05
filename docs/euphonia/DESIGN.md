@@ -193,6 +193,56 @@ expiry checked at use time. Not built.
   current conversation), and the error banner, which names a rejected flag and the next step.
 - **Launch.** `openChatOnLaunch: true` opens the chat window at launch. Default is false: the button and dot are the primary path.
 
+## The euphonia-bridge (a route to The Firm and GitHub)
+
+Owner decisions, 2026-10-05: **(1)** The Firm owns agent types; Peon Pet is a client and its writes come only from the user.
+**(2)** Third-party art and sound packs stay out of the shared repo unless they are already on GitHub; only public-domain,
+publishable, non-copyright-issue assets go in. Local-only choices stay local (see "Third-party assets" below).
+
+She still has no shell, network or hub writes. The bridge is the one sanctioned route out: a local stdio MCP server
+(`lib/euphonia/bridge/`, plain Node, no dependencies) that the service hands to her `claude` run through a generated
+`--mcp-config` file (`<home>/mcp-bridge.json`; `claude --help`: "--mcp-config <configs...> Load MCP servers from JSON files").
+Under Electron the app binary runs it with `ELECTRON_RUN_AS_NODE=1`. It appears in the dashboard Tool access table as
+`euphonia-bridge`, default **none**, and its tools are known statically (no first-turn learning).
+
+| Tool | Class | What it does |
+|---|---|---|
+| `firm_get_status` | read | `GET /api/workstreams` (counts, cost) and `GET /api/now` |
+| `firm_list_inbox` | read | `GET /api/inbox` |
+| `firm_get_workstream {id}` | read | `GET /api/workstreams/{id}` |
+| `github_view_pr {number}` | read | `gh pr view <n> --repo Affirm/affirm-builders --json ...` |
+| `github_list_prs {state?, limit?}` | read | `gh pr list --repo ... --state <open\|closed\|merged\|all> --limit <1-50> --json ...` |
+| `github_list_issues {label}` | read | `gh issue list --repo ... --label the-firm --state ... --limit ... --json ...` |
+| `github_check_pr {number}` | read | `gh pr checks <n> --repo ... --json ...` (named `check`, not `checks`, so the classifier calls it read) |
+| `firm_send_to_management {text}` | write | WebSocket `/ws/threads/management`, message prefixed `[Assistant] ` |
+| `firm_respond_inbox {id, action, text?}` | write | `POST /api/inbox/{id}/respond`; text prefixed `[Assistant] ` (it lands after The Firm's own `[Inbox]` label) |
+| `firm_file_task {title, body}` | write | `gh issue create --repo ... --title=... --body=... --label=the-firm`; returns the issue URL |
+| `pet_set_cosmetics {name?, soundPack?, border?, species?}` | write | those four keys in her local `config.json`, validated; the app notices within ~2.5 s |
+
+Firm endpoints were read on `origin/pricing/the-firm/develop` (`projects/the-firm/backend/src/firm/main.py`, `ws.py`, `local_auth.py`,
+`inbox.py`), not guessed. Reads are open on loopback. State changes need the `X-Firm-Token` from `GET /api/session` (POST) or an allowed
+`Origin` plus the `firm-token.<token>` subprotocol (WebSocket); the bridge does exactly what the Firm UI does, as the user. Direct
+messages to Management exist only on the WebSocket, so the bridge carries a small RFC 6455 client (`ws-client.js`).
+
+**Fixed commands.** `gh` is run with `execFile` (no shell) and argv built by `bridge/gh.js` from validated values only: positive
+integers, enumerated states, one allow-listed label (`the-firm`), and a constant repository. A caller cannot supply a repo, a flag or
+a path, and `gh api` is never used. Free text (task title and body) is a single `--flag=value` argument, so metacharacters are data.
+
+**Enforcement, in depth.** (1) Dashboard grants decide which tools the CLI may call at all (same allowlist machinery as other servers;
+the classifier names the level each tool needs). (2) Each bridge call re-reads `grants.json` itself and refuses unless an unexpired
+grant for `euphonia-bridge` at the needed level exists (read grant for read tools, write grant for write tools). The needed level comes
+from the classifier, not from the model. (3) Every call, allowed or refused, is appended to `bridge-audit.jsonl` (ts, tool, a validated
+argument summary, status); free text is logged by length only, never the content, and a write whose "attempt" line cannot be written is
+refused. (4) Grants, tool access, voice focus and `restricted` are not reachable: `pet_set_cosmetics` rejects any other key. (5) The
+prompt still requires showing the exact text and destination and waiting for the owner's chat reply before any write, and requires
+reporting only what a tool returned.
+
+**Not proven (needs a live run):** the real Firm endpoints on the owner's running Firm; `gh` authentication for Affirm/affirm-builders;
+and above all whether `--mcp-config` is honoured at all, because `managed-settings.json` on this machine has
+`allowManagedMcpServersOnly: true`, which may make Claude Code ignore every non-managed server, this one included. If the bridge shows
+as failed or absent in the init event's `mcp_servers`, that is the cause, and the fix is an allow-list entry for `euphonia-bridge` by
+whoever manages the policy.
+
 ## Voice focus (one voice at a time)
 
 `lib/voice-focus.js`, config key `voiceFocus` in the app config (`active-display` default; `all` = no filtering), set in the

@@ -189,7 +189,7 @@ test('only the dashboard can create, extend or revoke a grant; chat, pet and str
   expect(t.svc.grants.list()).toHaveLength(1);
   expect(t.svc.grants.list()[0]).toMatchObject({ level: 'read', via: 'ui' });
   const got = await t.handlers['euphonia-access-get']({ sender: t.dash });
-  expect(got.servers.map((s) => s.name)).toEqual(['slack']);
+  expect(got.servers.map((s) => s.name)).toEqual(['euphonia-bridge', 'slack']);
   expect((await t.handlers['euphonia-access-revoke']({ sender: t.dash }, { server: 'slack' })).grants).toEqual([]);
 });
 

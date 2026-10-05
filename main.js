@@ -102,7 +102,12 @@ function thumb(file, px) {
 // Euphonia's service is created on first use (here: at start, because she is the lead pet).
 let euphonia = null;
 function getEuphonia() {
-  if (!euphonia) euphonia = createEuphonia({ home: process.env.EUPHONIA_HOME || undefined, hubDir: process.env.EUPHONIA_HUB || undefined });
+  if (!euphonia) {
+    euphonia = createEuphonia({
+      home: process.env.EUPHONIA_HOME || undefined, hubDir: process.env.EUPHONIA_HUB || undefined,
+      firmUrl: () => firmUrl || 'http://127.0.0.1:8420', assetsDir: bundledAssetsDir, userDataDir: app.getPath('userData'), peonDir: peonSound.peonDir(),
+    });
+  }
   return euphonia;
 }
 const euphoniaLeads = () => !!(pets && pets.lead() && pets.lead().id === euphLaunch.RESERVED_ID);
@@ -114,7 +119,19 @@ function pinEuphonia() {
   return euphLead.startupPin({ roster: { pinReserved: (spec) => pets.pinReserved(spec), update: (id, p) => pets.roster.update(id, p) }, svc: getEuphonia() });
 }
 // The owner changed her name/species in Euphonia's settings: update the roster, the plate, the chat header and window title.
+// The bridge's pet_set_cosmetics writes config.json from another process. Notice the change and update the pet (idempotent:
+// a change already applied from the dashboard compares equal and does nothing).
+let appliedCosmetics = '';
+const cosmeticsSig = (c) => JSON.stringify([c.name, c.species, c.border, c.soundPack]);
+function watchCosmetics() {
+  try {
+    const sig = cosmeticsSig(getEuphonia().getConfig());
+    if (!appliedCosmetics) { appliedCosmetics = sig; return; }
+    if (sig !== appliedCosmetics) applyEuphoniaConfig();
+  } catch (e) { console.error('[euphonia] cosmetics sync failed:', e.message); }
+}
 function applyEuphoniaConfig() {
+  appliedCosmetics = cosmeticsSig(getEuphonia().getConfig());
   mutate(() => euphLead.applyConfigToLead({ roster: { update: (id, p) => pets.roster.update(id, p) }, svc: getEuphonia() }));
   reloadPetWindows();
   const name = getEuphonia().getConfig().name;
@@ -893,6 +910,7 @@ ipcMain.handle('voice-focus-set', (e, mode) => {
   return voiceState();
 });
 setInterval(publishVoiceFocus, 1500).unref();
+setInterval(watchCosmetics, 2500).unref();
 setInterval(() => { if (pixooConfig().enabled) schedulePixooSync(0); }, 5000).unref();   // lets the rotation advance; sends are still throttled   // catches view, pixoo and chat-focus changes without wiring each one
 
 // --- Master sound toggle (peon-ping .paused) ---
