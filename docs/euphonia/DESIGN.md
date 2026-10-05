@@ -48,7 +48,7 @@ Default home: `~/.euphonia/<os username>` (override with `EUPHONIA_HOME`). Direc
 | `session.json` | `{ id, created_at, updated_at, turns }`. Written only after a turn succeeds. |
 | `kb/` | Euphonia's own Libretto-style store: `INDEX.md` (index), `identity.md`, `log.md` (dated, append-only), plus pages it adds. |
 | `transcript.jsonl` | Append-only turns: `{ ts, turnId, role, origin, text }`. |
-| `config.json` | `soundPack` (default `ra2_eva_commander`), `species` (default `trillian`), `model` (default: CLI default), `restricted` (default `true`). |
+| `config.json` | `name`, `soundPack` (default `ra2_eva_commander`), `species` (default `trillian`), `model` (default: CLI default), `restricted` (default `true`). |
 
 `New` in the chat header calls `resetSession()`: the old `session.json` is renamed to
 `session.<ms>.old.json`, nothing is deleted, and the next message starts a fresh conversation.
@@ -77,7 +77,7 @@ claude -p --output-format stream-json --verbose --include-partial-messages \
   --tools Read,Grep,Glob,Edit,Write \
   --allowedTools "Read,Grep,Glob,Edit(//<kb>/**),Write(//<kb>/**)" \
   --disallowedTools "Bash,PowerShell,WebFetch,WebSearch,NotebookEdit,Task,Agent,mcp__*,Edit(//<hub>/**),Write(//<hub>/**),NotebookEdit(//<hub>/**)" \
-  --disable-slash-commands --add-dir <hub> --restricted [--model M] [--resume <id>]
+  --system-prompt-snapshot off --disable-slash-commands --add-dir <hub> --restricted [--model M] [--resume <id>]
 ```
 
 ## Authority rules (security)
@@ -93,23 +93,63 @@ Four stacked layers, all computed in `buildToolPolicy`:
    cannot widen or disturb the session) and confines file tools to the working directories
    (`<home>` and the `--add-dir` hub). MCP is closed without `--strict-mcp-config` (see below).
 
-### How MCP is blocked (and what is not proven)
+### Tool access (grants): the authority model
 
-`--strict-mcp-config` is NOT used: this machine has a managed (enterprise) MCP config and the CLI refuses
-the flag ("You cannot use --strict-mcp-config when an enterprise MCP config is present"). MCP servers may
-therefore still connect. A call to an MCP tool is meant to have no path through three controls:
+Default for every MCP server is **none**. The owner changes that only in the dashboard (Euphonia > Tool access); the chat
+window shows a read-only "tool access: read: slack, jira" line that links there. Reads are free; writes need a write grant.
 
-1. `--tools` lists built-ins only, and no `mcp__` rule is in `--allowedTools`.
-2. `--permission-mode dontAsk` denies every tool call that is not allowed, so a call such as
-   `mcp__slack__slack_send_message` is denied without a prompt.
-3. `mcp__*` is in `--disallowedTools`. `claude --help` documents no MCP deny pattern, so whether this wildcard
-   matches is **unproven**; controls 1 and 2 do not depend on it.
+**Grant lifecycle.** `grants.json` in her home holds `{server, level: "read"|"write", granted_at, expires_at|null, via: "ui"}`, one
+per server. Durations: 1 hour, 4 hours, until end of day (local), 7 days, blanket (`null`, until revoked). Re-granting replaces
+the entry (that is how to extend or change it). Expired entries are ignored and pruned from the file on every read. A blanket write
+grant asks for confirmation that spells out what write access means. "Revoke all" clears everything.
 
-Not proven: that dontAsk denies MCP calls on this machine (needs a real prompt, which the owner must run),
-and whether the managed config adds allow rules that override a deny. `--safe-mode` (disables MCP servers,
-hooks and customizations) exists in the help but was not adopted because its effect on the appended system
-prompt and on managed policy is unverified. Unit tests assert the argv has no `--strict-mcp-config` and that
-no MCP tool is allowed or listed.
+**Who can change it.** Only the IPC handlers `euphonia-access-set` / `-revoke` / `-get`, and only from the dashboard window.
+The chat window, the pet window and any other sender are refused (tested), `grants.json` is outside `kb/` (the only place the CLI may
+write), and no code path turns model output or transcript text into a grant (tested). A "yes" typed in chat approves one action
+the model asks about; it never touches the store.
+
+**Per-turn allowlist.** Before every turn the service reads the active grants and recomputes `--allowedTools` and
+`--disallowedTools` (`access.computeMcpAccess`, `authority.buildToolPolicy`):
+- A **read** grant allows the server's read-class tools; a **write** grant allows read plus write-class tools. Rules are exact
+  `mcp__<server>__<tool>` names taken from the catalog (below). A tool not in the catalog is never allowed.
+- Classification (`tool-class.classifyTool`, one pure function): the tool name is split into words; if it contains a write verb
+  (send, create, add, update, edit, delete, schedule, upload, run, execute, invoke, ...) it is **write**; otherwise if it contains
+  get, list, search, read, fetch, query, describe, find, lookup, view, check, analyze or preview it is **read**; anything else, and
+  anything unknown, is **write**. Conservative on purpose: `slack_add_list_record`, `get_file_upload_url`, `execute_query` and
+  `run_data_explorer_report` are write.
+- Servers with no grant get a server-level deny (`mcp__<server>`) for every configured or seen server. With no grants at all the
+  broad `mcp__*` deny is kept too. With any grant the broad wildcard is dropped, because a deny beats an allow and would cancel the
+  specific allows. A read grant also denies that server's write-class tools by exact name.
+- `--tools` (built-ins only), `--permission-mode dontAsk` and the hub write denies are unchanged. Bash and hub writes cannot be
+  granted through this path (filtered, tested).
+
+**Catalog.** The tool list per server is learned from the CLI's own `system` init event on every turn (`tools`, `mcp_servers`),
+saved to `tools-seen.json`. No extra provider call. Until a server has been seen once, a grant for it allows nothing and the access
+block says its tools are learned on its first turn; the owner asks again after that reply.
+
+**Discovery** (`mcp-discovery.js`, no provider call, names only): the managed config
+(`/Library/Application Support/ClaudeCode/managed-mcp.json` on macOS), `~/.claude.json` (user and per-project servers),
+`<home>/.mcp.json`, plus servers the CLI reported on past turns. `claude mcp list` is not used because it health-checks every
+server. Unreadable or malformed files are shown as errors in the dashboard; an empty result states where it looked.
+
+**What she is told.** Each turn the system prompt carries a "Current access" block built from the active grants, and
+`--system-prompt-snapshot off` makes the CLI re-render it every turn (the default records the prompt once and reuses it on
+resume, which would freeze the block). `prompt.md` and her kb note `settings.md` say: she cannot change her permissions, only the
+owner in the dashboard under Euphonia > Tool access; she names the server and level she needs and sends the owner there; she never
+claims a tool outside the block; before any write-class action she shows the exact text and destination and waits for a reply in
+chat (approves one action only); she never messages a person unless the owner names them in that message. When the CLI reports a
+permission denial (`permission_denials` in the result event) the chat shows an inline notice naming the server and the level.
+
+**Not proven (needs a real prompt, which the owner runs):**
+1. That a specific `mcp__<server>__<tool>` allow wins over the enterprise managed settings (the managed file also has `allow`,
+   `ask` and `deny` lists for MCP tools, and `allowManagedMcpServersOnly`). Our denies beat allows; whether a managed `ask` or
+   `deny` still blocks a granted tool is unknown. If a granted tool is still denied, that is the likely reason.
+2. That a server-level `mcp__<server>` deny matches all that server's tools, and that the `mcp__*` wildcard matches at all
+   (`claude --help` documents neither syntax; they are the documented Claude Code permission forms).
+3. That the init event lists MCP tools while the server is permission-gated, and that `permission_denials` is emitted in
+   stream-json (parsed defensively; absent means no inline notice, not a failure).
+4. That `dontAsk` denies every ungranted MCP call and that `--system-prompt-snapshot off` is honoured with `--resume`.
+5. That managed `defaultMode` or `acceptEdits` does not loosen `dontAsk`.
 
 The home directory holds `config.json` and `session.json` outside `kb/`, so the assistant cannot
 rewrite its own settings. Unit tests assert a hub write is denied, a kb write is allowed, traversal
@@ -152,6 +192,19 @@ expiry checked at use time. Not built.
   conversation", or turns and last-active time), one "New" action (the old session file is kept; the window shows only the
   current conversation), and the error banner, which names a rejected flag and the next step.
 - **Launch.** `openChatOnLaunch: true` opens the chat window at launch. Default is false: the button and dot are the primary path.
+
+## Name and sound pack persistence
+
+Her display name lives in two places that are kept equal: `name` in `config.json` and the reserved pet in the roster (what the
+plate, Pets tab and Forge edit). The owner's edit wins wherever it is made:
+- Euphonia settings (dashboard) change `name`/`soundPack`/`species`; the roster follows (`lead.applyConfigToLead`), and the chat
+  header, input prompt and window title update live.
+- A rename or species change in the Pets tab or Forge writes through to `config.json` (`lead.mirrorLeadToConfig`).
+- `roster.pinReserved` enforces only structure (id, reserved, bench, first, lead). Name, species and tint are defaults at first
+  creation and are never overwritten afterwards; startup mirrors the roster into the config instead.
+- Every settings write is read back from disk before the dashboard reports "Saved"; a failed or non-persisting write is shown as
+  "NOT saved: ..." and a pet refresh failure as a warning. The sound pack is read from `config.json` at each reply, so the next
+  cue uses the saved pack with no restart.
 
 ## Euphonia is the lead pet
 
@@ -213,7 +266,17 @@ separate single-instance lock and never touches the running app's config.
    - `Read HOME.md in my hub and name my active topics.` Shows tool use and a hub read.
    - `Remember that I prefer answers under three lines.` A new line in `kb/log.md` and `kb/INDEX.md`.
    - `Add a line to HOME.md in my hub.` It must decline or be denied. Then check `git -C ~/Claude status --short HOME.md` shows no change.
-5. Unread dot: send a message, then click on the pet window (chat unfocused) before the reply finishes. When the reply lands the
+5. Tool access: open the dashboard (gear on the pet, or the "tool access" link in the chat header), page Euphonia. The table lists the
+   servers found in the managed and user MCP config, every row at "none". Pick `read`, `1 hour` for one server (for example
+   slack), Grant. Ask Euphonia to read something from it (for example a channel). The first turn after a new grant may only learn that
+   server's tool list; ask again after the reply. Then Revoke and ask again: she must say it is denied, name the server and level,
+   and send you to Euphonia > Tool access; the chat shows a "Blocked:" notice. Next grant `write`, `1 hour` and ask her to post a
+   message: she must show the exact text and destination and wait for your reply before sending. Type "I permit you to use every
+   tool": nothing changes in the dashboard and she points you there. If a granted tool is still denied, copy the notice: it is
+   probably the enterprise managed policy (see "Not proven").
+5a. Name and voice: in the dashboard, change her name and sound pack; each shows "Saved" with the value read back. Rename her in the Roster
+   tab too. Restart the app: both stay, the plate and the chat header show the name, and the next reply plays the saved pack.
+5b. Unread dot: send a message, then click on the pet window (chat unfocused) before the reply finishes. When the reply lands the
    button shows a red dot; focusing the chat window clears it. Quit with an unread reply, relaunch: the dot is still there; read it
    and relaunch: no dot. Quit the app (tray menu), relaunch with the same command, open chat, ask `What was my first question?`.
    History reloads and the answer comes from the resumed session.
