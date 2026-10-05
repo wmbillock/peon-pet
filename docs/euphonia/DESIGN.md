@@ -193,6 +193,23 @@ expiry checked at use time. Not built.
   current conversation), and the error banner, which names a rejected flag and the next step.
 - **Launch.** `openChatOnLaunch: true` opens the chat window at launch. Default is false: the button and dot are the primary path.
 
+## Voice focus (one voice at a time)
+
+`lib/voice-focus.js`, config key `voiceFocus` in the app config (`active-display` default; `all` = no filtering), set in the
+dashboard on Voice & sound ("Whose voice is heard"), which also shows who holds the voice now.
+`resolveVoiceFocus({ pixooConnected, pixooShowing, cornerView, visibleAgentId, leadId, chatWindowFocused })`:
+1. Pixoo connected and showing someone: that agent. 2. Else, Euphonia's chat window focused: Euphonia. 3. Else the selected corner
+view: pet view = the lead (Euphonia), speaker/presenter = the working or master agent on screen (`pickVisibleAgent`), a group
+view such as the grid has no single agent. 4. Anything unresolved: the lead, never all voices. `shouldPlay` is the one gate:
+non-focused cues are dropped (not queued or delayed); Euphonia's reply cue also plays whenever her chat window is focused.
+Each voice keeps its own pack (hers from her config).
+
+Scope, honestly: Peon Pet plays only Euphonia's reply cue (through the gate) and auditions you ask for (always play). Agent event
+sounds come from the peon-ping hook outside the app, so for those the focus is **published, not enforced**: the app writes
+`voice-focus.json` (`agentId`, `reason`, `mode`) to its data folder on every change. Silencing the others needs peon-ping to read
+that file or per-session muting; that is an owner decision. The Pixoo mirrors the lead pet only (no rotation exists today), so
+"showing on the Pixoo" is the lead.
+
 ## Name and sound pack persistence
 
 Her display name lives in two places that are kept equal: `name` in `config.json` and the reserved pet in the roster (what the

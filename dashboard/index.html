@@ -191,6 +191,18 @@
       <div id="euph-note" role="status" style="margin-top:6px;font-size:0.8rem"></div>
       <div class="help">Both save as soon as you change them and are read back from disk to confirm. The pack plays when Euphonia finishes a reply, starting with the next one. Renaming her in the Pets tab does the same.</div>
     </section>
+    <section class="card" id="voice-focus">
+      <h2 class="first">Whose voice is heard</h2>
+      <div class="row">
+        <label for="voice-mode">Voice focus</label>
+        <select id="voice-mode">
+          <option value="active-display">Only the agent on display (Pixoo, else the main view)</option>
+          <option value="all">All agents (no filtering)</option>
+        </select>
+      </div>
+      <div id="voice-now" role="status" style="margin-top:6px;font-size:0.85rem"></div>
+      <div class="help">With a Pixoo connected, the voice follows what it shows. Without one, it follows the main window's view (the pet view is the lead, Euphonia); her reply cue also plays while her chat window is focused. Everyone else's cue is dropped, not queued. This filters sounds Peon Pet plays itself (Euphonia's replies). Sounds from the peon-ping hook run outside this app: the current focus is published to <code>voice-focus.json</code> in the app's data folder for it to consult.</div>
+    </section>
     <section class="card" id="global">
       <div class="row">
         <label for="global-pack">Global voice</label>

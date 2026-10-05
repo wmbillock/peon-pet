@@ -357,3 +357,16 @@ document.getElementById('euph-revoke-all').addEventListener('click', async () =>
 document.querySelector('#nav button[data-page="euphonia"]').addEventListener('click', loadAccess);
 window.dashBridge.onShowEuphonia(() => { showPage('euphonia'); loadAccess(); });
 loadAccess();
+
+// --- Voice focus: which agent holds the voice ---
+const voiceMode = document.getElementById('voice-mode');
+const voiceNow = document.getElementById('voice-now');
+const VOICE_WHY = { pixoo: 'the Pixoo is showing', chat: 'her chat window is focused', view: 'the main view shows', 'fallback-lead': 'nothing else resolves, so the lead', none: 'nothing resolves' };
+function renderVoice(st) {
+  if (!st) { voiceNow.textContent = ''; return; }
+  voiceMode.value = st.mode;
+  voiceNow.textContent = st.mode === 'all' ? 'Voice: every agent (filtering off)' : `Voice: ${st.name || 'nobody'} (${VOICE_WHY[st.reason] || st.reason})`;
+}
+voiceMode.addEventListener('change', async () => renderVoice(await window.dashBridge.voiceFocusSet(voiceMode.value)));
+window.dashBridge.onVoiceFocus(renderVoice);
+window.dashBridge.voiceFocusGet().then(renderVoice).catch(() => {});

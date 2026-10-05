@@ -15,6 +15,7 @@ const { createEuphonia } = require('./lib/euphonia/service');
 const { registerEuphoniaIpc } = require('./lib/euphonia/ipc');
 const euphLaunch = require('./lib/euphonia/launch');
 const euphLead = require('./lib/euphonia/lead');
+const voiceFocus = require('./lib/voice-focus');
 const { createChatWindowManager } = require('./lib/euphonia/chat-window');
 const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
@@ -748,6 +749,7 @@ euphoniaIpc = registerEuphoniaIpc({
   getSenders: () => (dashWin && !dashWin.isDestroyed() ? [dashWin.webContents] : []),
   getService: getEuphonia,
   onConfigChanged: () => applyEuphoniaConfig(),
+  shouldPlay: () => shouldPlayVoice(voiceFocus.EUPHONIA_ID),
   openAccessSettings: () => {
     openDashboard();
     const send = () => { if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('dash-show-euphonia'); };
@@ -808,6 +810,52 @@ function setArmy(on) {
 }
 
 const armyMenuItem = () => ({ label: 'Desktop army (one window per agent)', type: 'checkbox', checked: armyOn, click: (item) => setArmy(item.checked) });
+
+// --- Voice focus: one agent's voice at a time (lib/voice-focus.js) ---
+// Peon Pet itself plays only Euphonia's reply cue (and auditions you ask for). Agent event sounds come from the
+// peon-ping hook outside this app, so for those the focus is published, not enforced: see voice-focus.json below.
+const voiceMode = () => voiceFocus.cleanMode(loadPetConfig().voiceFocus);
+function voiceFacts() {
+  const sessions = latestSessions.sessions || [];
+  const lead = pets && pets.lead();
+  return {
+    pixooConnected: pixoo.status === 'connected',
+    pixooShowing: lead ? lead.id : null,                       // the Pixoo mirrors the lead pet; it does not rotate between agents
+    cornerView,
+    visibleAgentId: voiceFocus.pickVisibleAgent(cornerView, sessions),
+    leadId: lead ? lead.id : null,
+    chatWindowFocused: chatMgr.isActive(),
+  };
+}
+const currentVoiceFocus = () => voiceFocus.resolveVoiceFocus(voiceFacts());
+function shouldPlayVoice(agentId) {
+  return voiceFocus.shouldPlay({ mode: voiceMode(), agentId, focus: currentVoiceFocus().agentId, chatWindowFocused: chatMgr.isActive() });
+}
+let lastVoiceSig = '';
+function voiceState() {
+  const f = currentVoiceFocus();
+  const pet = pets && pets.roster.get(f.agentId);
+  return { mode: voiceMode(), agentId: f.agentId, reason: f.reason, name: pet ? pet.name : f.agentId };
+}
+function publishVoiceFocus() {   // call whenever a fact changes; cheap and idempotent
+  try {
+    const st = voiceState();
+    const sig = JSON.stringify(st);
+    if (sig === lastVoiceSig) return;
+    lastVoiceSig = sig;
+    if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('voice-focus', st);
+    fs.writeFileSync(path.join(app.getPath('userData'), 'voice-focus.json'), JSON.stringify({ ...st, updatedAt: new Date().toISOString() }));
+  } catch { /* an indicator must never break the app */ }
+}
+ipcMain.handle('voice-focus-get', (e) => (dashWin && !dashWin.isDestroyed() && e.sender === dashWin.webContents ? voiceState() : null));
+ipcMain.handle('voice-focus-set', (e, mode) => {
+  if (!dashWin || dashWin.isDestroyed() || e.sender !== dashWin.webContents) return null;
+  savePetConfig({ voiceFocus: voiceFocus.cleanMode(mode) });
+  lastVoiceSig = '';
+  publishVoiceFocus();
+  return voiceState();
+});
+setInterval(publishVoiceFocus, 1500).unref();   // catches view, pixoo and chat-focus changes without wiring each one
 
 // --- Master sound toggle (peon-ping .paused) ---
 let soundMuted = peonSound.isMuted();
