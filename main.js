@@ -25,6 +25,7 @@ const { computeCornerBounds } = require('./lib/corner-window');
 const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawSummary } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
+const { waitMs, cleanInterval } = require('./lib/pixoo-throttle');
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -550,7 +551,7 @@ function startPolling() {
 
 // --- Pixoo 64 mirror ---
 // Pushes the pet's current animation (plus session dots) to a Divoom Pixoo 64 on the LAN.
-const pixoo = { client: null, status: 'off', lastSig: null, busy: false, dirty: false, timer: null };
+const pixoo = { client: null, status: 'off', lastSig: null, busy: false, dirty: false, timer: null, lastSentAt: 0, force: false };
 const pixooFrameCache = new Map();  // anim → { frames, speedMs }
 let petAnim = 'sleeping';
 
@@ -561,6 +562,7 @@ function pixooConfig() {
     ip: c.ip || '',
     look: Number.isFinite(c.look) ? c.look : 60,
     brightness: Number.isFinite(c.brightness) ? c.brightness : null,  // null = leave the device alone
+    minIntervalSec: cleanInterval(c.minIntervalSec),   // at most one update to the display per this many seconds
   };
 }
 
@@ -587,7 +589,7 @@ function schedulePixooSync(delayMs = 300) {
 }
 
 async function runPixooSync() {
-  const { enabled, ip, look, brightness } = pixooConfig();
+  const { enabled, ip, look, brightness, minIntervalSec } = pixooConfig();
   if (!enabled || !ip) { pixoo.client = null; setPixooStatus('off'); return; }
   if (pixoo.busy) { pixoo.dirty = true; return; }
   pixoo.busy = true;
@@ -598,16 +600,22 @@ async function runPixooSync() {
     const summary = summarizeAgents(sessions);
     const sig = `${lead && lead.petId}|${lead && lead.tint}|${petAnim}|${look}|${brightness}|${summary.working}/${summary.idle}/${summary.attention}`;
     if (sig !== pixoo.lastSig) {
+      // Go easy on the display: hold changes back until the interval is up, then send whatever is current.
+      const wait = waitMs({ lastSentAt: pixoo.lastSentAt, now: Date.now(), minIntervalSec, force: pixoo.force });
+      if (wait > 0) { schedulePixooSync(wait); return; }
+      pixoo.force = false;
       const { frames, speedMs } = pixooAnimFrames(petAnim);
       if (brightness !== null) await pixoo.client.setBrightness(brightness);
       await pixoo.client.showAnimation(frames.map((f) => drawSummary(applyTint(applyLook(f, look), lead && lead.tintRgb, lead ? lead.tintAlpha : 0), summary)), speedMs);
       pixoo.lastSig = sig;
+      pixoo.lastSentAt = Date.now();
+      console.log(`[pixoo] update sent (limit ${minIntervalSec}s)`);
     }
     setPixooStatus('connected');
   } catch (e) {
     pixoo.lastSig = null;
     setPixooStatus(`error: ${e.message}`);
-    schedulePixooSync(15000);  // device asleep / wrong IP: retry quietly
+    schedulePixooSync(Math.max(15000, minIntervalSec * 1000));  // device asleep / wrong IP: retry quietly, no faster than the update interval
   } finally {
     pixoo.busy = false;
     if (pixoo.dirty) { pixoo.dirty = false; schedulePixooSync(); }
@@ -633,11 +641,15 @@ ipcMain.handle('pixoo-set', (_e, patch) => {
   if ('enabled' in patch) next.enabled = !!patch.enabled;
   if ('look' in patch) next.look = Math.min(100, Math.max(0, Math.round(Number(patch.look) || 0)));
   if ('brightness' in patch) next.brightness = Math.min(100, Math.max(0, Math.round(Number(patch.brightness) || 0)));
+  if ('minIntervalSec' in patch) next.minIntervalSec = cleanInterval(patch.minIntervalSec);
   if (next.enabled && !next.ip) throw new Error('Enter the Pixoo\'s IP address first (shown in the Divoom app)');
   savePetConfig({ pixoo: next });
-  pixoo.lastSig = null;
-  setPixooStatus(next.enabled ? 'connecting\u2026' : 'off');
-  schedulePixooSync(0);
+  // A change you just made to what the display shows goes out now, not after the interval. Changing only the
+  // interval doesn't touch the display.
+  const visible = ['enabled', 'ip', 'look', 'brightness'].some((k) => next[k] !== cur[k]);
+  if (visible) { pixoo.lastSig = null; pixoo.force = true; }
+  setPixooStatus(next.enabled ? (visible ? 'connecting\u2026' : pixoo.status) : 'off');
+  schedulePixooSync(visible ? 0 : 300);
   return { ...next, status: pixoo.status };
 });
 

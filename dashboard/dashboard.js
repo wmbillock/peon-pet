@@ -208,7 +208,10 @@ const pixooBrightVal = document.getElementById('pixoo-bright-val');
 const pixooLook = document.getElementById('pixoo-look');
 const pixooLookVal = document.getElementById('pixoo-look-val');
 
-function renderPixoo({ ip, enabled, status, look, brightness }) {
+const pixooInterval = document.getElementById('pixoo-interval');
+
+function renderPixoo({ ip, enabled, status, look, brightness, minIntervalSec }) {
+  if (document.activeElement !== pixooInterval && minIntervalSec !== undefined) pixooInterval.value = minIntervalSec;
   if (document.activeElement !== pixooLook) { pixooLook.value = look; pixooLookVal.textContent = look; }
   if (document.activeElement !== pixooBright) {
     pixooBright.value = brightness ?? 100;
@@ -237,6 +240,8 @@ pixooLook.addEventListener('change', () => savePixoo({ look: Number(pixooLook.va
 pixooBright.addEventListener('input', () => { pixooBrightVal.textContent = `${pixooBright.value}%`; });
 pixooBright.addEventListener('change', () => savePixoo({ brightness: Number(pixooBright.value) }));
 pixooIp.addEventListener('change', () => { if (pixooOn.checked) savePixoo(); });
+// A busy display is the main reason to slow updates, so this applies to the next send without forcing one.
+pixooInterval.addEventListener('change', () => savePixoo({ minIntervalSec: pixooInterval.value === '' ? 60 : Number(pixooInterval.value) }));
 window.dashBridge.onPixooState(renderPixoo);
 window.dashBridge.getPixoo().then(renderPixoo);
 
