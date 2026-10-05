@@ -34,7 +34,7 @@ let tmp;
 const mk = (script, extra = {}) => {
   const f = fakeClaude(script);
   const hubDir = path.join(tmp, 'hub'); fs.mkdirSync(hubDir, { recursive: true });
-  const e = createEuphonia({ home: path.join(tmp, 'home'), hubDir, user: 'willow', spawnImpl: f.spawnImpl, now: () => new Date('2026-10-05T12:00:00Z'), ...extra });
+  const e = createEuphonia({ home: path.join(tmp, 'home'), hubDir, user: 'willow', spawnImpl: f.spawnImpl, now: () => new Date('2026-10-05T12:00:00Z'), discover: () => ({ servers: [], errors: [] }), ...extra });
   const events = [];
   e.subscribe((ev) => events.push(ev));
   return { e, events, calls: f.calls };
@@ -157,6 +157,7 @@ test('argv carries the authority policy and nothing writable outside kb', async 
   expect(a).not.toContain('--strict-mcp-config');   // refused when an enterprise MCP config is present
   expect(a).toContain('--disable-slash-commands');
   expect(val('--disallowedTools')).toContain('mcp__*');
+  expect(val('--system-prompt-snapshot')).toBe('off');   // the access block is re-rendered every turn
   expect(val('--append-system-prompt')).toContain('willow');
   expect(calls[0].opts.cwd).toBe(e.paths.home);
 });

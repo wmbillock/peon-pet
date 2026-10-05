@@ -59,8 +59,12 @@ export function initChat({ onShow } = {}) {
     dispatch({ type: 'history', records: [] });
     sessionLine(null);
   });
+  const refreshAccess = () => window.peonBridge.accessSummary && window.peonBridge.accessSummary().then((r) => { $('chat-access').textContent = `tool access: ${r.text}`; }).catch(() => {});
+  $('chat-access').addEventListener('click', (e) => { e.preventDefault(); window.peonBridge.openAccessSettings(); });
+  refreshAccess();
   window.peonBridge.onEuphoniaEvent((event) => {
     dispatch({ type: 'event', event });
+    if (event.type === 'done' || event.type === 'error') refreshAccess();
     if (event.type === 'done') window.peonBridge.euphoniaHistory().then((h) => sessionLine(h.session)).catch(() => {});
   });
 
@@ -79,7 +83,8 @@ export function initChat({ onShow } = {}) {
     focusInput();
     if (onShow) onShow();
   }
-  function focusInput() { setTimeout(() => input.focus(), 50); }
+  function focusInput() {
+    refreshAccess(); setTimeout(() => input.focus(), 50); }
   render();
   return { show, focusInput };
 }

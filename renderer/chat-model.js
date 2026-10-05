@@ -11,6 +11,12 @@
   const trim = (messages) => (messages.length > MAX_MESSAGES ? messages.slice(-MAX_MESSAGES) : messages);
   const NO_REPLY = 'no reply (error)';
 
+  // A denied tool, named with the server and the access level it needs, and where to grant it.
+  function describeDenial(ev) {
+    if (ev.server) return `Blocked: ${ev.tool} needs ${ev.level || 'write'} access to ${ev.server}. Grant it in the dashboard under Euphonia > Tool access.`;
+    return `Blocked: ${ev.tool} is not available to Euphonia.`;
+  }
+
   // Order is by turn, never by arrival: a turn's user message always precedes its assistant bubble and its
   // error marker, even when the main process's `start` event beats the send invoke's reply to the renderer.
   const turnOf = (m) => String(m.id).split(':')[0];
@@ -85,6 +91,11 @@
             : place(state.messages, { id, role: 'assistant', text: ev.text, pending: true });
           return { ...state, open, busy: open.length > 0, activeTurn: open[0] || null, tool: null, messages };
         }
+        if (ev.type === 'denied') {
+          const nid = `${ev.turnId}:denied:${ev.tool}`;
+          if (state.messages.some((x) => x.id === nid)) return state;
+          return { ...state, messages: place(state.messages, { id: nid, role: 'notice', text: describeDenial(ev) }) };
+        }
         if (ev.type === 'tool') return { ...state, tool: ev.name || null };
         if (ev.type === 'done') {
           const final = typeof ev.text === 'string' && ev.text ? ev.text : null;
@@ -126,5 +137,5 @@
     return `${session.turns} turn${session.turns === 1 ? '' : 's'}${when}`;
   }
 
-  return { initial, reduce, keyAction, describeSession, MAX_MESSAGES };
+  return { initial, reduce, keyAction, describeSession, describeDenial, MAX_MESSAGES };
 });

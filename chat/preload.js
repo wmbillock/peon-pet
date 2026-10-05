@@ -6,5 +6,7 @@ contextBridge.exposeInMainWorld('peonBridge', {
   euphoniaHistory: () => ipcRenderer.invoke('euphonia-history'),
   euphoniaReset: () => ipcRenderer.invoke('euphonia-reset'),
   onEuphoniaEvent: (cb) => ipcRenderer.on('euphonia-event', (_e, ev) => cb(ev)),
+  accessSummary: () => ipcRenderer.invoke('euphonia-access-summary'),
+  openAccessSettings: () => ipcRenderer.send('euphonia-open-access'),
   onChatFocus: (cb) => ipcRenderer.on('euphonia-chat-focus', () => cb()),
 });

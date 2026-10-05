@@ -26,3 +26,6 @@ html, body { height: 100%; background: #0c0c14; color: #ddd; font: 13px/1.45 -ap
 #chat-send { height: 32px; padding: 0 14px; border: 0; border-radius: 10px; background: rgba(110, 110, 255, 0.6); color: #fff; cursor: pointer; font: 600 12px -apple-system, sans-serif; }
 #chat-send:disabled { opacity: 0.4; cursor: default; }
 .msg.error { align-self: flex-start; background: transparent; color: #ff9a9a; font-size: 11px; font-style: italic; padding: 0 10px; }
+#chat-access { font-size: 10px; color: #7fa7ff; text-decoration: none; }
+#chat-access:hover { text-decoration: underline; }
+.msg.notice { align-self: flex-start; max-width: 92%; background: rgba(255, 190, 60, 0.12); border: 1px solid rgba(255, 190, 60, 0.45); color: #ffd58a; font-size: 12px; }

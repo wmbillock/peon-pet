@@ -113,7 +113,7 @@ document.addEventListener('click', async (e) => {
 // Pages (left drawer navigation, toggled by the hamburger)
 const PAGE_TITLES = {
   overview: 'Overview', projects: 'Projects', pets: 'Pet roster', species: 'Species & art', environs: 'Environments',
-  display: 'Frames & Pixoo', sound: 'Voice & sound', firm: 'The Firm', forge: 'Agent Forge',
+  display: 'Frames & Pixoo', euphonia: 'Euphonia', sound: 'Voice & sound', firm: 'The Firm', forge: 'Agent Forge',
 };
 function showPage(name) {
   if (!PAGE_TITLES[name]) name = 'overview';

@@ -34,7 +34,7 @@ test('rule strings: writes scoped to kb, hub write denies, no shell or network',
 
 test('kb seeding is idempotent and never overwrites', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-')) + '/kb';
-  expect(seedKb(dir, { user: 'w' }).sort()).toEqual(['INDEX.md', 'identity.md', 'log.md']);
+  expect(seedKb(dir, { user: 'w' }).sort()).toEqual(['INDEX.md', 'identity.md', 'log.md', 'settings.md']);
   fs.writeFileSync(path.join(dir, 'identity.md'), 'MINE');
   fs.appendFileSync(path.join(dir, 'log.md'), '\n- learned a thing\n');
   const log = fs.readFileSync(path.join(dir, 'log.md'), 'utf8');

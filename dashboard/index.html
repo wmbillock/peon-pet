@@ -21,6 +21,7 @@
       <button data-page="environs"><i aria-hidden="true">🏞</i> Environments</button>
       <h4>Look &amp; sound</h4>
       <button data-page="display"><i aria-hidden="true">▣</i> Frames &amp; Pixoo</button>
+      <button data-page="euphonia"><i aria-hidden="true">✦</i> Euphonia</button>
       <button data-page="sound"><i aria-hidden="true">♪</i> Voice &amp; sound</button>
       <h4>The Firm</h4>
       <button data-page="firm"><i aria-hidden="true">⚑</i> Connection</button>
@@ -155,6 +156,23 @@
       <div class="help">IP is in the Divoom app: Device Settings → Device Info. Same Wi-Fi network required. Color match 0 = raw colors; higher pulls the LED look toward your screen.</div>
     </section>
 
+    </main>
+
+    <!-- ============ Euphonia ============ -->
+    <main id="page-euphonia" class="page" hidden>
+    <section class="card" id="euph-access">
+      <h2 class="first">Euphonia: tool access</h2>
+      <div class="help" style="margin:0 0 8px">Euphonia reads your hub freely and writes only to her own notes. Anything else needs a grant here, per server.
+        <b>Read</b> allows look-up style tools (get, list, search, read, fetch, query, describe, find, view, check, analyze, preview).
+        <b>Write</b> also allows everything else, including any tool the app does not recognise. She cannot change this herself, and nothing she reads or says can.
+        Even with write access she shows you the exact text and destination in the chat and waits for your reply before each write.</div>
+      <div id="euph-access-errors" role="alert"></div>
+      <table id="euph-access-table">
+        <thead><tr><th>Server</th><th>From</th><th>Access</th><th>For</th><th>Expires</th><th></th></tr></thead>
+        <tbody id="euph-access-rows"></tbody>
+      </table>
+      <div class="row" style="margin-top:8px"><button id="euph-revoke-all">Revoke all</button><span id="euph-access-note" role="status"></span></div>
+    </section>
     </main>
 
     <!-- ============ Voice & sound ============ -->

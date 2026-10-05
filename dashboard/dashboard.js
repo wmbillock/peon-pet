@@ -291,3 +291,59 @@ document.getElementById('euph-apply').addEventListener('click', async () => {
   setTimeout(() => { euphNote.textContent = ''; }, 2500);
 });
 loadEuphonia();
+
+// --- Euphonia: tool access (grants). Only this window can change them. ---
+const accessRows = document.getElementById('euph-access-rows');
+const accessNote = document.getElementById('euph-access-note');
+const accessErrors = document.getElementById('euph-access-errors');
+const DUR_LABELS = { '1h': '1 hour', '4h': '4 hours', eod: 'until end of day', '7d': '7 days', blanket: 'blanket (until revoked)' };
+const WRITE_WARNING = 'Write access, with no expiry, lets Euphonia use EVERY tool this server offers that is not a plain look-up: sending messages, creating and editing tickets and pages, and anything the app does not recognise as read-only. It stays until you revoke it. She will still show you the exact text and destination in chat and wait for your reply before each write, but that is her behaviour, not a lock.\n\nGrant blanket write access?';
+function accessMsg(text) { accessNote.textContent = text; setTimeout(() => { if (accessNote.textContent === text) accessNote.textContent = ''; }, 3500); }
+
+function renderAccess(data) {
+  accessErrors.replaceChildren();
+  if (!data.ok) { accessErrors.textContent = data.error || 'Could not load tool access'; return; }
+  for (const e of data.errors || []) {
+    const p = document.createElement('div'); p.className = 'help'; p.style.color = '#ff9a9a';
+    p.textContent = `Server discovery: ${e.message}`; accessErrors.append(p);
+  }
+  const byServer = new Map((data.grants || []).map((g) => [g.server, g]));
+  const rows = [...data.servers];
+  for (const g of data.grants || []) if (!rows.some((s) => s.name === g.server)) rows.push({ name: g.server, sources: ['grant'] });   // a grant for a server no longer configured stays visible so it can be revoked
+  accessRows.replaceChildren(...rows.map((s) => {
+    const g = byServer.get(s.name);
+    const tr = document.createElement('tr');
+    const td = (...kids) => { const c = document.createElement('td'); c.append(...kids); tr.append(c); return c; };
+    td(s.name);
+    td((s.sources || []).join(', ') + (s.status ? ` (${s.status})` : ''));
+    const level = document.createElement('select');
+    for (const v of ['none', 'read', 'write']) level.append(new Option(v, v));
+    level.value = g ? g.level : 'none';
+    const dur = document.createElement('select');
+    for (const [v, label] of Object.entries(DUR_LABELS)) dur.append(new Option(label, v));
+    dur.value = g ? (g.expires_at ? '1h' : 'blanket') : '1h';
+    td(level); td(dur);
+    td(g ? (g.expires_at ? new Date(g.expires_at).toLocaleString() : 'never (blanket)') : '');
+    const grant = document.createElement('button'); grant.textContent = 'Grant';
+    const revoke = document.createElement('button'); revoke.textContent = 'Revoke'; revoke.disabled = !g;
+    grant.addEventListener('click', async () => {
+      if (level.value === 'none') { accessMsg('Pick read or write first (none means no access: use Revoke).'); return; }
+      if (level.value === 'write' && dur.value === 'blanket' && !window.confirm(WRITE_WARNING)) return;
+      const r = await window.dashBridge.euphoniaAccessSet({ server: s.name, level: level.value, duration: dur.value });
+      if (!r.ok) { accessMsg(r.error); return; }
+      accessMsg(`${s.name}: ${level.value} granted`); loadAccess();
+    });
+    revoke.addEventListener('click', async () => { await window.dashBridge.euphoniaAccessRevoke({ server: s.name }); accessMsg(`${s.name}: revoked`); loadAccess(); });
+    td(grant, revoke);
+    return tr;
+  }));
+}
+async function loadAccess() {
+  try { renderAccess(await window.dashBridge.euphoniaAccessGet()); } catch (e) { renderAccess({ ok: false, error: e.message }); }
+}
+document.getElementById('euph-revoke-all').addEventListener('click', async () => {
+  await window.dashBridge.euphoniaAccessRevoke({ all: true }); accessMsg('All tool access revoked'); loadAccess();
+});
+document.querySelector('#nav button[data-page="euphonia"]').addEventListener('click', loadAccess);
+window.dashBridge.onShowEuphonia(() => { showPage('euphonia'); loadAccess(); });
+loadAccess();

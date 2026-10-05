@@ -730,6 +730,11 @@ euphoniaIpc = registerEuphoniaIpc({
   getSenders: () => (dashWin && !dashWin.isDestroyed() ? [dashWin.webContents] : []),
   getService: getEuphonia,
   onConfigChanged: () => { mutate(() => pinEuphonia()); reloadPetWindows(); },
+  openAccessSettings: () => {
+    openDashboard();
+    const send = () => { if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('dash-show-euphonia'); };
+    if (dashWin.webContents.isLoading()) dashWin.webContents.once('did-finish-load', send); else send();
+  },
   peonDir: () => peonSound.peonDir(),
   listPacks: () => peonPacks.listPacks(),
   isMuted: () => soundMuted || peonSound.isMuted(),
