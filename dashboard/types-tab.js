@@ -12,15 +12,15 @@ function typeCard(t) {
   const field = (label, el) => h('div', { class: 'line' }, h('label', { class: 'inline', style: 'min-width:84px' }, label), el);
   const edit = (patch) => saveType({ ...clip(t), ...patch });
 
-  const name = h('input', { type: 'text', value: t.name, maxlength: 40, onchange: () => edit({ name: name.value }) });
-  const category = h('select', { onchange: () => edit({ category: category.value, allow: [], deny: [] }) },
+  const name = h('input', { type: 'text', 'aria-label': 'Name of this kind of agent', value: t.name, maxlength: 40, onchange: () => edit({ name: name.value }) });
+  const category = h('select', { 'aria-label': 'Firm role', onchange: () => edit({ category: category.value, allow: [], deny: [] }) },
     typesState.categories.map((c) => h('option', { value: c, selected: c === t.category }, c)));
-  const species = h('select', { onchange: () => edit({ species: species.value }) },
+  const species = h('select', { 'aria-label': 'Species', onchange: () => edit({ species: species.value }) },
     typesState.species.map((s) => h('option', { value: s.slug, selected: s.slug === t.species }, s.display)));
-  const tint = h('select', { onchange: () => edit({ tint: tint.value === 'none' ? null : tint.value }) },
+  const tint = h('select', { 'aria-label': 'Filter', onchange: () => edit({ tint: tint.value === 'none' ? null : tint.value }) },
     typesState.tints.map((x) => h('option', { value: x.id, selected: x.id === (t.tint || 'none') }, x.id === 'none' ? 'None' : x.label)));
-  const traits = h('input', { type: 'text', value: t.traits.join(', '), placeholder: 'backend, api, security…', onchange: () => edit({ traits: traits.value }) });
-  const personality = h('textarea', { rows: 2, maxlength: 600, style: 'width:100%', onchange: () => edit({ personality: personality.value }) }, t.personality);
+  const traits = h('input', { type: 'text', 'aria-label': 'Traits, comma separated', value: t.traits.join(', '), placeholder: 'backend, api, security…', onchange: () => edit({ traits: traits.value }) });
+  const personality = h('textarea', { 'aria-label': 'Personality', rows: 2, maxlength: 600, style: 'width:100%', onchange: () => edit({ personality: personality.value }) }, t.personality);
   personality.value = t.personality;
 
   // Permissions: tick what this kind may do; the role's grant is the ceiling. Unticked = narrowed away.
@@ -33,7 +33,7 @@ function typeCard(t) {
     } }), ` ${a}`));
 
   // "Can it…?" — ask the permission model about any action.
-  const act = h('select', {}, typesState.actions.map((a) => h('option', { value: a }, a)));
+  const act = h('select', { 'aria-label': 'Action to check' }, typesState.actions.map((a) => h('option', { value: a }, a)));
   const verdict = h('span', { class: 'dim' }, '');
   const ask = () => window.dashBridge.checkType(t.slug, act.value).then((r) => {
     verdict.textContent = r.decision === 'allow' ? `✓ allowed — ${r.reason}` : r.decision === 'delegate' ? `→ hand to ${r.route} — ${r.reason}` : `✕ denied — ${r.reason}`;
@@ -43,7 +43,7 @@ function typeCard(t) {
 
   // Execution bounds: blank = no limit.
   const bound = (key, label, title) => {
-    const i = h('input', { type: 'number', min: 1, value: t.bounds[key] ?? '', title, style: 'width:90px;flex:none;min-width:0', onchange: () => edit({ bounds: { ...t.bounds, [key]: i.value === '' ? null : Number(i.value) } }) });
+    const i = h('input', { type: 'number', 'aria-label': label, min: 1, value: t.bounds[key] ?? '', title, style: 'width:90px;flex:none;min-width:0', onchange: () => edit({ bounds: { ...t.bounds, [key]: i.value === '' ? null : Number(i.value) } }) });
     return h('span', {}, h('label', { class: 'inline' }, label), ' ', i, '  ');
   };
   const bounds = h('span', {}, bound('directLoc', 'Writes itself up to (lines)', 'Above this it coordinates instead of doing the work'),
