@@ -27,7 +27,7 @@ test('error keeps streamed text, clears busy, exposes the message; empty placeho
   s = ev(s, { type: 'start', turnId: 't' });
   s = ev(s, { type: 'error', turnId: 't', message: 'claude not found' });
   expect(s).toMatchObject({ busy: false, error: 'claude not found' });
-  expect(s.messages.map((m) => m.role)).toEqual(['user']);
+  expect(s.messages.map((m) => m.role)).toEqual(['user', 'error']);   // marker, not a gap
   s = reduce(s, { type: 'dismiss-error' });
   expect(s.error).toBeNull();
 
@@ -51,4 +51,85 @@ test('keyAction: Enter sends, Shift+Enter newline, busy/empty/IME block', () => 
   expect(keyAction({ key: 'Enter' }, { busy: false, text: '  ' })).toBe('block');
   expect(keyAction({ key: 'Enter', isComposing: true }, { busy: false, text: 'hi' })).toBe('none');
   expect(keyAction({ key: 'a' }, { busy: false, text: 'hi' })).toBe('none');
+});
+
+// ---- ordering regressions (owner smoke test: the "..." bubble rendered ABOVE the message it answers) ----
+const view = (s) => s.messages.map((m) => [m.role, m.text]);
+const failedHistory = ['Hi there', 'Hello Euphonia', 'Hey Ska Bot', 'hello?'].flatMap((text, i) => [
+  { ts: `2026-10-05T20:5${i}:00.000Z`, turnId: `t${i}`, role: 'user', origin: 'user', text },
+]);
+
+test('failed history turns get an inline no-reply marker; the exact smoke-test sequence stays chronological', () => {
+  let s = reduce(initial(), { type: 'history', records: failedHistory });
+  expect(view(s)).toEqual([
+    ['user', 'Hi there'], ['error', 'no reply (error)'], ['user', 'Hello Euphonia'], ['error', 'no reply (error)'],
+    ['user', 'Hey Ska Bot'], ['error', 'no reply (error)'], ['user', 'hello?'], ['error', 'no reply (error)'],
+  ]);
+  const T = 't1791233831483-1';
+  // IPC order in the real app: the main process emits `start` BEFORE the send invoke resolves in the renderer.
+  s = ev(s, { type: 'start', turnId: T });
+  s = reduce(s, { type: 'sent', turnId: T, text: 'hiya' });
+  s = ev(s, { type: 'delta', turnId: T, text: 'Hiya! What can I do' });
+  s = ev(s, { type: 'delta', turnId: T, text: ' for you?' });
+  s = ev(s, { type: 'done', turnId: T, text: 'Hiya! What can I do for you?' });
+  expect(view(s).slice(-2)).toEqual([['user', 'hiya'], ['assistant', 'Hiya! What can I do for you?']]);
+  expect(s.messages).toHaveLength(10);
+  expect(s.busy).toBe(false);
+});
+
+test('(a) send while idle in either arrival order: user first, then its own assistant bubble', () => {
+  const order1 = ev(reduce(initial(), { type: 'sent', turnId: 'a', text: 'q' }), { type: 'start', turnId: 'a' });
+  const order2 = reduce(ev(initial(), { type: 'start', turnId: 'a' }), { type: 'sent', turnId: 'a', text: 'q' });
+  for (const s of [order1, order2]) expect(s.messages.map((m) => m.id)).toEqual(['a:user', 'a:assistant']);
+});
+
+test('(b) a second message sent while the first runs is queued below it and gets its placeholder only when its turn starts', () => {
+  let s = reduce(initial(), { type: 'sent', turnId: 'a', text: 'one' });
+  s = ev(s, { type: 'start', turnId: 'a' });
+  s = ev(s, { type: 'delta', turnId: 'a', text: 'r1' });
+  s = reduce(s, { type: 'sent', turnId: 'b', text: 'two' });
+  expect(s.messages.map((m) => m.id)).toEqual(['a:user', 'a:assistant', 'b:user']);
+  s = ev(s, { type: 'done', turnId: 'a', text: 'r1' });
+  expect(s.busy).toBe(true);                       // b is still queued
+  s = ev(s, { type: 'start', turnId: 'b' });
+  s = ev(s, { type: 'delta', turnId: 'b', text: 'r2' });
+  s = ev(s, { type: 'done', turnId: 'b', text: 'r2' });
+  expect(view(s)).toEqual([['user', 'one'], ['assistant', 'r1'], ['user', 'two'], ['assistant', 'r2']]);
+  expect(s.busy).toBe(false);
+});
+
+test('(c) an error on a turn leaves its user message followed by the marker, not a gap', () => {
+  let s = reduce(initial(), { type: 'sent', turnId: 'a', text: 'q' });
+  s = ev(s, { type: 'start', turnId: 'a' });
+  s = ev(s, { type: 'error', turnId: 'a', message: 'boom' });
+  expect(view(s)).toEqual([['user', 'q'], ['error', 'no reply (error)']]);
+  expect(s.error).toBe('boom');
+});
+
+test('(d) window reopened mid-stream: the running turn gets a live placeholder; queued turns get none; later events attach by turnId', () => {
+  const records = [
+    { ts: '2026-10-05T20:00:00.000Z', turnId: 'old', role: 'user', text: 'old q' },
+    { ts: '2026-10-05T20:00:05.000Z', turnId: 'old', role: 'assistant', text: 'old a' },
+    { ts: '2026-10-05T20:01:00.000Z', turnId: 'run', role: 'user', text: 'running q' },
+    { ts: '2026-10-05T20:01:01.000Z', turnId: 'next', role: 'user', text: 'queued q' },
+  ];
+  let s = reduce(initial(), { type: 'history', records, active: { running: 'run', queued: ['next'] } });
+  expect(s.messages.map((m) => m.id)).toEqual(['old:user', 'old:assistant', 'run:user', 'run:assistant', 'next:user']);
+  expect(s.busy).toBe(true);
+  s = ev(s, { type: 'delta', turnId: 'run', text: 'live' });
+  expect(s.messages.find((m) => m.id === 'run:assistant').text).toBe('live');
+  s = ev(s, { type: 'done', turnId: 'run', text: 'live done' });
+  expect(s.busy).toBe(true);                       // `next` still queued
+  s = ev(s, { type: 'start', turnId: 'next' });
+  s = ev(s, { type: 'done', turnId: 'next', text: 'n' });
+  expect(s.messages.map((m) => m.id)).toEqual(['old:user', 'old:assistant', 'run:user', 'run:assistant', 'next:user', 'next:assistant']);
+  expect(s.busy).toBe(false);
+});
+
+test('a done that beats the sent action does not leave the chat stuck busy', () => {
+  let s = ev(initial(), { type: 'start', turnId: 'a' });
+  s = ev(s, { type: 'done', turnId: 'a', text: 'fast' });
+  s = reduce(s, { type: 'sent', turnId: 'a', text: 'q' });
+  expect(s.busy).toBe(false);
+  expect(view(s)).toEqual([['user', 'q'], ['assistant', 'fast']]);
 });

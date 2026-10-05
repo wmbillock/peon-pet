@@ -189,3 +189,13 @@ test('a rejected flag is named in the error with the CLI message and a next step
   expect(m).toMatch(/\[flag: --strict-mcp-config\]/);
   expect(m).toMatch(/Next:/);
 });
+
+test('pendingTurns reports the running turn and the queued ones, and empties as they finish', async () => {
+  const { e } = mk((c) => setTimeout(() => okReply(c, 's', ['x']), 5));
+  const a = e.send('a'), b = e.send('b');
+  expect(e.pendingTurns()).toEqual({ running: a.turnId, queued: [b.turnId] });
+  await a.done;
+  expect(e.pendingTurns()).toEqual({ running: b.turnId, queued: [] });
+  await b.done;
+  expect(e.pendingTurns()).toEqual({ running: null, queued: [] });
+});

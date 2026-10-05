@@ -7,11 +7,34 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const MAX_MESSAGES = 200;
 
-  const initial = () => ({ messages: [], busy: false, activeTurn: null, tool: null, error: null });
+  const initial = () => ({ messages: [], busy: false, activeTurn: null, tool: null, error: null, open: [], finished: [] });
   const trim = (messages) => (messages.length > MAX_MESSAGES ? messages.slice(-MAX_MESSAGES) : messages);
+  const NO_REPLY = 'no reply (error)';
+
+  // Order is by turn, never by arrival: a turn's user message always precedes its assistant bubble and its
+  // error marker, even when the main process's `start` event beats the send invoke's reply to the renderer.
+  const turnOf = (m) => String(m.id).split(':')[0];
+  function place(messages, msg) {
+    const turn = turnOf(msg);
+    const out = messages.slice();
+    if (msg.role === 'user') {
+      const i = out.findIndex((m) => turnOf(m) === turn && m.role !== 'user');
+      if (i >= 0) out.splice(i, 0, msg); else out.push(msg);
+    } else {
+      let last = -1;
+      out.forEach((m, i) => { if (turnOf(m) === turn) last = i; });
+      if (last >= 0) out.splice(last + 1, 0, msg); else out.push(msg);
+    }
+    return trim(out);
+  }
+  const markOpen = (st, turn) => (st.finished.includes(turn) || st.open.includes(turn) ? st.open : [...st.open, turn]);
+  function closeTurn(st, turn) {
+    const open = st.open.filter((t) => t !== turn);
+    return { open, finished: [...st.finished, turn].slice(-50), busy: open.length > 0, activeTurn: open[0] || null };
+  }
 
   // Actions:
-  //   {type:'history', records}                 transcript.jsonl rows (role user|assistant)
+  //   {type:'history', records, active?}        transcript rows; active = { running: turnId|null, queued: [turnId] }
   //   {type:'sent', turnId, text}               the user's message was accepted by the main process
   //   {type:'send-failed', message}             the main process refused it (e.g. empty)
   //   {type:'event', event}                     a service event: start | delta | tool | done | error
@@ -19,46 +42,62 @@
   function reduce(state, action) {
     switch (action.type) {
       case 'history': {
-        const messages = (action.records || [])
-          .filter((r) => r && (r.role === 'user' || r.role === 'assistant') && typeof r.text === 'string')
-          .map((r) => ({ id: r.turnId ? `${r.turnId}:${r.role}` : `h${r.ts}`, role: r.role, text: r.text }));
-        return { ...state, messages: trim(messages) };
+        const act = action.active || {};
+        const queued = act.queued || [];
+        const rows = (action.records || []).filter((r) => r && (r.role === 'user' || r.role === 'assistant') && typeof r.text === 'string');
+        const answered = new Set(rows.filter((r) => r.role === 'assistant' && r.turnId).map((r) => r.turnId));
+        const messages = [];
+        for (const r of rows) {
+          messages.push({ id: r.turnId ? `${r.turnId}:${r.role}` : `h${r.ts}`, role: r.role, text: r.text });
+          if (r.role !== 'user' || !r.turnId || answered.has(r.turnId) || queued.includes(r.turnId)) continue;
+          if (r.turnId === act.running) messages.push({ id: `${r.turnId}:assistant`, role: 'assistant', text: '', pending: true });
+          else messages.push({ id: `${r.turnId}:error`, role: 'error', text: NO_REPLY });   // a failed turn: mark it, no silent gap
+        }
+        const open = [act.running, ...queued].filter(Boolean);
+        return { ...state, messages: trim(messages), open, finished: [], busy: open.length > 0, activeTurn: open[0] || null, tool: null };
       }
-      case 'sent':
+      case 'sent': {
+        const open = markOpen(state, action.turnId);
         return {
-          ...state, busy: true, activeTurn: action.turnId, tool: null, error: null,
-          messages: trim([...state.messages, { id: `${action.turnId}:user`, role: 'user', text: action.text }]),
+          ...state, open, busy: open.length > 0, activeTurn: open[0] || null, tool: null, error: null,
+          messages: place(state.messages, { id: `${action.turnId}:user`, role: 'user', text: action.text }),
         };
+      }
       case 'send-failed':
         return { ...state, error: action.message || 'Could not send' };
       case 'dismiss-error':
         return { ...state, error: null };
       case 'event': {
         const ev = action.event || {};
+        if (!ev.turnId) return state;
         const id = `${ev.turnId}:assistant`;
         const has = state.messages.some((m) => m.id === id);
         if (ev.type === 'start') {
-          if (has) return state;
-          return { ...state, busy: true, activeTurn: ev.turnId, messages: trim([...state.messages, { id, role: 'assistant', text: '', pending: true }]) };
+          const open = markOpen(state, ev.turnId);
+          const base = { ...state, open, busy: open.length > 0, activeTurn: open[0] || null };
+          if (has) return base;
+          return { ...base, messages: place(state.messages, { id, role: 'assistant', text: '', pending: true }) };
         }
         if (ev.type === 'delta') {
+          const open = markOpen(state, ev.turnId);
           const messages = has
             ? state.messages.map((m) => (m.id === id ? { ...m, text: m.text + ev.text } : m))
-            : trim([...state.messages, { id, role: 'assistant', text: ev.text, pending: true }]);
-          return { ...state, busy: true, tool: null, messages };
+            : place(state.messages, { id, role: 'assistant', text: ev.text, pending: true });
+          return { ...state, open, busy: open.length > 0, activeTurn: open[0] || null, tool: null, messages };
         }
         if (ev.type === 'tool') return { ...state, tool: ev.name || null };
         if (ev.type === 'done') {
-          const final = typeof ev.text === 'string' ? ev.text : null;
+          const final = typeof ev.text === 'string' && ev.text ? ev.text : null;
           const messages = has
-            ? state.messages.map((m) => (m.id === id ? { id, role: 'assistant', text: final != null && final ? final : m.text } : m))
-            : trim([...state.messages, { id, role: 'assistant', text: final || '' }]);
-          return { ...state, busy: false, activeTurn: null, tool: null, messages };
+            ? state.messages.map((m) => (m.id === id ? { id, role: 'assistant', text: final != null ? final : m.text } : m))
+            : place(state.messages, { id, role: 'assistant', text: final || '' });
+          return { ...state, ...closeTurn(state, ev.turnId), tool: null, messages };
         }
         if (ev.type === 'error') {
-          // keep whatever streamed so far, but drop an empty placeholder
-          const messages = state.messages.filter((m) => !(m.id === id && !m.text)).map((m) => (m.id === id ? { id, role: 'assistant', text: m.text } : m));
-          return { ...state, busy: false, activeTurn: null, tool: null, error: ev.message || 'Something went wrong', messages };
+          // keep whatever streamed so far, drop an empty placeholder, and mark the turn so it never reads as a gap
+          let messages = state.messages.filter((m) => !(m.id === id && !m.text)).map((m) => (m.id === id ? { id, role: 'assistant', text: m.text } : m));
+          if (!messages.some((m) => m.id === `${ev.turnId}:error`)) messages = place(messages, { id: `${ev.turnId}:error`, role: 'error', text: NO_REPLY });
+          return { ...state, ...closeTurn(state, ev.turnId), tool: null, error: ev.message || 'Something went wrong', messages };
         }
         return state;
       }

@@ -73,7 +73,7 @@ export function initChat({ onShow } = {}) {
         const cfg = h.config || {};
         $('chat-avatar').src = `peon-asset://dock-icon.png?char=${encodeURIComponent(cfg.species || 'trillian')}`;
         sessionLine(h.session);
-        dispatch({ type: 'history', records: h.records || [] });
+        dispatch({ type: 'history', records: h.records || [], active: h.active });
       } catch (e) { dispatch({ type: 'send-failed', message: `Could not load history: ${e.message}` }); }
     }
     focusInput();
