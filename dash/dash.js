@@ -78,7 +78,7 @@
       const root = el('div', 'tile');
       const env = el('div', 'layer env'), sprite = el('div', 'layer sprite'), tint = el('div', 'layer tint');
       const led = el('div', 'led');
-      const badges = el('div', 'badges'), roleB = el('span', 'badge role'), agentB = el('span', 'badge');
+      const badges = el('div', 'badges'), roleB = el('span', 'badge em'), agentB = el('span', 'badge');   // roleB holds the project emoji
       badges.append(roleB, agentB);
       const pframe = el('div', 'layer pframe');
       const scene = el('div', 'scene');
@@ -105,9 +105,12 @@
       if (dk) t.root.classList.add(`f-${dk}`);
       const pf = sf ? `url(${assetUrl('borders.png', { border: sf })})` : 'none';
       if (t.pframeKey !== pf) { t.pframeKey = pf; t.pframe.style.backgroundImage = pf; }
-      t.root.dataset.tip = `${label(a)}${a.firmRole ? ` · ${a.firmRole}` : ''}\n${p ? `${p.name} · ${p.speciesDisplay}${p.type ? ` · ${p.type.name}` : ''}\n${p.type && p.type.personality ? `${p.type.personality}\n` : ''}` : ''}${stateWord(a)} · ${ago(a.lastActive)}\nClick: speaker · Shift-click: presenter`.trim();
-      t.roleB.textContent = roleLabel(a);
-      t.roleB.style.display = roleLabel(a) ? '' : 'none';
+      t.root.dataset.tip = `${label(a)}${a.firmRole ? ` · ${a.firmRole}` : ''}${a.project ? `\n${a.project.emoji} ${a.project.name}` : ''}\n${p ? `${p.name} · ${p.speciesDisplay}${p.type ? ` · ${p.type.name}` : ''}\n${p.type && p.type.personality ? `${p.type.personality}\n` : ''}` : ''}${stateWord(a)} · ${ago(a.lastActive)}\nClick: speaker · Shift-click: presenter`.trim();
+      // Top-right, opposite the status light: which project this agent is working on.
+      const em = (a.mark && a.mark.emoji) || (a.project && a.project.emoji) || '';
+      t.roleB.textContent = em;
+      t.roleB.style.display = em ? '' : 'none';
+      t.roleB.title = a.project ? a.project.name : '';
       t.agentB.textContent = a.agent;
       t.agentB.style.display = a.agent === 'claude' ? 'none' : '';
       if (p) {

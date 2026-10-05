@@ -1,12 +1,16 @@
 # TODO
 
-Identity model (decided 2026-10-02):
+Identity model (revised 2026-10-05, simpler):
 
-| Thing | Carries |
+| What you see | Means |
 |---|---|
-| **Project** (a Firm project, a named session, or a folder) | one **background** and **frame** shared by all its agents; a colour family (hue); an **emoji** for group views |
-| **Agent** | art that **matches its type** (species); a **shade** of the project's hue that tells it apart from other agents of the same type |
-| **Pet** (roster) | a named individual; its own filter if you set one (overrides the auto shade) |
+| **The pet art** | the agent (a kind of agent wears a pet; copies spread across pets for variety) |
+| **Border colour** (and name plate) | what **kind** of agent it is; set per kind in the Agent Forge (auto = its role's colour) |
+| **Emoji, top-right** (opposite the status light) | which **project** it is working on |
+| **Grouping / hierarchy** | which agent is working on which (sub-agents sit under their lead) |
+| **Shade over the art** | tells apart true copies: the same kind wearing the same pet in the same project |
+
+Project frame art no longer draws over tiles (the project still carries an emoji, colour family and background for its group view and the Projects page).
 
 ## Now
 

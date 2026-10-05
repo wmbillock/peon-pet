@@ -7,7 +7,7 @@ let typesState = null;
 // The Projects page shows a per-agent type pin from this state, so redraw it too once the types are in.
 const refreshTypes = () => window.dashBridge.getTypes().then((st) => { typesState = st; renderTypes(); if (typeof renderProjects === 'function') renderProjects(); }).catch(showError);
 const saveType = (t) => window.dashBridge.putType(t).then((st) => { typesState = st; renderTypes(); }).catch((e) => { showError(e); refreshTypes(); });
-const clip = (t) => ({ slug: t.slug, name: t.name, category: t.category, species: t.species, traits: t.traits, personality: t.personality, tint: t.tint, allow: t.allow, deny: t.deny, bounds: t.bounds });
+const clip = (t) => ({ slug: t.slug, name: t.name, category: t.category, species: t.species, traits: t.traits, personality: t.personality, tint: t.tint, allow: t.allow, deny: t.deny, bounds: t.bounds, hue: t.hue });
 
 function typeCard(t) {
   const field = (label, el) => h('div', { class: 'line' }, h('label', { class: 'inline', style: 'min-width:84px' }, label), el);
@@ -42,6 +42,14 @@ function typeCard(t) {
   }).catch(showError);
   act.addEventListener('change', ask);
 
+  // Border colour: what kind of agent this is, at a glance. "Auto" follows the role's colour.
+  const swatch = h('span', { class: 'hueswatch', style: `--ring:hsl(${t.border} 75% 58%)` });
+  const hue = h('input', { type: 'range', class: 'huebar', min: 0, max: 359, value: t.border, 'aria-label': 'Border colour', style: `--ring:hsl(${t.border} 75% 58%)`,
+    oninput: () => { swatch.style.setProperty('--ring', `hsl(${hue.value} 75% 58%)`); hue.style.setProperty('--ring', `hsl(${hue.value} 75% 58%)`); },
+    onchange: () => edit({ hue: Number(hue.value) }) });
+  const border = h('span', { class: 'line', style: 'display:inline-flex;gap:8px;align-items:center' }, swatch, hue,
+    h('button', { title: 'Use the role\'s colour', disabled: t.hue === null, onclick: () => edit({ hue: null }) }, t.hue === null ? 'auto' : 'reset to auto'));
+
   // Execution bounds: blank = no limit.
   const bound = (key, label, title) => {
     const i = h('input', { type: 'number', 'aria-label': label, min: 1, value: t.bounds[key] ?? '', title, style: 'width:90px;flex:none;min-width:0', onchange: () => edit({ bounds: { ...t.bounds, [key]: i.value === '' ? null : Number(i.value) } }) });
@@ -63,6 +71,7 @@ function typeCard(t) {
       h('button', { class: 'danger', onclick: () => { if (confirm(`Delete "${t.name}"? Pins on it are cleared.`)) window.dashBridge.removeType(t.slug).then((st) => { typesState = st; renderTypes(); }).catch(showError); } }, 'Delete')),
     field('Personality', personality),
     field('Traits', traits),
+    field('Border colour', border),
     field('Filter', tint),
     field('May', h('span', {}, boxes)),
     field('Limits', bounds),
