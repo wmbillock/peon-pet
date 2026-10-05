@@ -26,6 +26,19 @@ const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawSummary } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'peon-asset',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
+
 let win;
 let petVisible = true;
 let dashWin = null;
