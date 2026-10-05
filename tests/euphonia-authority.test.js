@@ -72,3 +72,13 @@ test('stream parser falls back to whole assistant text when no partials arrive',
   p.end();
   expect(out).toEqual([{ kind: 'delta', text: 'whole' }]);
 });
+
+test('MCP tools are neither allowed nor available, and are denied by name', () => {
+  const mcp = 'mcp__slack__slack_send_message';
+  expect(policy.tools).not.toContain(mcp);
+  expect(policy.allowedTools).not.toContain(mcp);
+  expect(policy.allowedTools.some((r) => r.startsWith('mcp__'))).toBe(false);
+  expect(policy.disallowedTools).toContain('mcp__*');
+  expect(policy.permissionMode).toBe('dontAsk');   // anything not allowed is denied, so an MCP call has no path
+  expect(isAllowed(policy, mcp, '/x', { hubDir, kbDir })).toBe(false);
+});

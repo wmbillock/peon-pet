@@ -154,7 +154,9 @@ test('argv carries the authority policy and nothing writable outside kb', async 
   expect(val('--allowedTools')).toContain(`Edit(/${path.resolve(e.paths.kbDir)}/**)`);
   expect(val('--allowedTools')).not.toMatch(/Bash/);
   expect(val('--add-dir')).toBe(path.resolve(e.paths.hubDir));
-  expect(a).toContain('--strict-mcp-config');
+  expect(a).not.toContain('--strict-mcp-config');   // refused when an enterprise MCP config is present
+  expect(a).toContain('--disable-slash-commands');
+  expect(val('--disallowedTools')).toContain('mcp__*');
   expect(val('--append-system-prompt')).toContain('willow');
   expect(calls[0].opts.cwd).toBe(e.paths.home);
 });
@@ -174,4 +176,16 @@ test('resetSession keeps the old file and the next turn starts fresh', async () 
   expect(fs.readdirSync(e.paths.home).some((f) => /^session\..*\.old\.json$/.test(f))).toBe(true);
   await e.send('b').done;
   expect(calls[1].args).not.toContain('--resume');
+});
+
+test('a rejected flag is named in the error with the CLI message and a next step', async () => {
+  const { e, events } = mk((c) => {
+    c.stderr.write('error: You cannot use --strict-mcp-config when an enterprise MCP config is present\n');
+    c.stdout.end(); c.emit('close', 1);
+  });
+  await e.send('x').done;
+  const m = events.at(-1).message;
+  expect(m).toMatch(/You cannot use --strict-mcp-config/);
+  expect(m).toMatch(/\[flag: --strict-mcp-config\]/);
+  expect(m).toMatch(/Next:/);
 });

@@ -62,7 +62,7 @@ export function initChat({ onShow } = {}) {
         const h = await window.peonBridge.euphoniaHistory();
         const cfg = h.config || {};
         $('chat-avatar').src = `peon-asset://dock-icon.png?char=${encodeURIComponent(cfg.species || 'trillian')}`;
-        $('chat-sub').textContent = h.session ? `${h.session.turns} turns` : 'new';
+        $('chat-sub').textContent = h.session ? `${h.session.turns} turns` : 'no history yet';
         dispatch({ type: 'history', records: h.records || [] });
       } catch (e) { dispatch({ type: 'send-failed', message: `Could not load history: ${e.message}` }); }
     }
