@@ -48,13 +48,20 @@
     body:not(.dashing) #bar .dashonly { display: none; }
     #bar button.lit { color: #fff; background: rgba(120, 220, 140, 0.35); }
     #bar .sep { width: 1px; margin: 3px 2px; background: rgba(255, 255, 255, 0.15); }
-    #dash { font: 11px -apple-system, 'SF Mono', sans-serif; color: #ccc; position: absolute; left: 0; right: 0; bottom: 0; top: 0; padding: 34px 8px 8px; overflow: auto; display: none;
+    #dash { font: 11px -apple-system, 'SF Mono', sans-serif; color: #ccc; position: absolute; left: 0; right: 0; bottom: 0; top: 0; padding: 34px 8px 26px; overflow: auto; display: none;
             background: rgba(12, 12, 20, 0.94); border: 1px solid #2a2a40; border-radius: 10px; z-index: 50; }
     body.dashing #bar { top: 5px; }
     body.dashing #dash { display: block; }
     body.dashing canvas { display: none; }
     #dash::-webkit-scrollbar { width: 6px; height: 6px; }
     #dash::-webkit-scrollbar-thumb { background: #33334a; border-radius: 3px; }
+    /* a wide, always-visible grip for moving the window: drag it anywhere along the bottom-centre pill */
+    #grip { position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 84px; height: 18px; z-index: 110; display: flex; align-items: center; justify-content: center; gap: 4px;
+            border-radius: 9px; background: rgba(8, 8, 16, 0.78); border: 1px solid rgba(255, 255, 255, 0.28); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); cursor: grab; opacity: 0.7; transition: opacity .15s, background .15s; touch-action: none; }
+    #grip i { width: 14px; height: 3px; border-radius: 2px; background: rgba(230, 230, 255, 0.75); }
+    #grip:hover, #grip.grabbing { opacity: 1; background: rgba(40, 40, 80, 0.92); border-color: rgba(170, 170, 255, 0.8); }
+    #grip.grabbing { cursor: grabbing; }
+    #grip:focus-visible { outline: 2px solid #6aa7ff; outline-offset: 2px; }
     #sound-btn {
       position: absolute;
       top: 6px;
@@ -85,6 +92,7 @@
   <div id="dframe"></div>
   <div id="summary" data-tip="Agents right now\nClick for everyone"></div>
   <div id="dash"></div>
+  <div id="grip" role="button" tabindex="0" aria-label="Drag to move the window" data-tip="Drag to move"><i></i><i></i><i></i></div>
   <div id="bar" data-tip="Drag here to move">
     <button data-v="pet" data-tip="Pet">🐾</button>
     <button data-v="grid" data-tip="Grid — everyone">▦</button>

@@ -569,6 +569,23 @@ bar.addEventListener('pointerdown', (e) => {
 bar.addEventListener('pointerup', () => window.peonBridge.stopDrag());
 bar.addEventListener('lostpointercapture', () => window.peonBridge.stopDrag());
 
+// A dedicated grip (bottom-centre pill) moves the window in every view. It never counts as a click, so it can't
+// cycle the view the way a tap on the pet does, and the pill is big enough to find without aiming.
+const grip = document.getElementById('grip');
+const gripStop = () => { grip.classList.remove('grabbing'); window.peonBridge.stopDrag(); };
+grip.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  tooltip.style.display = 'none';
+  grip.classList.add('grabbing');
+  grip.setPointerCapture(e.pointerId);
+  window.peonBridge.startDrag();
+});
+grip.addEventListener('pointerup', gripStop);
+grip.addEventListener('pointercancel', gripStop);
+grip.addEventListener('lostpointercapture', gripStop);
+
 // --- Master sound toggle ---
 const soundBtn = document.getElementById('sound-btn');
 soundBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -584,7 +601,7 @@ window.peonBridge.onSoundState(({ muted }) => {
 let isSubAgent = false;
 
 window.peonBridge.onConfig(({ size, subAgent }) => {
-  if (subAgent) isSubAgent = true;
+  if (subAgent) { isSubAgent = true; grip.style.display = 'none'; }   // the mini windows are click-through
   // Resize HTML body to match window
   document.documentElement.style.width = `${size}px`;
   document.documentElement.style.height = `${size}px`;
