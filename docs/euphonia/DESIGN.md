@@ -210,6 +210,36 @@ sounds come from the peon-ping hook outside the app, so for those the focus is *
 that file or per-session muting; that is an owner decision. The Pixoo mirrors the lead pet only (no rotation exists today), so
 "showing on the Pixoo" is the lead.
 
+## Pixoo rotation and the voice
+
+`lib/pixoo-rotation.js` (pure, tested) decides what the Pixoo shows. Config under `pixoo`: `rotate` (default on),
+`rotateSeconds` (default 60), `rotateCount` (default 6 slots including the lead) and `pin` (an agent id, or empty).
+- **Order:** the lead (Euphonia) first, then agents needing attention (alarmed or annoyed in the last two minutes), then working
+  agents, then the other open ones by recency; top-level agents only, capped. She always keeps her slot.
+- **Interval:** `max(10 s, rotateSeconds, the Pixoo update limit)`. The existing throttle is untouched: a rotation step changes what
+  *should* be shown; the display is still updated at most once per limit, newest state winning.
+- **Pin:** holds one agent (or Euphonia) while it exists. Rotation off with no pin shows only the lead.
+- **Disappearing agent:** if the agent on screen goes away mid-cycle, the one that moved into its slot is shown at once.
+- **Voice follows the display:** `pixoo.displayed` is set only after a successful send, and it is the `pixooShowing` input to
+  `resolveVoiceFocus`. A step that is still waiting on the throttle does not move the voice.
+
+## Making peon-ping honour the voice focus (needs one approved edit, NOT yet applied)
+
+Peon Pet writes `voice-focus.json` (`~/Library/Application Support/Peon Pet/` on macOS) every tick:
+`{ mode, agentId, reason, name, sessionIds, updatedAt }`. `sessionIds` are the hook session ids (`peonKey`, `codex-` prefixed for
+Codex) of the focused agent and its sub-agents; a pet such as Euphonia has none, so while she holds the voice every hook session is
+quiet. `docs/euphonia/peon-ping-voice-focus.patch` adds `_peon_voice_focus_blocks` to `peon.sh` and one guarded call beside the
+other suppression checks (`_skip_sound=true`). It blocks only when the file exists, is fresh (mtime and `updatedAt` within 30 s), has
+`mode: "active-display"` and a `sessionIds` list, and this hook's `SESSION_ID` is not in it. Everything else plays exactly as today
+(fail open). Override the path with `PEON_VOICE_FOCUS_FILE`. A hook with no session id plays.
+
+The patch was tested on a copy of the backup, with `afplay` stubbed, by `tests/peon-voice-focus.test.js` (focused, sub-agent,
+non-focused, empty list, stale mtime, stale `updatedAt`, mode all, corrupt, no list, odd shapes, no session). The installed file is
+a symlink into Homebrew (`/usr/local/Cellar/peon-ping/<version>/libexec/peon.sh`), so the edit is lost on `brew upgrade` and must be
+re-applied. To apply, with the backup already at `~/.claude/hooks/peon-ping/peon.sh.bak-voice-focus`:
+`patch /usr/local/Cellar/peon-ping/2.37.0/libexec/peon.sh docs/euphonia/peon-ping-voice-focus.patch`.
+To restore: `cp ~/.claude/hooks/peon-ping/peon.sh.bak-voice-focus /usr/local/Cellar/peon-ping/2.37.0/libexec/peon.sh`.
+
 ## Name and sound pack persistence
 
 Her display name lives in two places that are kept equal: `name` in `config.json` and the reserved pet in the roster (what the

@@ -29,6 +29,16 @@ Project frame art no longer draws over tiles (the project still carries an emoji
 
 ## Soon
 
+- [ ] Per-machine Peon Pet server (owner enhancement, 2026-10-05): one local daemon owns Peon Pet and peon-ping state and
+  marshals hook events. The hook becomes a tiny client call over a Unix socket (mode 0600, no TCP port) with a fail-open
+  timeout of about 200 ms, instead of starting bash and `peon.sh` per event. Why: pausing in the UI cannot stop the cost,
+  because the hook still starts a bash process before `peon.sh` reads the pause state, and spawns are expensive on this
+  machine (4 concurrent `peon.sh` copies from several Claude sessions). One owner also removes the `.state.json` write
+  races, puts pause, dedupe and rate limiting in one place, owns its audio and pet processes (the leaked `afplay`
+  problem), and gives every producer one queue: Claude sessions, The Firm's peon bridge (#3866) and anything else. Runs as
+  a launchd service like The Firm's. Measure first: time one `peon.sh` event on a quiet and a loaded machine; if spawn
+  dominates, a thin client against a socket is the fix, and if audio work dominates, the server must own playback too. The
+  voice-focus gate (`voice-focus.json`) and the Pixoo rotation become server state instead of files.
 - [x] New themed pets (9) and 60 backgrounds registered from `scripts/art-selection.json` / `background-library.json`; checked on their default backgrounds (R2-D2 still needs art: the image tool's safety review declined the sheet on 2026-10-02; use another tool or a different design)
 
 - [x] Environments for all 10 plan species generated via Codex (`scripts/gen-art-codex.js`, `scripts/install-art-envs.js`), built in

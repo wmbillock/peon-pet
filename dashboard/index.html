@@ -153,6 +153,17 @@
         <label for="pixoo-interval" class="inline" style="width:88px">Max update rate</label>
         <input type="number" id="pixoo-interval" min="0" max="3600" step="5" style="width:80px"> <span class="val">seconds between updates (0 = no limit)</span>
       </div>
+      <div class="row" style="margin-top:6px">
+        <label class="inline"><input type="checkbox" id="pixoo-rotate"> Rotate through the lead and active agents</label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label for="pixoo-rotate-sec" class="inline" style="width:88px">Rotate every</label>
+        <input type="number" id="pixoo-rotate-sec" min="10" max="3600" step="5" style="width:80px"> <span class="val">seconds (never faster than the update limit)</span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label for="pixoo-pin" class="inline" style="width:88px">Hold on</label>
+        <select id="pixoo-pin"><option value="">(rotate)</option></select> <span class="val">pin the display to one agent; the voice follows it</span>
+      </div>
       <div class="help">IP is in the Divoom app: Device Settings → Device Info. Same Wi-Fi network required. Color match 0 = raw colors; higher pulls the LED look toward your screen.</div>
     </section>
 

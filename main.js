@@ -16,6 +16,7 @@ const { registerEuphoniaIpc } = require('./lib/euphonia/ipc');
 const euphLaunch = require('./lib/euphonia/launch');
 const euphLead = require('./lib/euphonia/lead');
 const voiceFocus = require('./lib/voice-focus');
+const rotation = require('./lib/pixoo-rotation');
 const { createChatWindowManager } = require('./lib/euphonia/chat-window');
 const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
@@ -601,7 +602,7 @@ function startPolling() {
 
 // --- Pixoo 64 mirror ---
 // Pushes the pet's current animation (plus session dots) to a Divoom Pixoo 64 on the LAN.
-const pixoo = { client: null, status: 'off', lastSig: null, busy: false, dirty: false, timer: null, lastSentAt: 0, force: false };
+const pixoo = { rot: {}, displayed: null, client: null, status: 'off', lastSig: null, busy: false, dirty: false, timer: null, lastSentAt: 0, force: false };
 const pixooFrameCache = new Map();  // anim → { frames, speedMs }
 let petAnim = 'sleeping';
 
@@ -613,6 +614,10 @@ function pixooConfig() {
     look: Number.isFinite(c.look) ? c.look : 60,
     brightness: Number.isFinite(c.brightness) ? c.brightness : null,  // null = leave the device alone
     minIntervalSec: cleanInterval(c.minIntervalSec),   // at most one update to the display per this many seconds
+    rotate: c.rotate !== false,                          // cycle through the lead and the active agents
+    rotateSeconds: Number.isFinite(c.rotateSeconds) ? c.rotateSeconds : rotation.DEFAULT_ROTATE_SEC,
+    rotateCount: Number.isFinite(c.rotateCount) ? c.rotateCount : rotation.DEFAULT_CAP,
+    pin: typeof c.pin === 'string' && c.pin ? c.pin : null,   // hold the display on one agent
   };
 }
 
@@ -622,15 +627,32 @@ function setPixooStatus(status) {
   if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('pixoo-state', { ...pixooConfig(), status });
 }
 
-function pixooAnimFrames(anim) {
-  const look = leadLook();
+function pixooAnimFrames(look, anim) {
   const key = `${look && look.species}|${look && look.env}|${anim}`;
   if (!pixooFrameCache.has(key)) {
     // Cutout pets are composited onto their environment; baked sheets already contain the scene.
-    const bgPath = look && look.layout === 'cutout' ? resolveAsset('bg.png') : null;
-    pixooFrameCache.set(key, buildAnimFrames(nativeImage, resolveAsset('sprite-atlas.png'), anim, { bgPath }));
+    const opts = { char: look && look.species, env: look && look.env };
+    const bgPath = look && look.layout === 'cutout' ? resolveAsset('bg.png', opts) : null;
+    pixooFrameCache.set(key, buildAnimFrames(nativeImage, resolveAsset('sprite-atlas.png', opts), anim, { bgPath }));
   }
   return pixooFrameCache.get(key);
+}
+
+// Who the Pixoo should show now: the lead, or (when rotating) the next of the lead and the active agents. The throttle
+// below still decides WHEN the display is actually updated; this only decides what it should show next.
+const PIXOO_ANIMS = new Set(['sleeping', 'waking', 'typing', 'alarmed', 'celebrate', 'annoyed']);
+function pixooTarget(cfg, now = Date.now()) {
+  const leadPet = pets && pets.lead();
+  const leadLk = leadLook();
+  const sessions = latestSessions.sessions || [];
+  const list = rotation.selectRotation({ lead: leadPet, agents: sessions, cap: cfg.rotateCount, now });
+  if (cfg.pin && !list.includes(cfg.pin) && sessions.some((s) => s.id === cfg.pin)) list.push(cfg.pin);
+  const effective = cfg.rotate || cfg.pin ? list : list.slice(0, 1);
+  pixoo.rot = rotation.rotateStep({ list: effective, state: pixoo.rot, pin: cfg.pin, now, intervalSec: rotation.effectiveIntervalSec(cfg) });
+  const id = pixoo.rot.showing;
+  const row = id && id !== (leadPet && leadPet.id) ? sessions.find((s) => s.id === id) : null;
+  if (!row) return { id: leadPet ? leadPet.id : null, look: leadLk, anim: petAnim };
+  return { id, look: row.pet || leadLk, anim: PIXOO_ANIMS.has(row.anim) ? row.anim : (row.hot ? 'typing' : 'sleeping') };
 }
 
 function schedulePixooSync(delayMs = 300) {
@@ -639,25 +661,28 @@ function schedulePixooSync(delayMs = 300) {
 }
 
 async function runPixooSync() {
-  const { enabled, ip, look, brightness, minIntervalSec } = pixooConfig();
+  const cfg = pixooConfig();
+  const { enabled, ip, look, brightness, minIntervalSec } = cfg;
   if (!enabled || !ip) { pixoo.client = null; setPixooStatus('off'); return; }
   if (pixoo.busy) { pixoo.dirty = true; return; }
   pixoo.busy = true;
   try {
     if (!pixoo.client || pixoo.client.ip !== ip) { pixoo.client = new PixooClient(ip); pixoo.lastSig = null; }
     const sessions = latestSessions.sessions || [];
-    const lead = leadLook();
+    const target = pixooTarget(cfg);
+    const lead = target.look;
     const summary = summarizeAgents(sessions);
-    const sig = `${lead && lead.petId}|${lead && lead.tint}|${petAnim}|${look}|${brightness}|${summary.working}/${summary.idle}/${summary.attention}`;
+    const sig = `${target.id}|${lead && lead.petId}|${lead && lead.species}|${lead && lead.tint}|${target.anim}|${look}|${brightness}|${summary.working}/${summary.idle}/${summary.attention}`;
     if (sig !== pixoo.lastSig) {
       // Go easy on the display: hold changes back until the interval is up, then send whatever is current.
       const wait = waitMs({ lastSentAt: pixoo.lastSentAt, now: Date.now(), minIntervalSec, force: pixoo.force });
       if (wait > 0) { schedulePixooSync(wait); return; }
       pixoo.force = false;
-      const { frames, speedMs } = pixooAnimFrames(petAnim);
+      const { frames, speedMs } = pixooAnimFrames(lead, target.anim);
       if (brightness !== null) await pixoo.client.setBrightness(brightness);
       await pixoo.client.showAnimation(frames.map((f) => drawSummary(applyTint(applyLook(f, look), lead && lead.tintRgb, lead ? lead.tintAlpha : 0), summary)), speedMs);
       pixoo.lastSig = sig;
+      pixoo.displayed = target.id;   // what is actually on the display: voice focus follows this, not what is queued
       pixoo.lastSentAt = Date.now();
       console.log(`[pixoo] update sent (limit ${minIntervalSec}s)`);
     }
@@ -692,11 +717,15 @@ ipcMain.handle('pixoo-set', (_e, patch) => {
   if ('look' in patch) next.look = Math.min(100, Math.max(0, Math.round(Number(patch.look) || 0)));
   if ('brightness' in patch) next.brightness = Math.min(100, Math.max(0, Math.round(Number(patch.brightness) || 0)));
   if ('minIntervalSec' in patch) next.minIntervalSec = cleanInterval(patch.minIntervalSec);
+  if ('rotate' in patch) next.rotate = !!patch.rotate;
+  if ('rotateSeconds' in patch) next.rotateSeconds = Math.min(3600, Math.max(rotation.MIN_ROTATE_SEC, Math.round(Number(patch.rotateSeconds) || rotation.DEFAULT_ROTATE_SEC)));
+  if ('rotateCount' in patch) next.rotateCount = Math.min(20, Math.max(1, Math.round(Number(patch.rotateCount) || rotation.DEFAULT_CAP)));
+  if ('pin' in patch) next.pin = patch.pin ? String(patch.pin).slice(0, 200) : null;
   if (next.enabled && !next.ip) throw new Error('Enter the Pixoo\'s IP address first (shown in the Divoom app)');
   savePetConfig({ pixoo: next });
   // A change you just made to what the display shows goes out now, not after the interval. Changing only the
   // interval doesn't touch the display.
-  const visible = ['enabled', 'ip', 'look', 'brightness'].some((k) => next[k] !== cur[k]);
+  const visible = ['enabled', 'ip', 'look', 'brightness', 'pin'].some((k) => next[k] !== cur[k]);
   if (visible) { pixoo.lastSig = null; pixoo.force = true; }
   setPixooStatus(next.enabled ? (visible ? 'connecting\u2026' : pixoo.status) : 'off');
   schedulePixooSync(visible ? 0 : 300);
@@ -820,7 +849,7 @@ function voiceFacts() {
   const lead = pets && pets.lead();
   return {
     pixooConnected: pixoo.status === 'connected',
-    pixooShowing: lead ? lead.id : null,                       // the Pixoo mirrors the lead pet; it does not rotate between agents
+    pixooShowing: pixoo.displayed,                              // what the Pixoo is actually showing right now (follows the rotation or the pin)
     cornerView,
     visibleAgentId: voiceFocus.pickVisibleAgent(cornerView, sessions),
     leadId: lead ? lead.id : null,
@@ -835,16 +864,24 @@ let lastVoiceSig = '';
 function voiceState() {
   const f = currentVoiceFocus();
   const pet = pets && pets.roster.get(f.agentId);
-  return { mode: voiceMode(), agentId: f.agentId, reason: f.reason, name: pet ? pet.name : f.agentId };
+  // The peon-ping hook identifies itself by its session id, so publish the hook session ids the focused agent answers to:
+  // the agent's own and its sub-agents'. A pet such as Euphonia is not a hook session and has none.
+  const rows = latestSessions.sessions || [];
+  const sessionIds = rows.filter((r) => r.id === f.agentId || r.rootId === f.agentId).map((r) => r.peonKey || r.id);
+  const row = rows.find((r) => r.id === f.agentId);
+  return { mode: voiceMode(), agentId: f.agentId, reason: f.reason, name: pet ? pet.name : (row && (row.title || row.name)) || f.agentId, sessionIds };
 }
 function publishVoiceFocus() {   // call whenever a fact changes; cheap and idempotent
   try {
     const st = voiceState();
     const sig = JSON.stringify(st);
-    if (sig === lastVoiceSig) return;
+    const changed = sig !== lastVoiceSig;
     lastVoiceSig = sig;
-    if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('voice-focus', st);
-    fs.writeFileSync(path.join(app.getPath('userData'), 'voice-focus.json'), JSON.stringify({ ...st, updatedAt: new Date().toISOString() }));
+    if (changed && dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('voice-focus', st);
+    // Written on every tick, changed or not: the peon-ping hook treats a file older than 30 s as "the app is not running".
+    const file = path.join(app.getPath('userData'), 'voice-focus.json');
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify({ ...st, updatedAt: new Date().toISOString() }));
+    fs.renameSync(`${file}.tmp`, file);
   } catch { /* an indicator must never break the app */ }
 }
 ipcMain.handle('voice-focus-get', (e) => (dashWin && !dashWin.isDestroyed() && e.sender === dashWin.webContents ? voiceState() : null));
@@ -855,7 +892,8 @@ ipcMain.handle('voice-focus-set', (e, mode) => {
   publishVoiceFocus();
   return voiceState();
 });
-setInterval(publishVoiceFocus, 1500).unref();   // catches view, pixoo and chat-focus changes without wiring each one
+setInterval(publishVoiceFocus, 1500).unref();
+setInterval(() => { if (pixooConfig().enabled) schedulePixooSync(0); }, 5000).unref();   // lets the rotation advance; sends are still throttled   // catches view, pixoo and chat-focus changes without wiring each one
 
 // --- Master sound toggle (peon-ping .paused) ---
 let soundMuted = peonSound.isMuted();

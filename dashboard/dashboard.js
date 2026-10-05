@@ -210,7 +210,24 @@ const pixooLookVal = document.getElementById('pixoo-look-val');
 
 const pixooInterval = document.getElementById('pixoo-interval');
 
-function renderPixoo({ ip, enabled, status, look, brightness, minIntervalSec }) {
+const pixooRotate = document.getElementById('pixoo-rotate');
+const pixooRotateSec = document.getElementById('pixoo-rotate-sec');
+const pixooPin = document.getElementById('pixoo-pin');
+let pixooPinWanted = '';
+let pixooAgents = [];   // [{id, label}] from the live session list
+function fillPinOptions() {
+  const opts = [new Option('(rotate)', '')];
+  for (const a of pixooAgents) opts.push(new Option(a.label, a.id));
+  if (pixooPinWanted && !pixooAgents.some((a) => a.id === pixooPinWanted)) opts.push(new Option(`${pixooPinWanted} (not running)`, pixooPinWanted));
+  pixooPin.replaceChildren(...opts);
+  pixooPin.value = pixooPinWanted;
+}
+
+function renderPixoo({ ip, enabled, status, look, brightness, minIntervalSec, rotate, rotateSeconds, pin }) {
+  pixooRotate.checked = rotate !== false;
+  if (document.activeElement !== pixooRotateSec) pixooRotateSec.value = rotateSeconds ?? 60;
+  pixooPinWanted = pin || '';
+  fillPinOptions();
   if (document.activeElement !== pixooInterval && minIntervalSec !== undefined) pixooInterval.value = minIntervalSec;
   if (document.activeElement !== pixooLook) { pixooLook.value = look; pixooLookVal.textContent = look; }
   if (document.activeElement !== pixooBright) {
@@ -370,3 +387,12 @@ function renderVoice(st) {
 voiceMode.addEventListener('change', async () => renderVoice(await window.dashBridge.voiceFocusSet(voiceMode.value)));
 window.dashBridge.onVoiceFocus(renderVoice);
 window.dashBridge.voiceFocusGet().then(renderVoice).catch(() => {});
+
+pixooRotate.addEventListener('change', () => savePixoo({ rotate: pixooRotate.checked }));
+pixooRotateSec.addEventListener('change', () => savePixoo({ rotateSeconds: Number(pixooRotateSec.value) }));
+pixooPin.addEventListener('change', () => savePixoo({ pin: pixooPin.value || null }));
+window.dashBridge.onSessions((data) => {
+  const next = [{ id: 'euphonia', label: 'Euphonia (lead)' }].concat((data.sessions || []).filter((s) => s.isRoot !== false).map((s) => ({ id: s.id, label: s.title || s.name || s.id })));
+  if (JSON.stringify(next) === JSON.stringify(pixooAgents)) return;
+  pixooAgents = next; fillPinOptions();
+});
