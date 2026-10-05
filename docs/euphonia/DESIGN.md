@@ -48,7 +48,7 @@ Default home: `~/.euphonia/<os username>` (override with `EUPHONIA_HOME`). Direc
 | `session.json` | `{ id, created_at, updated_at, turns }`. Written only after a turn succeeds. |
 | `kb/` | Euphonia's own Libretto-style store: `INDEX.md` (index), `identity.md`, `log.md` (dated, append-only), plus pages it adds. |
 | `transcript.jsonl` | Append-only turns: `{ ts, turnId, role, origin, text }`. |
-| `config.json` | `name`, `soundPack` (default `ra2_eva_commander`), `species` (default `trillian`), `model` (default: CLI default), `restricted` (default `true`). |
+| `config.json` | `name`, `soundPack` (default `ra2_eva_commander`), `species` (default `weeping-willow`), `model` (default: CLI default), `restricted` (default `true`). |
 
 `New` in the chat header calls `resetSession()`: the old `session.json` is renamed to
 `session.<ms>.old.json`, nothing is deleted, and the next message starts a fresh conversation.
@@ -170,11 +170,10 @@ expiry checked at use time. Not built.
 
 ## Voice and identity
 
-- Sound pack: default `ra2_eva_commander` (an assistant-style, work-safe pack). It is outside the user's
-  peon-ping rotation (`peon`, `peasant`, `zugzug`, `wc3_lich`, `murloc`) and the movie-pack rotation. Change it in
+- Sound pack: no default (a shipped default may not name third-party audio; see "Third-party assets"). Choose one in
   the dashboard (Sound page, "Euphonia's voice") or `config.json`. Plays a `task.complete` cue when a reply
   finishes, at the peon-ping volume; skipped when muted.
-- Species: `trillian` by default (`config.json` `species`); no agent type uses it.
+- Species: `weeping-willow` by default (`config.json` `species`), an original character that is in the published repo.
 
 ## Interaction model
 
@@ -192,6 +191,27 @@ expiry checked at use time. Not built.
   conversation", or turns and last-active time), one "New" action (the old session file is kept; the window shows only the
   current conversation), and the error banner, which names a rejected flag and the next step.
 - **Launch.** `openChatOnLaunch: true` opens the chat window at launch. Default is false: the button and dot are the primary path.
+
+## Third-party assets (owner decision 2026-10-05)
+
+Third-party art and sound packs stay out of the shared repo unless they are already on GitHub. Only public-domain, publishable,
+non-copyright-issue assets go in. Local-only choices stay local: the owner's current species (princess-peach) and sound pack
+(sc_battlecruiser) live in his own `config.json`, never in a tracked file.
+
+Enforced, not just documented: `lib/shipped-defaults.js` and `scripts/check-shipped-defaults.js` (run by `tests/shipped-defaults.test.js`)
+fail if any SHIPPED default names a species or pack that must stay local.
+- A species is shippable only if it has tracked art and none of that art is excluded from a distribution by `lib/dist-filter.js`
+  (third-party `localOnly` characters and art the manifests mark `generated-locally`). Eight species qualify: the ones in the published
+  fork (`c351149`): orc, capybara, weeping-willow, bearded-dragon, retro-robot, clipart-trumpet, eighth-note, lcd-creature.
+- Sound packs are third-party audio living in peon-ping's folder, not in this repo, so no pack is an approved shipped default (the
+  `SAFE_PACKS` list is empty until the owner records one).
+- Checked defaults: Euphonia's species and pack and its fallbacks, the shipped casting preferences, the seeded agent kinds.
+
+Defaults changed in this slice: Euphonia's species `trillian` (third-party) -> `weeping-willow`; Euphonia's sound pack
+`ra2_eva_commander` (third-party game audio) -> none (no voice until chosen; the dashboard shows "(no voice)"); the shipped casting
+preferences were cut from 32 species to the 8 published ones. The 24 unpublished species moved to a gitignored
+`lib/character-preferences.local.json` on this machine, so casting here is unchanged; the user-data file works the same way.
+Peon-ping's own `peon` fallback in the voices page and its pack rotation belong to peon-ping's config, not this repo.
 
 ## The euphonia-bridge (a route to The Firm and GitHub)
 

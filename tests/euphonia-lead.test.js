@@ -65,4 +65,4 @@ test('the pet window has no chat view anywhere in its source', () => {
   expect(fs.readFileSync(path.join(__dirname, '../renderer/index.html'), 'utf8')).not.toMatch(/data-v="chat"|id="chat-list"/);
 });
 
-test('species candidates', () => { expect(species({ species: 'x' })).toEqual(['x', 'trillian', 'orc']); });
+test('species candidates', () => { expect(species({ species: 'x' })).toEqual(['x', 'weeping-willow', 'orc']); });

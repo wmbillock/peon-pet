@@ -3,7 +3,7 @@ const os = require('os');
 const path = require('path');
 const { loadPrefs, mergePrefs, pickCast, weightOf } = require('../lib/character-preferences');
 
-const prefs = loadPrefs();
+const prefs = loadPrefs(null, { local: false });   // the shipped file only, so results do not depend on a machine's local additions
 const ready = new Set(Object.keys(prefs.default));
 const KINDS = ['lead', 'worker', 'worker', 'inspector', 'scout', 'plan', 'critique', 'review', 'management'];
 const roster = (n) => Array.from({ length: n }, (_, i) => ({ id: `agent-${String(i).padStart(3, '0')}`, kind: KINDS[i % KINDS.length] }));
@@ -11,7 +11,7 @@ const cast = (seed, n = 40, extra = {}) => pickCast({ agents: roster(n), prefs, 
 const tally = (m) => { const t = new Map(); for (const sp of m.values()) t.set(sp, (t.get(sp) || 0) + 1); return t; };
 
 test('shipped preferences are varied and do not make the orc a default', () => {
-  expect(Object.keys(prefs.default).length).toBeGreaterThanOrEqual(30);
+  expect(Object.keys(prefs.default).length).toBe(8);   // only species published in the repo
   for (const k of ['lead', 'worker', 'inspector', 'scout', 'plan', 'critique', 'review', 'management']) {
     expect(Object.keys(prefs.kinds[k] || {})).not.toContain('orc');
   }

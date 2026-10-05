@@ -164,7 +164,8 @@ test('argv carries the authority policy and nothing writable outside kb', async 
 
 test('config: whitelisted keys only, validated', () => {
   const { e } = mk(() => {});
-  expect(e.getConfig()).toMatchObject({ soundPack: 'ra2_eva_commander', species: 'trillian' });
+  expect(e.getConfig()).toMatchObject({ soundPack: null, species: 'weeping-willow' });   // shipped defaults are original/published only
+  expect(e.setConfig({ soundPack: '' }).soundPack).toBeNull();
   expect(e.setConfig({ soundPack: 'cortana', evil: 1 })).not.toHaveProperty('evil');
   expect(() => e.setConfig({ soundPack: '../x' })).toThrow();
   expect(() => e.send('   ')).toThrow(/Empty/);

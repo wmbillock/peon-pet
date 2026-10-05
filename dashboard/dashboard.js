@@ -292,17 +292,17 @@ const euphName = document.getElementById('euph-name');
 const euphNote = document.getElementById('euph-note');
 function euphSaved(cfg, warning) {
   euphNote.style.color = warning ? '#ffcc66' : '#6dff7a';
-  euphNote.textContent = `${warning ? warning + ' ' : ''}Saved \u2713 ${cfg.name}, voice: ${cfg.soundPack}`;
+  euphNote.textContent = `${warning ? warning + ' ' : ''}Saved \u2713 ${cfg.name}, voice: ${cfg.soundPack || '(none)'}`;
 }
 function euphFailed(msg) { euphNote.style.color = '#ff6060'; euphNote.textContent = `NOT saved: ${msg}`; }
 async function loadEuphonia() {
   try {
     const r = await window.dashBridge.euphoniaGetConfig();
     if (!r) { euphFailed('could not read Euphonia\'s settings'); return; }
-    const opts = r.packs.map((p) => new Option(p.display === p.name ? p.name : `${p.display} (${p.name})`, p.name));
-    if (!r.packs.some((p) => p.name === r.config.soundPack)) opts.unshift(new Option(`${r.config.soundPack} (not installed)`, r.config.soundPack));   // never show a different pack than the saved one
+    const opts = [new Option('(no voice)', '')].concat(r.packs.map((p) => new Option(p.display === p.name ? p.name : `${p.display} (${p.name})`, p.name)));
+    if (r.config.soundPack && !r.packs.some((p) => p.name === r.config.soundPack)) opts.unshift(new Option(`${r.config.soundPack} (not installed)`, r.config.soundPack));   // never show a different pack than the saved one
     euphPack.replaceChildren(...opts);
-    euphPack.value = r.config.soundPack;
+    euphPack.value = r.config.soundPack || '';
     euphName.value = r.config.name;
     euphSaved(r.config);
   } catch (e) { euphFailed(e.message); }

@@ -29,11 +29,14 @@ Picks stick to an agent while it lives. Caps are computed over the agents presen
 
 - Weight for a species and kind is `kinds[kind][species]`, else `default[species]`, times `rare[species]` if present.
   A species in neither map is never auto-picked. Kinds are Firm categories: `lead`, `management`, `worker`, `inspector`, `scout`, `plan`, `critique`, `review`.
-- Only species that are installed and ready are considered; the shipped file lists the 32 bundled non-third-party characters.
+- Only species that are installed and ready are considered.
+- **Shipped vs local (third-party rule).** The shipped file names only the 8 species whose art is in the published repo. Species whose
+  art is third-party or kept local are added through `lib/character-preferences.local.json` (gitignored, merged over the shipped file)
+  or the user-data file below. `scripts/check-shipped-defaults.js` fails if a tracked default names anything that must stay local.
 
 ## Adding your own
 
-Create `character-preferences.json` in the app's user-data directory (next to `pets.json`). It is merged over the shipped file:
+Create `character-preferences.json` in the app's user-data directory (next to `pets.json`), or `lib/character-preferences.local.json` in a checkout. Both are merged over the shipped file (the user-data file last):
 `kinds` replaces whole kinds, `default` replaces the default map, `exclude` and `rare` merge, `variety` merges key by key.
 Example: keep scouts to your own art and lift the share cap:
 
