@@ -11,6 +11,8 @@ const { JsonlWatcher } = require('./lib/jsonl-watcher');
 const { CodexWatcher } = require('./lib/codex-watcher');
 const peonSound = require('./lib/peon-sound');
 const peonPacks = require('./lib/peon-packs');
+const { createEuphonia } = require('./lib/euphonia/service');
+const { registerEuphoniaIpc } = require('./lib/euphonia/ipc');
 const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
@@ -654,14 +656,23 @@ ipcMain.handle('pixoo-set', (_e, patch) => {
 });
 
 // --- Corner window views: Pet · Grid · Speaker · Presenter ---
-const CORNER_VIEWS = ['pet', 'grid', 'speaker', 'presenter'];
+const CORNER_VIEWS = ['pet', 'grid', 'speaker', 'presenter', 'chat'];
 const CORNER_MIN = { w: 200, h: 200 }, CORNER_MAX = { w: 560, h: 700 };
 let cornerView = 'pet';   // restored from the config in initPets() — app.setName() hasn't run yet at module load
+
+// The pet window is normally unfocusable (it never steals keystrokes). The chat view needs the keyboard.
+function applyChatFocus() {
+  if (!win || win.isDestroyed()) return;
+  const chat = cornerView === 'chat';
+  win.setFocusable(chat);
+  if (chat) win.focus();
+}
 
 function setCornerView(v, from) {
   if (!CORNER_VIEWS.includes(v)) return;
   cornerView = v;
   savePetConfig({ cornerView: v });
+  applyChatFocus();
   if (win && !win.isDestroyed() && win.webContents !== from) win.webContents.send('corner-view', v);
   if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('corner-view', v);
   refreshMenus();
@@ -675,6 +686,19 @@ function resizeCorner(w, h) {
   const next = computeCornerBounds(b, screen.getDisplayMatching(b).workArea, w, h, { min: CORNER_MIN, max: CORNER_MAX });
   if (next.width !== b.width || next.height !== b.height || next.x !== b.x || next.y !== b.y) win.setBounds(next);
 }
+
+// --- Euphonia: the user's personal assistant, chatted with from the pet window ---
+let euphonia = null;
+registerEuphoniaIpc({
+  ipcMain,
+  getPetWebContents: () => (win && !win.isDestroyed() ? win.webContents : null),
+  getSenders: () => (dashWin && !dashWin.isDestroyed() ? [dashWin.webContents] : []),
+  getService: () => (euphonia = euphonia || createEuphonia({ home: process.env.EUPHONIA_HOME || undefined, hubDir: process.env.EUPHONIA_HUB || undefined })),
+  peonDir: () => peonSound.peonDir(),
+  listPacks: () => peonPacks.listPacks(),
+  isMuted: () => soundMuted || peonSound.isMuted(),
+  getVolume: () => peonPacks.getPackState().volume,
+});
 
 ipcMain.on('corner-set-view', (e, v) => setCornerView(v, e.sender));
 ipcMain.handle('corner-get', () => cornerView);
@@ -1032,6 +1056,7 @@ function createWindow() {
     win.webContents.send('sound-state', { muted: soundMuted });
     sendLook(win);
     win.webContents.send('corner-view', cornerView);
+    applyChatFocus();
     win.webContents.send('frame-style', { id: loadPetConfig().border || 'default' });
   });
 

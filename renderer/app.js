@@ -1,4 +1,5 @@
 import * as THREE from '../node_modules/three/build/three.module.js';
+import { initChat } from './chat.js';
 
 // updateDframe() is called from playAnim at load time, before the frame's elements exist: stay quiet until ready.
 let dframeReady = false;
@@ -511,20 +512,24 @@ function diveInto({ status, project } = {}) {
 }
 
 // --- Corner views: the small window can show the pet, or the agent Grid / Speaker / Presenter ---
-const CORNER_VIEWS = ['pet', 'grid', 'speaker', 'presenter'];
+const CORNER_VIEWS = ['pet', 'grid', 'speaker', 'presenter', 'chat'];
+const CHAT_SIZE = { w: 340, h: 440 };
 const BAR_H = 34, DASH_PAD = 8;     // toolbar strip above the views, and the container's bottom padding
 const CORNER_W = { grid: 344, speaker: 232, presenter: 232 };   // fixed width per view; height follows the content
 let cornerView = 'pet';
 let dash = null;
+const chat = initChat();
 
 function reportCornerSize(w, h) { if (!isSubAgent) window.peonBridge.resizeCorner({ w, h }); }
 
 function applyCornerView(v) {
   if (!CORNER_VIEWS.includes(v) || isSubAgent) return;
   cornerView = v;
-  document.body.classList.toggle('dashing', v !== 'pet');
+  document.body.classList.toggle('dashing', v !== 'pet' && v !== 'chat');
+  document.body.classList.toggle('chatting', v === 'chat');
   for (const b of document.querySelectorAll('#bar button[data-v]')) b.classList.toggle('on', b.dataset.v === v);
   if (v === 'pet') { reportCornerSize(200, 200); return; }
+  if (v === 'chat') { reportCornerSize(CHAT_SIZE.w, CHAT_SIZE.h); chat.show(); return; }
   if (!dash) {
     dash = createDash({
       stage: document.getElementById('dash'), compact: true, storage: 'corner',
