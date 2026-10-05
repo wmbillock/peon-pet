@@ -61,6 +61,8 @@ export function initChat({ onShow } = {}) {
   });
   const refreshAccess = () => window.peonBridge.accessSummary && window.peonBridge.accessSummary().then((r) => { $('chat-access').textContent = `tool access: ${r.text}`; }).catch(() => {});
   $('chat-access').addEventListener('click', (e) => { e.preventDefault(); window.peonBridge.openAccessSettings(); });
+  const setName = (n) => { if (!n) return; $('chat-name').textContent = n; document.title = n; $('chat-input').placeholder = `Ask ${n}… (Enter sends, Shift+Enter newline)`; };
+  if (window.peonBridge.onEuphoniaConfig) window.peonBridge.onEuphoniaConfig((c) => setName(c.name));
   refreshAccess();
   window.peonBridge.onEuphoniaEvent((event) => {
     dispatch({ type: 'event', event });
@@ -75,6 +77,7 @@ export function initChat({ onShow } = {}) {
       try {
         const h = await window.peonBridge.euphoniaHistory();
         const cfg = h.config || {};
+        setName(cfg.name);
         $('chat-avatar').src = `peon-asset://dock-icon.png?char=${encodeURIComponent(cfg.species || 'trillian')}`;
         sessionLine(h.session);
         dispatch({ type: 'history', records: h.records || [], active: h.active });

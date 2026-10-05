@@ -75,6 +75,7 @@ function fakeBW() {
     show() { this.visible = true; } restore() { this.minimized = false; } focus() { this.focused = true; this.focusCalls++; this.emit('focus'); }
     getBounds() { return this.bounds; }
     close() { this.destroyed = true; this.emit('closed'); }
+    setTitle(t) { this.title = t; }
   }
   return { BW, made };
 }

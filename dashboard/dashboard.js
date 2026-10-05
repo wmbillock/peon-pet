@@ -269,27 +269,37 @@ for (const b of cornerSeg.querySelectorAll('button')) {
 window.dashBridge.onCornerView(markCornerView);
 window.dashBridge.getCornerView().then(markCornerView);
 
-// --- Euphonia voice (its own sound pack, separate from the agents' rotation) ---
+// --- Euphonia name and voice. Saves on change and confirms from what was read back from disk. ---
 const euphPack = document.getElementById('euph-pack');
+const euphName = document.getElementById('euph-name');
 const euphNote = document.getElementById('euph-note');
+function euphSaved(cfg, warning) {
+  euphNote.style.color = warning ? '#ffcc66' : '#6dff7a';
+  euphNote.textContent = `${warning ? warning + ' ' : ''}Saved \u2713 ${cfg.name}, voice: ${cfg.soundPack}`;
+}
+function euphFailed(msg) { euphNote.style.color = '#ff6060'; euphNote.textContent = `NOT saved: ${msg}`; }
 async function loadEuphonia() {
   try {
     const r = await window.dashBridge.euphoniaGetConfig();
-    if (!r) return;
-    euphPack.replaceChildren(...r.packs.map((p) => {
-      const o = document.createElement('option');
-      o.value = p.name; o.textContent = p.display === p.name ? p.name : `${p.display} (${p.name})`;
-      return o;
-    }));
+    if (!r) { euphFailed('could not read Euphonia\'s settings'); return; }
+    const opts = r.packs.map((p) => new Option(p.display === p.name ? p.name : `${p.display} (${p.name})`, p.name));
+    if (!r.packs.some((p) => p.name === r.config.soundPack)) opts.unshift(new Option(`${r.config.soundPack} (not installed)`, r.config.soundPack));   // never show a different pack than the saved one
+    euphPack.replaceChildren(...opts);
     euphPack.value = r.config.soundPack;
-  } catch (e) { showError(e); }
+    euphName.value = r.config.name;
+    euphSaved(r.config);
+  } catch (e) { euphFailed(e.message); }
 }
+async function saveEuph(patch) {
+  try {
+    const r = await window.dashBridge.euphoniaSetConfig(patch);
+    if (!r || !r.ok) { euphFailed((r && r.error) || 'unknown error'); return; }
+    euphSaved(r.config, r.warning);
+  } catch (e) { euphFailed(e.message); }
+}
+euphPack.addEventListener('change', () => saveEuph({ soundPack: euphPack.value }));
+euphName.addEventListener('change', () => saveEuph({ name: euphName.value }));
 document.getElementById('euph-audition').addEventListener('click', () => audition(euphPack.value));
-document.getElementById('euph-apply').addEventListener('click', async () => {
-  const r = await window.dashBridge.euphoniaSetConfig({ soundPack: euphPack.value });
-  euphNote.textContent = r.ok ? 'Saved' : r.error;
-  setTimeout(() => { euphNote.textContent = ''; }, 2500);
-});
 loadEuphonia();
 
 // --- Euphonia: tool access (grants). Only this window can change them. ---

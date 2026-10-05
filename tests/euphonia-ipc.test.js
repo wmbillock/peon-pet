@@ -6,10 +6,10 @@ function setup({ muted = false } = {}) {
   const pet = { isDestroyed: () => false, send: jest.fn() };
   const chat = { isDestroyed: () => false, send: jest.fn() };
   const dash = { id: 'dash' };
-  let listener, marker = null;
+  let listener, marker = null, cfg = { soundPack: 'p' };
   const svc = {
-    subscribe: (fn) => { listener = fn; }, send: jest.fn(() => ({ turnId: 't1' })), history: () => [], getConfig: () => ({ soundPack: 'p' }),
-    getSession: () => null, setConfig: jest.fn((c) => ({ soundPack: 'p', ...c })), resetSession: () => true,
+    subscribe: (fn) => { listener = fn; }, send: jest.fn(() => ({ turnId: 't1' })), history: () => [], getConfig: () => cfg,
+    getSession: () => null, setConfig: jest.fn((c) => { cfg = { ...cfg, ...c }; return cfg; }), resetSession: () => true,
     getReadMarker: () => marker, setReadMarker: (m) => { marker = m; },
   };
   const play = jest.fn();

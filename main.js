@@ -14,6 +14,7 @@ const peonPacks = require('./lib/peon-packs');
 const { createEuphonia } = require('./lib/euphonia/service');
 const { registerEuphoniaIpc } = require('./lib/euphonia/ipc');
 const euphLaunch = require('./lib/euphonia/launch');
+const euphLead = require('./lib/euphonia/lead');
 const { createChatWindowManager } = require('./lib/euphonia/chat-window');
 const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
@@ -106,9 +107,18 @@ const euphoniaLeads = () => !!(pets && pets.lead() && pets.lead().id === euphLau
 // The lead window wears Euphonia's own border while she leads; everything else keeps the global choice.
 const leadBorder = () => (euphoniaLeads() ? getEuphonia().getConfig().border || euphLaunch.DEFAULT_BORDER : loadPetConfig().border);
 
+// Startup: make sure she exists and leads, without overwriting a name or species the owner changed.
 function pinEuphonia() {
-  const cfg = getEuphonia().getConfig();
-  pets.pinReserved({ id: euphLaunch.RESERVED_ID, name: 'Euphonia', species: euphLaunch.species(cfg) });
+  return euphLead.startupPin({ roster: { pinReserved: (spec) => pets.pinReserved(spec), update: (id, p) => pets.roster.update(id, p) }, svc: getEuphonia() });
+}
+// The owner changed her name/species in Euphonia's settings: update the roster, the plate, the chat header and window title.
+function applyEuphoniaConfig() {
+  mutate(() => euphLead.applyConfigToLead({ roster: { update: (id, p) => pets.roster.update(id, p) }, svc: getEuphonia() }));
+  reloadPetWindows();
+  const name = getEuphonia().getConfig().name;
+  chatMgr.setTitle(name);
+  const wc = chatMgr.webContents();
+  if (wc) wc.send('euphonia-config', { name });
 }
 
 // Per-install seed for casting auto-picked agent pets: two installs get different casts, one install keeps its own.
@@ -133,6 +143,13 @@ function initPets() {
   registerPetIpc({
     ipcMain, dialog, nativeImage, pets, mutate, petSnapshot, savePetConfig, reloadPetWindows, borderById,
     getParentWindow: () => dashWin || undefined,
+    onPetUpdated: (pet) => {   // a rename or species change made in the Pets tab / Forge writes through to her config
+      if (!pet || pet.id !== euphLaunch.RESERVED_ID) return;
+      euphLead.mirrorLeadToConfig({ svc: getEuphonia(), pet });
+      chatMgr.setTitle(pet.name);
+      const wc = chatMgr.webContents();
+      if (wc) wc.send('euphonia-config', { name: pet.name });
+    },
     clearThumbs: () => thumbCache.clear(),
     onRolesChanged: () => sendSessionUpdate(Date.now()),
     onProjectsChanged: () => sendSessionUpdate(Date.now()),
@@ -714,6 +731,7 @@ let euphoniaIpc = null;
 const chatMgr = createChatWindowManager({
   BrowserWindow,
   file: 'chat/index.html',
+  getTitle: () => { try { return getEuphonia().getConfig().name; } catch { return 'Euphonia'; } },
   webPreferences: { preload: path.join(__dirname, 'chat', 'preload.js'), contextIsolation: true, nodeIntegration: false },
   loadBounds: () => restoreBounds(loadPetConfig().chatBounds, screen.getAllDisplays().map((d) => d.workArea), { min: { w: 320, h: 360 }, max: { w: 1000, h: 1400 } }),
   saveBounds: (b) => savePetConfig({ chatBounds: b }),
@@ -729,7 +747,7 @@ euphoniaIpc = registerEuphoniaIpc({
   getPetWebContents: () => (win && !win.isDestroyed() ? win.webContents : null),
   getSenders: () => (dashWin && !dashWin.isDestroyed() ? [dashWin.webContents] : []),
   getService: getEuphonia,
-  onConfigChanged: () => { mutate(() => pinEuphonia()); reloadPetWindows(); },
+  onConfigChanged: () => applyEuphoniaConfig(),
   openAccessSettings: () => {
     openDashboard();
     const send = () => { if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('dash-show-euphonia'); };
