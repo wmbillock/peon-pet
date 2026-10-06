@@ -14,6 +14,8 @@ Project frame art no longer draws over tiles (the project still carries an emoji
 
 ## Now
 
+- [x] 2026-10-06: crowding limit — the working count turns red (`● 25/20`) when more agents are working than your limit (default 20, the Firm's own cap; panel → Overview → Crowding; 0 = off)
+
 - [x] 2026-10-06: on the Euphonia branch (chat window and bridge, voice focus, Pixoo rotation, seeded capped casting, third-party asset rule); Firm requests filed as `the-firm` issues #4546–#4553 (PR #3871 closed)
 - [x] Voice-focus patch applied to the installed peon-ping on 2026-10-06 (backup: `peon.sh.bak-voice-focus` beside it; a `brew upgrade` overwrites it, re-apply with `patch -p1 -d /usr/local/Cellar/peon-ping/<ver>/libexec < docs/euphonia/peon-ping-voice-focus.patch`). Effect: agent cues play only for whoever holds the voice; Voice & sound → "Whose voice is heard" → All restores everything.
 - [x] Monitor role and ledger feed built on the Peon Pet side (`lib/monitor.js`, `lib/tool-actions.js`, `lib/lifecycle.js`): tool calls judged against each kind's permissions, credits on finished Firm tasks, derived lifecycle events; Forge → Monitor: recent activity. The Firm issues #4546–#4553 stay open for authoritative versions of the same data.

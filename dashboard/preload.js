@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('dashBridge', {
   getForge: () => ipcRenderer.invoke('forge-get'),
   setForgeTint: (role, tint) => ipcRenderer.invoke('forge-set-tint', role, tint),
   setForgeRole: (role, species) => ipcRenderer.invoke('forge-set', role, species),
+  getLimits: () => ipcRenderer.invoke('limits-get'),
+  setLimits: (patch) => ipcRenderer.invoke('limits-set', patch),
   getTypes: () => ipcRenderer.invoke('types-get'),
   putType: (t) => ipcRenderer.invoke('types-put', t),
   removeType: (slug) => ipcRenderer.invoke('types-remove', slug),

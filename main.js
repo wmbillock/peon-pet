@@ -476,6 +476,24 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent, title, ti
   }
 }
 
+// The swarm is easy to overrun: warn (summary strip turns red) when more than this many agents are working at once.
+// 20 matches the Firm's own cap on active agents. 0 turns the warning off.
+const CROWD_DEFAULT = 20;
+function crowdLimit() {
+  const v = loadPetConfig().crowdLimit;
+  return Number.isFinite(v) && v >= 0 ? Math.min(500, Math.round(v)) : CROWD_DEFAULT;
+}
+ipcMain.handle('limits-get', () => ({ crowd: crowdLimit() }));
+ipcMain.handle('limits-set', (_e, patch) => {
+  if (patch && 'crowd' in patch) {
+    const n = Number(patch.crowd);
+    if (!Number.isFinite(n) || n < 0) throw new Error('The limit is a whole number, or 0 for no warning');
+    savePetConfig({ crowdLimit: Math.min(500, Math.round(n)) });
+    sendSessionUpdate(Date.now());
+  }
+  return { crowd: crowdLimit() };
+});
+
 let lastSessionSig = '';
 function sendSessionUpdate(now) {
   const sessions = buildSessionStates(tracker.entries(), now, HOT_MS, WARM_MS, 200);
@@ -516,6 +534,7 @@ function sendSessionUpdate(now) {
   const payload = {
     sessions: agents.map((r) => ({ ...r, pet: looks.get(r.id) || null, project: (marks.get(r.id) || {}).project || null, mark: (marks.get(r.id) || {}).mark || null })),
     firm: { available: firmState.available, url: firmUrl },
+    limits: { crowd: crowdLimit() },
   };
   latestSessions = payload;
   if (gridWin && !gridWin.isDestroyed()) gridWin.webContents.send('grid-sessions', payload);

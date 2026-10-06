@@ -51,6 +51,15 @@
         </div>
         <div class="help">The small window on your desktop. Hover it for the same switch, or click the pet to step through the views.</div>
       </section>
+      <section class="card">
+        <h2 class="first">Crowding</h2>
+        <div class="row">
+          <label for="crowd-limit" class="inline">Warn when more than</label>
+          <input type="number" id="crowd-limit" min="0" max="500" step="1" style="width:70px">
+          <span class="val">agents are working at once (0 = no warning)</span>
+        </div>
+        <div class="help">The working count in the small window turns red and says how far over you are. Peon Pet only watches; ask Management to hold new work. The Firm's own cap is 20.</div>
+      </section>
     <h2>Agents <span id="count" class="dim"></span></h2>
     <table>
       <thead><tr><th>Session</th><th>Pet</th><th>Status</th><th>Last active</th><th>Voice</th></tr></thead>

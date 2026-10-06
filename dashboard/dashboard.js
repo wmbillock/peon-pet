@@ -383,6 +383,14 @@ document.querySelector('#nav button[data-page="euphonia"]').addEventListener('cl
 window.dashBridge.onShowEuphonia(() => { showPage('euphonia'); loadAccess(); });
 loadAccess();
 
+// --- Crowding limit ---
+const crowdInput = document.getElementById('crowd-limit');
+window.dashBridge.getLimits().then((l) => { crowdInput.value = l.crowd; });
+crowdInput.addEventListener('change', async () => {
+  try { showError(null); const l = await window.dashBridge.setLimits({ crowd: crowdInput.value === '' ? 20 : Number(crowdInput.value) }); crowdInput.value = l.crowd; }
+  catch (e) { showError(e); window.dashBridge.getLimits().then((l) => { crowdInput.value = l.crowd; }); }
+});
+
 // --- Voice focus: which agent holds the voice ---
 const voiceMode = document.getElementById('voice-mode');
 const voiceNow = document.getElementById('voice-now');

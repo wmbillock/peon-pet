@@ -37,7 +37,7 @@ test('projects are counted, busiest first, with their emoji and colour', () => {
 });
 
 test('empty and missing inputs are fine', () => {
-  expect(summarizeAgents([], NOW)).toEqual({ total: 0, working: 0, idle: 0, attention: 0, projects: [] });
+  expect(summarizeAgents([], NOW)).toEqual({ total: 0, working: 0, idle: 0, attention: 0, projects: [], limit: 0, over: false, overBy: 0 });
   expect(summarizeAgents(undefined, NOW).total).toBe(0);
 });
 
@@ -72,5 +72,23 @@ describe('summaryTips (what the tooltips say)', () => {
   test('long names are clipped; empty groups still produce a heading', () => {
     expect(summaryTips([t('q', { hot: true, title: 'x'.repeat(60) })], NOW).working).toContain('x'.repeat(25) + '…');
     expect(summaryTips([], NOW).working).toBe('0 working\nClick to see them');
+  });
+});
+
+describe('crowding limit', () => {
+  const S = require('../dash/summary');
+  const hot = (id) => ({ id, hot: true, warm: true });
+  const agents = Array.from({ length: 6 }, (_, i) => hot(`a${i}`));
+  test('over the limit when more agents are working than allowed, and by how many', () => {
+    expect(S.summarizeAgents(agents, Date.now(), { limit: 4 })).toMatchObject({ working: 6, limit: 4, over: true, overBy: 2 });
+    expect(S.summarizeAgents(agents, Date.now(), { limit: 6 })).toMatchObject({ over: false, overBy: 0 });
+    expect(S.summarizeAgents(agents, Date.now(), { limit: 0 })).toMatchObject({ limit: 0, over: false });
+    expect(S.summarizeAgents(agents)).toMatchObject({ over: false });                       // default: no limit
+  });
+  test('the working tooltip says how far over you are and what to do', () => {
+    const t = S.summaryTips(agents, Date.now(), { limit: 4 }).working;
+    expect(t).toMatch(/6 working — 2 over your limit of 4/);
+    expect(t).toMatch(/hold new work/);
+    expect(S.summaryTips(agents).working).toMatch(/^6 working\n/);
   });
 });

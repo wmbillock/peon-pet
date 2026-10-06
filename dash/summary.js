@@ -13,8 +13,9 @@
   const isIdle = (a) => !a.hot && !!(a.warm || a.live || a.role === 'master');
   const needsAttention = (a, now) => (a.anim === 'alarmed' || a.anim === 'annoyed') && now - (a.animAt || 0) < ATTENTION_MS;
 
-  function summarizeAgents(agents, now = Date.now()) {
-    const out = { total: 0, working: 0, idle: 0, attention: 0, projects: [] };
+  // limit: warn when more than this many agents are working at once (0 or missing = no limit).
+  function summarizeAgents(agents, now = Date.now(), { limit = 0 } = {}) {
+    const out = { total: 0, working: 0, idle: 0, attention: 0, projects: [], limit: limit > 0 ? limit : 0, over: false, overBy: 0 };
     const byProject = new Map();
     for (const a of agents || []) {
       const w = isWorking(a), i = isIdle(a);
@@ -29,6 +30,8 @@
         byProject.set(a.project.key, p);
       }
     }
+    out.over = out.limit > 0 && out.working > out.limit;
+    out.overBy = out.over ? out.working - out.limit : 0;
     // Busiest projects first.
     out.projects = [...byProject.values()].sort((x, y) => y.working - x.working || y.count - x.count || x.name.localeCompare(y.name));
     return out;
@@ -58,12 +61,13 @@
   }
 
   // Tooltip text for every clickable part of the strip.
-  function summaryTips(agents, now = Date.now()) {
+  function summaryTips(agents, now = Date.now(), { limit = 0 } = {}) {
     const all = agents || [];
     const working = all.filter(isWorking), idle = all.filter(isIdle), alert = all.filter((a) => needsAttention(a, now));
     const plural = (n, w) => `${n} ${w}`;
     const out = {
-      working: describe(plural(working.length, 'working'), working, now, { hint: 'Click to see them' }),
+      working: describe(limit > 0 && working.length > limit ? `${working.length} working — ${working.length - limit} over your limit of ${limit}` : plural(working.length, 'working'), working, now,
+        { hint: limit > 0 && working.length > limit ? 'Ask Management to hold new work. Click to see them' : 'Click to see them' }),
       idle: describe(plural(idle.length, 'idle — between turns'), idle, now, { hint: 'Click to see them' }),
       attention: describe(plural(alert.length, alert.length === 1 ? 'needs you — alarmed or interrupted' : 'need you — alarmed or interrupted'), alert, now, { hint: 'Click to see them' }),
       projects: {},
