@@ -14,6 +14,8 @@ Project frame art no longer draws over tiles (the project still carries an emoji
 
 ## Now
 
+- [x] 2026-10-06: the monitor also judges Codex sessions (`lib/codex-actions.js`: exec/apply_patch/shell calls become the same actions as Claude's tool calls)
+
 - [x] 2026-10-06: crowding limit — the working count turns red (`● 25/20`) when more agents are working than your limit (default 20, the Firm's own cap; panel → Overview → Crowding; 0 = off)
 
 - [x] 2026-10-06: on the Euphonia branch (chat window and bridge, voice focus, Pixoo rotation, seeded capped casting, third-party asset rule); Firm requests filed as `the-firm` issues #4546–#4553 (PR #3871 closed)
