@@ -48,3 +48,18 @@ test('config: sound pack must be installed; strangers are refused', async () => 
   expect((await t.handlers['euphonia-set-config']({ sender: t.dash }, { soundPack: 'nope' })).ok).toBe(false);
   expect((await t.handlers['euphonia-set-config']({ sender: {} }, { soundPack: 'q' })).ok).toBe(false);
 });
+
+test('"allow reading on all connected servers" is dashboard-only, grants read blanket on connected servers only, then learns tool names', async () => {
+  const t = setup();
+  const granted = [];
+  t.svc.discoverServers = () => ({ servers: [{ name: 'jira', status: 'connected' }, { name: 'atlan', status: 'needs-auth' }, { name: 'notion', status: 'connected' }], errors: [] });
+  t.svc.grants = { grant: (g) => granted.push(g), list: () => granted };
+  t.svc.learnTools = jest.fn(async () => ({ jira: 20, notion: 47 }));
+  expect(await t.handlers['euphonia-access-grant-connected']({ sender: t.chat })).toMatchObject({ ok: false });
+  expect(await t.handlers['euphonia-access-grant-connected']({ sender: t.pet })).toMatchObject({ ok: false });
+  expect(granted).toEqual([]);
+  const r = await t.handlers['euphonia-access-grant-connected']({ sender: t.dash });
+  expect(r).toMatchObject({ ok: true, granted: ['jira', 'notion'], learned: { jira: 20, notion: 47 } });
+  expect(granted.map((g) => `${g.server}:${g.level}:${g.duration}`)).toEqual(['jira:read:blanket', 'notion:read:blanket']);
+  expect(t.svc.learnTools).toHaveBeenCalledTimes(1);
+});

@@ -368,6 +368,14 @@ function renderAccess(data) {
 async function loadAccess() {
   try { renderAccess(await window.dashBridge.euphoniaAccessGet()); } catch (e) { renderAccess({ ok: false, error: e.message }); }
 }
+document.getElementById('euph-grant-connected').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget; btn.disabled = true; accessMsg('Granting read access and learning the tool lists (a few seconds)...');
+  try {
+    const r = await window.dashBridge.euphoniaGrantConnected();
+    if (!r.ok) accessMsg(r.error); else accessMsg(r.warning || `Read access on ${r.granted.length} servers (${Object.keys(r.learned).length} with tools learned). Writes still need a write grant.`);
+  } catch (e) { accessMsg(e.message); }
+  btn.disabled = false; loadAccess();
+});
 document.getElementById('euph-revoke-all').addEventListener('click', async () => {
   await window.dashBridge.euphoniaAccessRevoke({ all: true }); accessMsg('All tool access revoked'); loadAccess();
 });

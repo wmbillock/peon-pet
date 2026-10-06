@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('dashBridge', {
   openGrid: (view) => ipcRenderer.send('open-grid', view),
   euphoniaAccessGet: () => ipcRenderer.invoke('euphonia-access-get'),
   euphoniaAccessSet: (req) => ipcRenderer.invoke('euphonia-access-set', req),
+  euphoniaGrantConnected: () => ipcRenderer.invoke('euphonia-access-grant-connected'),
   euphoniaAccessRevoke: (req) => ipcRenderer.invoke('euphonia-access-revoke', req),
   onShowEuphonia: (cb) => ipcRenderer.on('dash-show-euphonia', () => cb()),
   voiceFocusGet: () => ipcRenderer.invoke('voice-focus-get'),
