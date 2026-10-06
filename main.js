@@ -263,6 +263,8 @@ function getMonitor() {
   if (monitor || !pets) return monitor;
   const typeOf = (id) => { const l = id && latestLooks.get(id); return l && l.type ? pets.agentTypes.get(l.type.slug) : null; };
   monitor = createMonitor({ ledger: pets.ledger, typeOf });
+  let lastLogged = '';
+  setInterval(() => { const st = JSON.stringify(monitor.stats()); if (st !== lastLogged) { lastLogged = st; console.log(`[monitor] ${st}`); } }, 60000);
   return monitor;
 }
 let firmUrl = null;
