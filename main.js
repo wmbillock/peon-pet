@@ -33,6 +33,8 @@ const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawSummary } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
 const { waitMs, cleanInterval } = require('./lib/pixoo-throttle');
+const { createMonitor } = require('./lib/monitor');
+const { diffThreads } = require('./lib/lifecycle');
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -173,6 +175,7 @@ function initPets() {
     onRolesChanged: () => sendSessionUpdate(Date.now()),
     onProjectsChanged: () => sendSessionUpdate(Date.now()),
     frames: BORDERS,
+    getMonitor,
   });
   try { pets.setRoleSpecies(loadPetConfig().roleSpecies || {}); } catch (e) { console.error('[forge] ignoring stale role map:', e.message); }
   try { pets.setRoleTint(loadPetConfig().roleTint || {}); } catch (e) { console.error('[forge] ignoring stale role filters:', e.message); }
@@ -252,6 +255,16 @@ let liveIds = new Set();   // every session in Claude's registry (its process is
 let busyIds = new Set();   // …of which currently mid-turn
 const sessionRegistry = new Map();  // session_id → registry entry (name, entrypoint, status…)
 let firmState = { available: false, threads: [], error: null };   // The Firm's agents (read-only poll)
+let prevFirmThreads = null;   // last successful poll, to derive lifecycle events from what changed
+// The monitor role, kept here until The Firm has one: judges what agents do against their kind's permissions and
+// writes credits and violations to the ledger. Only agents wearing a kind are judged.
+let monitor = null;
+function getMonitor() {
+  if (monitor || !pets) return monitor;
+  const typeOf = (id) => { const l = id && latestLooks.get(id); return l && l.type ? pets.agentTypes.get(l.type.slug) : null; };
+  monitor = createMonitor({ ledger: pets.ledger, typeOf });
+  return monitor;
+}
 let firmUrl = null;
 let latestLooks = new Map();   // agent id → pet look, so sub-agent windows can wear their parent's tint
 const DEFAULT_WORKER_PATTERNS = ['/.firm/worktrees/'];
@@ -282,7 +295,9 @@ function startFirm() {
   try {
     firmPoller = createFirmPoller({
       client: createFirmClient({ baseUrl: firmUrl }),
-      onChange: (st) => { firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
+      onChange: (st) => {
+        if (st.available) { const m = getMonitor(); if (m) m.lifecycle(diffThreads(prevFirmThreads, st.threads)); prevFirmThreads = st.threads; } else prevFirmThreads = null;
+        firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
       onTransition: (st) => console.log(st.available ? `[firm] connected (${st.threads.length} agents)` : `[firm] unreachable: ${st.error}`),
     });
     firmPoller.start();
@@ -549,6 +564,7 @@ function startPolling() {
 
   for (const w of watchers) {
     w.on('session-event', handleSessionEvent);
+    w.on('tool-use', (ev) => { const m = getMonitor(); if (m) m.toolUse(ev); });
     w.on('subagent-event', ({ sessionId: parentSession, parentToolId, event }) => {
       if (event === 'SubagentStart' && win && !win.isDestroyed()) win.webContents.send('peon-event', { anim: null, event });  // lets pets react to a newcomer
       if (event === 'SubagentStart') createSubAgentWindow(parentToolId, parentSession);
