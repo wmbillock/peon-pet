@@ -14,6 +14,9 @@ Project frame art no longer draws over tiles (the project still carries an emoji
 
 ## Now
 
+- [x] 2026-10-06: on the Euphonia branch (chat window and bridge, voice focus, Pixoo rotation, seeded capped casting, third-party asset rule); Firm requests filed as `the-firm` issues #4546–#4553 (PR #3871 closed)
+- [ ] **Needs you:** apply the voice-focus patch to the installed peon-ping (the sandbox blocked me): `D=/usr/local/Cellar/peon-ping/2.37.0/libexec; cp $D/peon.sh $D/peon.sh.bak-voice-focus && patch -p1 -d $D < docs/euphonia/peon-ping-voice-focus.patch` (a `brew upgrade` overwrites it)
+
 - [x] Project model: emoji, hue, frame, environment (`lib/projects.js`), Firm project titles, Firm-supplied seeds
 - [x] Shades: same-type agents in a project get distinct shades of the project hue (`lib/marks.js`)
 - [x] Tiles use the project's plate, frame and background; emoji marks groups; group by project
