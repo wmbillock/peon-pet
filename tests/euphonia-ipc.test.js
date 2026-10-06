@@ -63,3 +63,23 @@ test('"allow reading on all connected servers" is dashboard-only, grants read bl
   expect(granted.map((g) => `${g.server}:${g.level}:${g.duration}`)).toEqual(['jira:read:blanket', 'notion:read:blanket']);
   expect(t.svc.learnTools).toHaveBeenCalledTimes(1);
 });
+
+test('the Send to Management button: chat window only, checks the text, and sends through the injected sender', async () => {
+  const handlers = {};
+  const ipcMain = { handle: (ch, fn) => { handlers[ch] = fn; }, on: () => {} };
+  const chat = { isDestroyed: () => false, send: jest.fn() }, pet = { isDestroyed: () => false, send: jest.fn() }, dash = { id: 'dash' };
+  const sent = [];
+  const sendToFirm = jest.fn(async (text) => { sent.push(text); return text.includes('REFUSE') ? { isError: true, text: 'Refused: no unexpired grant' } : { isError: false, text: 'ok' }; });
+  registerEuphoniaIpc({ ipcMain, getPetWebContents: () => pet, getChat: { webContents: () => chat, isActive: () => false, open: () => {} }, getSenders: () => [dash],
+    getService: () => ({ subscribe: () => {}, history: () => [], getConfig: () => ({}), getSession: () => null }), peonDir: () => '/x', listPacks: () => [], isMuted: () => true, getVolume: () => 0.5, sendToFirm });
+  const h = handlers['euphonia-send-draft'];
+  expect(await h({ sender: dash }, 'hi')).toMatchObject({ ok: false });
+  expect(await h({ sender: pet }, 'hi')).toMatchObject({ ok: false });
+  expect(sent).toEqual([]);                                                       // no other window can send
+  expect(await h({ sender: chat }, '   ')).toMatchObject({ ok: false });
+  expect(await h({ sender: chat }, 'x'.repeat(4001))).toMatchObject({ ok: false });
+  expect(await h({ sender: chat }, 42)).toMatchObject({ ok: false });
+  expect(await h({ sender: chat }, '  do the thing  ')).toEqual({ ok: true, text: 'ok' });
+  expect(sent).toEqual(['do the thing']);                                          // exactly the text shown, trimmed
+  expect(await h({ sender: chat }, 'REFUSE this')).toEqual({ ok: false, text: 'Refused: no unexpired grant' });   // the grant check's refusal comes back to the button
+});

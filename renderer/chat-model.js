@@ -39,6 +39,24 @@
     return { open, finished: [...st.finished, turn].slice(-50), busy: open.length > 0, activeTurn: open[0] || null };
   }
 
+  // A reply can carry a message for The Firm's Management in a fenced block tagged `management`. The chat shows it with a
+  // Send button; only the person pressing it sends anything. -> [{ type: 'text', text } | { type: 'draft', text }]
+  const DRAFT_RE = /```management[ \t]*\r?\n([\s\S]*?)```/g;
+  function parseSegments(text) {
+    const src = String(text || '');
+    const out = [];
+    let last = 0, m;
+    DRAFT_RE.lastIndex = 0;
+    while ((m = DRAFT_RE.exec(src))) {
+      if (m.index > last) out.push({ type: 'text', text: src.slice(last, m.index) });
+      const body = m[1].replace(/\s+$/, '');
+      if (body.trim()) out.push({ type: 'draft', text: body });
+      last = m.index + m[0].length;
+    }
+    if (last < src.length) out.push({ type: 'text', text: src.slice(last) });
+    return out.length ? out : [{ type: 'text', text: src }];
+  }
+
   // Actions:
   //   {type:'history', records, active?}        transcript rows; active = { running: turnId|null, queued: [turnId] }
   //   {type:'sent', turnId, text}               the user's message was accepted by the main process
@@ -137,5 +155,5 @@
     return `${session.turns} turn${session.turns === 1 ? '' : 's'}${when}`;
   }
 
-  return { initial, reduce, keyAction, describeSession, describeDenial, MAX_MESSAGES };
+  return { initial, reduce, keyAction, describeSession, describeDenial, parseSegments, MAX_MESSAGES };
 });

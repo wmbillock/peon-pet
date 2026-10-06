@@ -14,6 +14,26 @@ export function initChat({ onShow } = {}) {
     $('chat-sub').textContent = EuphoniaChat.describeSession(session);
   }
 
+  // One draft: the exact text, and a button. Only a person pressing it sends it (main accepts this only from this window).
+  function draftNode(text) {
+    const box = document.createElement('div'); box.className = 'draft';
+    const label = document.createElement('div'); label.className = 'draft-label'; label.textContent = 'Message for Management (not sent yet)';
+    const body = document.createElement('pre'); body.className = 'draft-body'; body.textContent = text;
+    const row = document.createElement('div'); row.className = 'draft-row';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'Send to Management';
+    const result = document.createElement('span'); result.className = 'draft-result'; result.setAttribute('role', 'status');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; result.textContent = 'Sending…'; result.className = 'draft-result';
+      let r;
+      try { r = await window.peonBridge.euphoniaSendDraft(text); } catch (e) { r = { ok: false, error: e.message }; }
+      if (r && r.ok) { label.textContent = 'Message for Management (sent)'; result.textContent = 'Sent.'; result.className = 'draft-result ok'; }
+      else { btn.disabled = false; result.textContent = (r && (r.error || r.text)) || 'Could not send'; result.className = 'draft-result bad'; }
+    });
+    row.append(btn, result);
+    box.append(label, body, row);
+    return box;
+  }
+
   function render() {
     // Rebuild only what changed: messages are few (capped), so a keyed rebuild is fine.
     const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 24;
@@ -23,7 +43,15 @@ export function initChat({ onShow } = {}) {
       if (!n) { n = document.createElement('div'); n.dataset.id = m.id; }
       existing.delete(m.id);
       n.className = `msg ${m.role}${m.pending ? ' pending' : ''}`;
-      if (n.textContent !== m.text) n.textContent = m.text;   // textContent: replies are never parsed as HTML
+      // A draft for The Firm's Management (a fenced `management` block) gets a Send button. Everything is set with
+      // textContent: replies are never parsed as HTML. Rebuilt only when the text changes, so a pressed button keeps its result.
+      const draftSegs = m.role === 'assistant' ? EuphoniaChat.parseSegments(m.text).filter((x) => x.type === 'draft') : [];
+      if (draftSegs.length) {
+        if (n.dataset.raw !== m.text) {
+          n.dataset.raw = m.text;
+          n.replaceChildren(...EuphoniaChat.parseSegments(m.text).map((seg) => (seg.type === 'text' ? document.createTextNode(seg.text) : draftNode(seg.text))));
+        }
+      } else if (n.textContent !== m.text) { n.removeAttribute('data-raw'); n.textContent = m.text; }
       if (list.children[i] !== n) list.insertBefore(n, list.children[i] || null);
     });
     for (const n of existing.values()) n.remove();

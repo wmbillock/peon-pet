@@ -831,6 +831,11 @@ euphoniaIpc = registerEuphoniaIpc({
   getPetWebContents: () => (win && !win.isDestroyed() ? win.webContents : null),
   getSenders: () => (dashWin && !dashWin.isDestroyed() ? [dashWin.webContents] : []),
   getService: getEuphonia,
+  sendToFirm: (text) => {
+    const svc = getEuphonia();
+    const { createBridgeRuntime } = require('./lib/euphonia/bridge/runtime');
+    return createBridgeRuntime({ home: svc.paths.home, firmUrl: firmUrl || 'http://127.0.0.1:8420', assetsDir: bundledAssetsDir, userDataDir: app.getPath('userData'), peonDir: peonSound.peonDir() }).call('firm_send_to_management', { text });
+  },
   onConfigChanged: () => applyEuphoniaConfig(),
   shouldPlay: () => shouldPlayVoice(voiceFocus.EUPHONIA_ID),
   openAccessSettings: () => {

@@ -133,3 +133,24 @@ test('a done that beats the sent action does not leave the chat stuck busy', () 
   expect(s.busy).toBe(false);
   expect(view(s)).toEqual([['user', 'q'], ['assistant', 'fast']]);
 });
+
+describe('drafts for Management', () => {
+  const M = require('../renderer/chat-model');
+  test('a fenced management block becomes a draft segment; surrounding text stays text', () => {
+    const text = 'Here is the message:\n```management\nCreate Jira tickets under PPE-2832.\nDo not close issues.\n```\nPress send when ready.';
+    expect(M.parseSegments(text)).toEqual([
+      { type: 'text', text: 'Here is the message:\n' },
+      { type: 'draft', text: 'Create Jira tickets under PPE-2832.\nDo not close issues.' },
+      { type: 'text', text: '\nPress send when ready.' },
+    ]);
+  });
+  test('plain replies, other code fences and empty drafts are never drafts', () => {
+    expect(M.parseSegments('just text')).toEqual([{ type: 'text', text: 'just text' }]);
+    expect(M.parseSegments('```js\nconsole.log(1)\n```').some((x) => x.type === 'draft')).toBe(false);
+    expect(M.parseSegments('```management\n   \n```').some((x) => x.type === 'draft')).toBe(false);
+    expect(M.parseSegments('')).toEqual([{ type: 'text', text: '' }]);
+  });
+  test('several drafts in one reply are each their own segment', () => {
+    expect(M.parseSegments('```management\none\n``` and ```management\ntwo\n```').filter((x) => x.type === 'draft').map((x) => x.text)).toEqual(['one', 'two']);
+  });
+});

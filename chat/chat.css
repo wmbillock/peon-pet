@@ -29,3 +29,14 @@ html, body { height: 100%; background: #0c0c14; color: #ddd; font: 13px/1.45 -ap
 #chat-access { font-size: 10px; color: #7fa7ff; text-decoration: none; }
 #chat-access:hover { text-decoration: underline; }
 .msg.notice { align-self: flex-start; max-width: 92%; background: rgba(255, 190, 60, 0.12); border: 1px solid rgba(255, 190, 60, 0.45); color: #ffd58a; font-size: 12px; }
+
+/* A reply's draft for The Firm's Management: the exact text, and a button only the person can press. */
+.msg .draft { margin: 8px 0 2px; border: 1px solid rgba(110, 160, 255, 0.55); border-radius: 8px; background: rgba(60, 90, 160, 0.16); padding: 6px 8px; }
+.msg .draft-label { font-size: 11px; color: #9fb4e8; margin-bottom: 4px; }
+.msg .draft-body { margin: 0; white-space: pre-wrap; word-wrap: break-word; font: 12px/1.4 -apple-system, 'SF Mono', sans-serif; color: #e8ecff; }
+.msg .draft-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.msg .draft-row button { font: 12px -apple-system, sans-serif; padding: 3px 10px; border-radius: 6px; border: 1px solid #6a8bd8; background: #2a3f78; color: #fff; cursor: pointer; }
+.msg .draft-row button:disabled { opacity: 0.55; cursor: default; }
+.msg .draft-result { font-size: 11px; color: #9a9ab4; }
+.msg .draft-result.ok { color: #7be08a; }
+.msg .draft-result.bad { color: #ff9a9a; }
