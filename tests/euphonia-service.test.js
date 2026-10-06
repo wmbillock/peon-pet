@@ -201,3 +201,17 @@ test('pendingTurns reports the running turn and the queued ones, and empties as 
   await b.done;
   expect(e.pendingTurns()).toEqual({ running: null, queued: [] });
 });
+
+test('an enterprise MCP config refuses the per-turn --mcp-config: the turn is retried without it and later turns skip it', async () => {
+  const refuse = (c) => { c.stdout.write(line({ type: 'result', subtype: 'error', is_error: true, result: 'You cannot dynamically configure MCP servers when an enterprise MCP config is present', session_id: 's' })); c.stdout.end(); c.emit('close', 1); };
+  const { e, events, calls } = mk((c, call) => (call.args.includes('--mcp-config') ? refuse(c) : okReply(c, 'sess-9', ['Hello'])));
+  await e.send('are you there').done;
+  expect(calls).toHaveLength(2);
+  expect(calls[0].args).toContain('--mcp-config');
+  expect(calls[1].args).not.toContain('--mcp-config');
+  expect(events.filter((x) => x.type === 'error')).toHaveLength(0);
+  expect(events.filter((x) => x.type === 'done')).toHaveLength(1);
+  await e.send('again').done;
+  expect(calls).toHaveLength(3);                       // no second refused attempt
+  expect(calls[2].args).not.toContain('--mcp-config');
+});
