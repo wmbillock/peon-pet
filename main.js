@@ -287,13 +287,25 @@ function setSessionTitle(id, title, kind) {
 
 let sessionUpdateTimer = null;
 let firmPoller = null;
+let firmMirror = null;   // Euphonia's read-only copy of The Firm's state, as files in her kb (her bridge MCP cannot load under the managed policy)
+function startFirmMirror() {
+  if (firmMirror) { firmMirror.stop(); firmMirror = null; }
+  try {
+    const { createFirmMirror } = require('./lib/euphonia/firm-mirror');
+    const { createFirmHttp } = require('./lib/euphonia/bridge/firm-http');
+    const http = createFirmHttp({ baseUrl: firmUrl });
+    firmMirror = createFirmMirror({ kbDir: getEuphonia().paths.kbDir, firm: () => http, log: (m) => console.log(m) });
+    firmMirror.start();
+  } catch (e) { console.error('[firm-mirror] disabled:', e.message); }
+}
 // (Re)connect to The Firm per the saved settings. Read-only and optional.
 function startFirm() {
   if (firmPoller) { firmPoller.stop(); firmPoller = null; }
   const cfg = loadPetConfig();
   firmState = { available: false, threads: [], error: null };
   firmUrl = cfg.firmUrl || 'http://127.0.0.1:8420';
-  if (cfg.firm === false) { scheduleSessionUpdate(); return; }
+  if (cfg.firm === false) { if (firmMirror) { firmMirror.stop(); firmMirror = null; } scheduleSessionUpdate(); return; }
+  startFirmMirror();
   try {
     firmPoller = createFirmPoller({
       client: createFirmClient({ baseUrl: firmUrl }),
