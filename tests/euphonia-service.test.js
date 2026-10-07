@@ -134,7 +134,8 @@ describe('the turn header: access block, MCP state, receipts travel with the mes
     await e.send('one').done;                                   // the first turn waited for init, so the header already knows
     const st = JSON.parse(fs.readFileSync(e.paths.mcpStatus, 'utf8'));
     expect(st.servers).toEqual({ jira: { status: 'connected', tools: 1 }, playwright: { status: 'pending', tools: 0 }, atlan: { status: 'needs-auth', tools: 0 } });
-    expect(calls[0].full).toMatch(/playwright: held: still connecting \(CLI reported "pending"\)/);
+    expect(calls[0].full).toMatch(/playwright: held: still connecting \(CLI reported "pending" \(from the CLI's init under a minute ago\)\)/);
+    expect(st.source).toBe('init');
     expect(calls[0].full).not.toMatch(/jira: held/);
     expect(calls[0].full).not.toMatch(/atlan/);                 // not granted: not her concern
     expect(e.mcpStatus().servers.playwright.status).toBe('pending');
@@ -148,7 +149,7 @@ describe('the turn header: access block, MCP state, receipts travel with the mes
     fs.writeFileSync(e.paths.mcpStatus, JSON.stringify({ updated: 'x', launch: 'old', process: 1, servers: { jira: { status: 'failed', tools: 0 } } }));
     const again = mk((c) => okReply(c, 's', ['x']), { discover: () => ({ servers: [{ name: 'jira' }], errors: [] }) });
     await again.e.send('two').done;
-    expect(again.calls[0].full).toMatch(/jira: held: still connecting \(CLI reported "failed" \(as of the previous launch/);
+    expect(again.calls[0].full).toMatch(/jira: held: still connecting \(CLI reported "failed" \(from the CLI's init, as of the previous launch\)\)/);
   });
 });
 

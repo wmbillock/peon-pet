@@ -100,7 +100,13 @@ both; the raw sequence was `... result/success (turn 1) -> system/init (18 MCP s
 lucid needs-auth, pagerduty failed) -> system/status -> message_start -> content_block_delta x24 -> assistant ->
 content_block_stop -> message_delta -> message_stop -> result/success (same session id) -> CLOSE code=0 on shutdown`. The
 CLI emits `system/init` **after each user message**, not at spawn, so the first turn of a process cannot wait for it
-(`initWaitMs` defaults to 0); turn N's status is known to turn N+1 and to the next launch.
+(`initWaitMs` defaults to 0). To know the state before the first turn, the app runs **`claude mcp list`** once in the
+background at launch and after any grant-change restart (`lib/euphonia/mcp-list.js`; same child env and PATH, 120 s cap, no
+model call; about a minute here with 18 servers). Lines are `name: command - ✓ Connected` / `- ✗ Failed to connect — ...` /
+`- ! Needs authentication` (verified 2026-10-07), parsed from the last ` - ` on the line, and written to `mcp-status.json` with
+`source: "mcp-list"` and a timestamp; a later `system/init` overwrites it with `source: "init"`. The header labels each held
+note by source and age (`from \`claude mcp list\` 2 min ago`, `as of the previous launch`). Fail-open: a probe error or timeout
+keeps the previous file and adds `MCP check: <error>; the state above is the last one known`.
 
 CLI invocation (flags verified against `claude --help`, v2.1.289):
 
