@@ -288,3 +288,46 @@ test('stream parser surfaces init and denials; the chat shows a denial naming se
   expect(s.messages.find((m) => m.role === 'notice').text).toMatch(/slack/);
 });
 
+
+describe('browser (the managed playwright server, no bridge)', () => {
+  const PW = ['browser_click', 'browser_close', 'browser_console_messages', 'browser_drag', 'browser_evaluate', 'browser_file_upload', 'browser_fill_form', 'browser_handle_dialog',
+    'browser_hover', 'browser_install', 'browser_navigate', 'browser_navigate_back', 'browser_network_requests', 'browser_press_key', 'browser_resize', 'browser_run_code',
+    'browser_select_option', 'browser_snapshot', 'browser_tabs', 'browser_take_screenshot', 'browser_type', 'browser_wait_for'];
+  const READ_PW = ['browser_console_messages', 'browser_navigate', 'browser_navigate_back', 'browser_network_requests', 'browser_snapshot', 'browser_tabs', 'browser_take_screenshot', 'browser_wait_for'];
+
+  test('observation tools are read; every acting tool is write', () => {
+    for (const n of PW) expect([n, classifyTool(n)]).toEqual([n, READ_PW.includes(n) ? 'read' : 'write']);
+    for (const n of ['click', 'type', 'fill_form', 'evaluate', 'file_upload', 'run_code', 'press_key', 'drag', 'select_option', 'handle_dialog'].map((x) => `browser_${x}`)) expect(classifyTool(n)).toBe('write');
+  });
+
+  test('discovery lists playwright from the managed file; its tools learned from the init event are admitted per grant level, and a first-turn gap allows nothing', async () => {
+    const home = tmp();
+    const replies = [];
+    const spawnImpl = (cmd, args) => {
+      replies.push(args);
+      const c = new EventEmitter(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.stdin.resume();
+      c.stdin.on('end', () => setImmediate(() => {
+        c.stdout.write(JSON.stringify({ type: 'system', subtype: 'init', session_id: 's', tools: ['Read', ...PW.map((t) => `mcp__playwright__${t}`)], mcp_servers: [{ name: 'playwright', status: 'connected' }] }) + '\n');
+        c.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: 'ok', session_id: 's' }) + '\n');
+        c.stdout.end(); c.emit('close', 0);
+      }));
+      return c;
+    };
+    const discover = () => ({ servers: [{ name: 'playwright', sources: ['managed'] }, { name: 'playwright-local-verify', sources: ['managed'] }], errors: [] });
+    const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover });
+    expect(svc.discoverServers().servers.map((s) => s.name)).toEqual(['euphonia-bridge', 'playwright', 'playwright-local-verify']);
+    svc.grants.grant({ server: 'playwright', level: 'read', duration: '1h' });
+    const flag = (a, f) => a[a.indexOf(f) + 1];
+    await svc.send('one').done;                                  // the catalogue gap: grant exists, tools not yet learned
+    expect(flag(replies[0], '--allowedTools')).not.toMatch(/mcp__playwright/);
+    expect(flag(replies[0], '--append-system-prompt')).toMatch(/learned on its first turn/);
+    await svc.send('two').done;                                  // learned from the first turn's init event
+    const allowed = flag(replies[1], '--allowedTools');
+    for (const n of READ_PW) expect(allowed).toContain(`mcp__playwright__${n}`);
+    for (const n of PW.filter((x) => !READ_PW.includes(x))) { expect(allowed).not.toContain(`mcp__playwright__${n}`); expect(flag(replies[1], '--disallowedTools')).toContain(`mcp__playwright__${n}`); }
+    expect(flag(replies[1], '--disallowedTools')).toContain('mcp__playwright-local-verify');   // the other managed server stays denied
+    svc.grants.grant({ server: 'playwright', level: 'write', duration: '1h' });
+    await svc.send('three').done;
+    for (const n of PW) expect(flag(replies[2], '--allowedTools')).toContain(`mcp__playwright__${n}`);
+  });
+});
