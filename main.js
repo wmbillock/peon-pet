@@ -33,6 +33,8 @@ const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawSummary } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
 const { waitMs, cleanInterval } = require('./lib/pixoo-throttle');
+const { createMonitor } = require('./lib/monitor');
+const { diffThreads } = require('./lib/lifecycle');
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -173,6 +175,7 @@ function initPets() {
     onRolesChanged: () => sendSessionUpdate(Date.now()),
     onProjectsChanged: () => sendSessionUpdate(Date.now()),
     frames: BORDERS,
+    getMonitor,
   });
   try { pets.setRoleSpecies(loadPetConfig().roleSpecies || {}); } catch (e) { console.error('[forge] ignoring stale role map:', e.message); }
   try { pets.setRoleTint(loadPetConfig().roleTint || {}); } catch (e) { console.error('[forge] ignoring stale role filters:', e.message); }
@@ -252,6 +255,18 @@ let liveIds = new Set();   // every session in Claude's registry (its process is
 let busyIds = new Set();   // …of which currently mid-turn
 const sessionRegistry = new Map();  // session_id → registry entry (name, entrypoint, status…)
 let firmState = { available: false, threads: [], error: null };   // The Firm's agents (read-only poll)
+let prevFirmThreads = null;   // last successful poll, to derive lifecycle events from what changed
+// The monitor role, kept here until The Firm has one: judges what agents do against their kind's permissions and
+// writes credits and violations to the ledger. Only agents wearing a kind are judged.
+let monitor = null;
+function getMonitor() {
+  if (monitor || !pets) return monitor;
+  const typeOf = (id) => { const l = id && latestLooks.get(id); return l && l.type ? pets.agentTypes.get(l.type.slug) : null; };
+  monitor = createMonitor({ ledger: pets.ledger, typeOf });
+  let lastLogged = '';
+  setInterval(() => { const st = JSON.stringify(monitor.stats()); if (st !== lastLogged) { lastLogged = st; console.log(`[monitor] ${st}`); } }, 60000);
+  return monitor;
+}
 let firmUrl = null;
 let latestLooks = new Map();   // agent id → pet look, so sub-agent windows can wear their parent's tint
 const DEFAULT_WORKER_PATTERNS = ['/.firm/worktrees/'];
@@ -272,17 +287,31 @@ function setSessionTitle(id, title, kind) {
 
 let sessionUpdateTimer = null;
 let firmPoller = null;
+let firmMirror = null;   // Euphonia's read-only copy of The Firm's state, as files in her kb (her bridge MCP cannot load under the managed policy)
+function startFirmMirror() {
+  if (firmMirror) { firmMirror.stop(); firmMirror = null; }
+  try {
+    const { createFirmMirror } = require('./lib/euphonia/firm-mirror');
+    const { createFirmHttp } = require('./lib/euphonia/bridge/firm-http');
+    const http = createFirmHttp({ baseUrl: firmUrl });
+    firmMirror = createFirmMirror({ kbDir: getEuphonia().paths.kbDir, firm: () => http, log: (m) => console.log(m) });
+    firmMirror.start();
+  } catch (e) { console.error('[firm-mirror] disabled:', e.message); }
+}
 // (Re)connect to The Firm per the saved settings. Read-only and optional.
 function startFirm() {
   if (firmPoller) { firmPoller.stop(); firmPoller = null; }
   const cfg = loadPetConfig();
   firmState = { available: false, threads: [], error: null };
   firmUrl = cfg.firmUrl || 'http://127.0.0.1:8420';
-  if (cfg.firm === false) { scheduleSessionUpdate(); return; }
+  if (cfg.firm === false) { if (firmMirror) { firmMirror.stop(); firmMirror = null; } scheduleSessionUpdate(); return; }
+  startFirmMirror();
   try {
     firmPoller = createFirmPoller({
       client: createFirmClient({ baseUrl: firmUrl }),
-      onChange: (st) => { firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
+      onChange: (st) => {
+        if (st.available) { const m = getMonitor(); if (m) m.lifecycle(diffThreads(prevFirmThreads, st.threads)); prevFirmThreads = st.threads; } else prevFirmThreads = null;
+        firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
       onTransition: (st) => console.log(st.available ? `[firm] connected (${st.threads.length} agents)` : `[firm] unreachable: ${st.error}`),
     });
     firmPoller.start();
@@ -459,6 +488,24 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent, title, ti
   }
 }
 
+// The swarm is easy to overrun: warn (summary strip turns red) when more than this many agents are working at once.
+// 20 matches the Firm's own cap on active agents. 0 turns the warning off.
+const CROWD_DEFAULT = 20;
+function crowdLimit() {
+  const v = loadPetConfig().crowdLimit;
+  return Number.isFinite(v) && v >= 0 ? Math.min(500, Math.round(v)) : CROWD_DEFAULT;
+}
+ipcMain.handle('limits-get', () => ({ crowd: crowdLimit() }));
+ipcMain.handle('limits-set', (_e, patch) => {
+  if (patch && 'crowd' in patch) {
+    const n = Number(patch.crowd);
+    if (!Number.isFinite(n) || n < 0) throw new Error('The limit is a whole number, or 0 for no warning');
+    savePetConfig({ crowdLimit: Math.min(500, Math.round(n)) });
+    sendSessionUpdate(Date.now());
+  }
+  return { crowd: crowdLimit() };
+});
+
 let lastSessionSig = '';
 function sendSessionUpdate(now) {
   const sessions = buildSessionStates(tracker.entries(), now, HOT_MS, WARM_MS, 200);
@@ -499,6 +546,7 @@ function sendSessionUpdate(now) {
   const payload = {
     sessions: agents.map((r) => ({ ...r, pet: looks.get(r.id) || null, project: (marks.get(r.id) || {}).project || null, mark: (marks.get(r.id) || {}).mark || null })),
     firm: { available: firmState.available, url: firmUrl },
+    limits: { crowd: crowdLimit() },
   };
   latestSessions = payload;
   if (gridWin && !gridWin.isDestroyed()) gridWin.webContents.send('grid-sessions', payload);
@@ -549,6 +597,7 @@ function startPolling() {
 
   for (const w of watchers) {
     w.on('session-event', handleSessionEvent);
+    w.on('tool-use', (ev) => { const m = getMonitor(); if (m) m.toolUse(ev); });
     w.on('subagent-event', ({ sessionId: parentSession, parentToolId, event }) => {
       if (event === 'SubagentStart' && win && !win.isDestroyed()) win.webContents.send('peon-event', { anim: null, event });  // lets pets react to a newcomer
       if (event === 'SubagentStart') createSubAgentWindow(parentToolId, parentSession);
@@ -1293,5 +1342,8 @@ if (!gotLock) {
     createTray();
     startHotReload();
   });
-  app.on('window-all-closed', () => app.quit());
+  // Say why the app is going away: a clean exit (code 0) is not restarted by launchd, so it is hard to notice otherwise.
+  app.on('before-quit', () => console.log(`[app] before-quit (${new Date().toLocaleTimeString()})`));
+  for (const sig of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(sig, () => { console.log(`[app] ${sig} received, exiting`); app.quit(); });
+  app.on('window-all-closed', () => { console.log('[app] last window closed, quitting'); app.quit(); });
 }

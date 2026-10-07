@@ -35,6 +35,15 @@ describe('action-block parser', () => {
     expect(r.actions).toEqual([]); expect(r.errors[0]).toMatch(/Too many actions/);
     expect(parseActions(Array(3).fill(block({ tool: 'firm_get_status', args: {} })).join('\n'), KNOWN).actions).toHaveLength(3);
   });
+  test('a trailing fenced management block is an alias for firm_send_to_management with that text (same card, one code path)', () => {
+    const r = parseActions('Draft ready.\n```management\nCreate the Jira tickets under PPE-2832.\nDo not close issues.\n```', KNOWN);
+    expect(r.actions).toEqual([{ tool: 'firm_send_to_management', args: { text: 'Create the Jira tickets under PPE-2832.\nDo not close issues.' } }]);
+    expect(r.display).toBe('Draft ready.');
+    expect(parseActions('```management\n   \n```', KNOWN)).toMatchObject({ actions: [], errors: [expect.stringMatching(/empty/)] });
+    const mixed = parseActions(`${block({ tool: 'firm_get_status', args: {} })}\n\`\`\`management\nhello\n\`\`\``, KNOWN);
+    expect(mixed.actions.map((a) => a.tool)).toEqual(['firm_get_status', 'firm_send_to_management']);
+    expect(parseActions('```management\nx\n```\nPress send when ready.', KNOWN).blocks).toBe(0);   // followed by prose: text, like any block
+  });
   test('a block that is not at the end (quoted, or followed by prose) is just text', () => {
     const quoted = `The file says:\n${block({ tool: 'firm_file_task', args: { title: 't', body: 'b' } })}\nThat is what it says.`;
     expect(parseActions(quoted, KNOWN)).toMatchObject({ actions: [], errors: [], blocks: 0, display: quoted });

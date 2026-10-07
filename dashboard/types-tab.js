@@ -79,8 +79,19 @@ function typeCard(t) {
     field('Record', h('span', {}, record, ' ', logCredit)));
 }
 
+const monitorEl = $('monitor-events');
+function renderMonitor() {
+  const ev = (typesState && typesState.events) || [];
+  const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`; };
+  monitorEl.replaceChildren(...(ev.length ? ev.map((e) => h('div', { class: 'line', style: 'margin:2px 0' },
+    h('span', { class: 'dim', style: 'min-width:34px' }, ago(e.at)),
+    h('b', { style: e.kind === 'violation' ? 'color:#ff8080' : e.kind === 'done' ? 'color:#8e9' : '' }, e.kind === 'violation' ? '− violation' : e.kind),
+    h('span', {}, e.kind === 'violation' ? `${e.type}: ${e.note}` : `${e.title || e.agentId || ''}${e.role ? ` (${e.role})` : ''}`))) : [h('div', { class: 'help' }, 'Nothing yet.')]));
+}
+
 function renderTypes() {
   if (!typesState) return;
+  renderMonitor();
   autoRootsBox.checked = typesState.autoRoots;
   spreadBox.checked = typesState.spread;
   const order = (c) => typesState.categories.indexOf(c);

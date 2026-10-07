@@ -201,3 +201,23 @@ test('pendingTurns reports the running turn and the queued ones, and empties as 
   await b.done;
   expect(e.pendingTurns()).toEqual({ running: null, queued: [] });
 });
+
+test('learnTools runs a throwaway session with the same grants and merges the tool names into the real catalog, leaving her chat alone', async () => {
+  const init = (c) => {
+    c.stdout.write(line({ type: 'system', subtype: 'init', session_id: 'learn-1', mcp_servers: [{ name: 'jira', status: 'connected' }, { name: 'atlan', status: 'needs-auth' }],
+      tools: ['Read', 'mcp__jira__getJiraIssue', 'mcp__jira__searchJiraIssuesUsingJql'] }));
+    c.stdout.write(line({ type: 'result', subtype: 'success', is_error: false, result: 'Ready.', session_id: 'learn-1' }));
+    c.stdout.end(); c.emit('close', 0);
+  };
+  const { e, calls } = mk(init);
+  e.grants.grant({ server: 'jira', level: 'read', duration: 'blanket' });
+  const counts = await e.learnTools();
+  expect(counts).toEqual({ jira: 2 });
+  const cat = JSON.parse(fs.readFileSync(e.paths.catalog, 'utf8'));
+  expect(cat.servers.jira.tools).toEqual(['getJiraIssue', 'searchJiraIssuesUsingJql']);
+  expect(cat.servers.atlan).toBeUndefined();                                  // no tools learned, nothing merged
+  expect(calls[0].cwd || calls[0].opts.cwd).toContain('.learn');            // the probe ran in its own home
+  expect(e.history().length).toBe(0);                                          // nothing was written to her transcript
+  const scratchGrants = JSON.parse(fs.readFileSync(path.join(`${e.paths.home}.learn`, 'grants.json'), 'utf8')).grants;
+  expect(scratchGrants.map((g) => g.server)).toEqual(['jira']);
+});

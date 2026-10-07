@@ -258,7 +258,9 @@ describe('agent types', () => {
     const m = svc.assign([root('r'), ...kids]);
     const sp = kids.map((k) => m.get(k.id).species);
     expect(m.get('k0').species).toBe('retro-robot');           // robo's own pet goes to the first match
-    expect(new Set(sp).size).toBeGreaterThanOrEqual(10);        // the rest spread over the pool
+    expect(new Set(sp).size).toBeGreaterThanOrEqual(5);         // the rest spread over the pool (preference-weighted, not uniform)
+    const counts = sp.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map());
+    expect(Math.max(...counts.values())).toBeLessThanOrEqual(Math.ceil(0.25 * 15));   // the variety cap: no species dominates
     expect(m.get('k3').type.slug).toBeTruthy();                 // the kind (and its personality) is kept
   });
 

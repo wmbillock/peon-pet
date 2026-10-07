@@ -293,7 +293,7 @@ describe('browser (the managed playwright server, no bridge)', () => {
   const PW = ['browser_click', 'browser_close', 'browser_console_messages', 'browser_drag', 'browser_evaluate', 'browser_file_upload', 'browser_fill_form', 'browser_handle_dialog',
     'browser_hover', 'browser_install', 'browser_navigate', 'browser_navigate_back', 'browser_network_requests', 'browser_press_key', 'browser_resize', 'browser_run_code',
     'browser_select_option', 'browser_snapshot', 'browser_tabs', 'browser_take_screenshot', 'browser_type', 'browser_wait_for'];
-  const READ_PW = ['browser_console_messages', 'browser_navigate', 'browser_navigate_back', 'browser_network_requests', 'browser_snapshot', 'browser_tabs', 'browser_take_screenshot', 'browser_wait_for'];
+  const READ_PW = ['browser_console_messages', 'browser_navigate', 'browser_navigate_back', 'browser_network_requests', 'browser_resize', 'browser_snapshot', 'browser_take_screenshot', 'browser_wait_for'];
 
   test('observation tools are read; every acting tool is write', () => {
     for (const n of PW) expect([n, classifyTool(n)]).toEqual([n, READ_PW.includes(n) ? 'read' : 'write']);
@@ -314,7 +314,7 @@ describe('browser (the managed playwright server, no bridge)', () => {
       return c;
     };
     const discover = () => ({ servers: [{ name: 'playwright', sources: ['managed'] }, { name: 'playwright-local-verify', sources: ['managed'] }], errors: [] });
-    const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover });
+    const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover, managedPolicy: () => ({ ask: new Set(), deny: new Set() }) });   // this machine's managed file must not steer the test
     expect(svc.discoverServers().servers.map((s) => s.name)).toEqual(['euphonia-bridge', 'playwright', 'playwright-local-verify']);
     svc.grants.grant({ server: 'playwright', level: 'read', duration: '1h' });
     const flag = (a, f) => a[a.indexOf(f) + 1];

@@ -478,13 +478,13 @@ function summaryButton(cls, text, tip, data) {
   for (const [k, v] of Object.entries(data)) b.dataset[k] = v;
   return b;
 }
-function renderSummary(sessions) {
-  const s = AgentSummary.summarizeAgents(sessions);
-  const tips = AgentSummary.summaryTips(sessions);
+function renderSummary(sessions, limit = 0) {
+  const s = AgentSummary.summarizeAgents(sessions, Date.now(), { limit });
+  const tips = AgentSummary.summaryTips(sessions, Date.now(), { limit });
   const parts = [];
   if (!s.total) parts.push(Object.assign(document.createElement('span'), { className: 'none', textContent: 'no agents' }));
   else {
-    parts.push(summaryButton('work', `● ${s.working}`, tips.working, { status: 'working' }));
+    parts.push(summaryButton(s.over ? 'work over' : 'work', s.over ? `● ${s.working}/${s.limit}` : `● ${s.working}`, tips.working, { status: 'working' }));
     parts.push(summaryButton('idle', `◐ ${s.idle}`, tips.idle, { status: 'idle' }));
     if (s.attention) parts.push(summaryButton('alert', `⚠ ${s.attention}`, tips.attention, { status: 'attention' }));
     if (s.projects.length) {
@@ -705,7 +705,7 @@ window.peonBridge.onEvent(({ anim, event }) => {
 window.peonBridge.onSessionUpdate((payload) => {
   const { sessions } = payload;
   lastPayload = payload;
-  renderSummary(sessions);
+  renderSummary(sessions, (payload.limits && payload.limits.crowd) || 0);
   if (dash) dash.update(payload);
   // The frame wears the colour of whichever project is busiest right now.
   const busiest = sessions.filter((a) => a.hot && a.mark).sort((x, y) => y.lastActive - x.lastActive)[0] || sessions.find((a) => a.mark);

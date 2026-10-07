@@ -368,12 +368,28 @@ function renderAccess(data) {
 async function loadAccess() {
   try { renderAccess(await window.dashBridge.euphoniaAccessGet()); } catch (e) { renderAccess({ ok: false, error: e.message }); }
 }
+document.getElementById('euph-grant-connected').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget; btn.disabled = true; accessMsg('Granting read access and learning the tool lists (a few seconds)...');
+  try {
+    const r = await window.dashBridge.euphoniaGrantConnected();
+    if (!r.ok) accessMsg(r.error); else accessMsg(r.warning || `Read access on ${r.granted.length} servers (${Object.keys(r.learned).length} with tools learned). Writes still need a write grant.`);
+  } catch (e) { accessMsg(e.message); }
+  btn.disabled = false; loadAccess();
+});
 document.getElementById('euph-revoke-all').addEventListener('click', async () => {
   await window.dashBridge.euphoniaAccessRevoke({ all: true }); accessMsg('All tool access revoked'); loadAccess();
 });
 document.querySelector('#nav button[data-page="euphonia"]').addEventListener('click', loadAccess);
 window.dashBridge.onShowEuphonia(() => { showPage('euphonia'); loadAccess(); });
 loadAccess();
+
+// --- Crowding limit ---
+const crowdInput = document.getElementById('crowd-limit');
+window.dashBridge.getLimits().then((l) => { crowdInput.value = l.crowd; });
+crowdInput.addEventListener('change', async () => {
+  try { showError(null); const l = await window.dashBridge.setLimits({ crowd: crowdInput.value === '' ? 20 : Number(crowdInput.value) }); crowdInput.value = l.crowd; }
+  catch (e) { showError(e); window.dashBridge.getLimits().then((l) => { crowdInput.value = l.crowd; }); }
+});
 
 // --- Voice focus: which agent holds the voice ---
 const voiceMode = document.getElementById('voice-mode');
