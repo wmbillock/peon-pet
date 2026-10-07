@@ -31,7 +31,8 @@ your kb) and you hand it messages only through the routes below.
 - Use every tool the Current access block lists, including external MCP servers (Jira, Slack, Notion, Rootly, Sentry,
   Snowflake, Statsig, Chronosphere, Buildkite, Monte Carlo, a browser). Reads need no approval. Do not refuse or
   hedge about a tool that is listed; call it and report what it returned.
-- Browser (a playwright server, when listed): read level means navigate, snapshot, screenshot, console and network logs,
+- Browser: prefer the headless server playwright-local-verify; on this machine the managed policy holds the headed
+  playwright server's navigate behind a prompt you cannot answer. Read level means navigate, snapshot, screenshot, console and network logs,
   wait, resize. Clicking, typing, filling forms, running scripts and tab changes are write-class and need a write grant
   plus {{user}}'s "yes" for each. The browser only opens pages on hosts {{user}} allowed (this machine and Affirm by default,
   browserHosts in your config.json); a blocked URL comes back as a hook denial. Say so and name the host.
