@@ -29,3 +29,16 @@ html, body { height: 100%; background: #0c0c14; color: #ddd; font: 13px/1.45 -ap
 #chat-access { font-size: 10px; color: #7fa7ff; text-decoration: none; }
 #chat-access:hover { text-decoration: underline; }
 .msg.notice { align-self: flex-start; max-width: 92%; background: rgba(255, 190, 60, 0.12); border: 1px solid rgba(255, 190, 60, 0.45); color: #ffd58a; font-size: 12px; }
+#chat-cards { display: flex; flex-direction: column; gap: 6px; max-height: 45%; overflow-y: auto; }
+.card { border: 1px solid #4a4a7a; background: #14142a; border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+.card.pending { border-color: #ffbe3c; }
+.card .tool { font-weight: 700; color: #ffd58a; }
+.card .dest { color: #9fb0c8; margin: 2px 0; }
+.card pre { white-space: pre-wrap; word-wrap: break-word; background: #0c0c14; border-radius: 6px; padding: 6px; margin: 4px 0; max-height: 140px; overflow-y: auto; font: 11px/1.4 ui-monospace, monospace; color: #ddd; }
+.card .row { display: flex; gap: 6px; align-items: center; }
+.card button { padding: 3px 12px; border-radius: 6px; border: 1px solid #44446a; background: #1c1c34; color: #eee; cursor: pointer; font: 12px -apple-system, sans-serif; }
+.card button.approve { background: rgba(80, 200, 120, 0.3); border-color: #50c878; }
+.card button.deny { background: rgba(255, 90, 90, 0.2); border-color: #ff6060; }
+.card .state { margin-left: auto; color: #8a8aa0; }
+.card.executed .state { color: #6dff7a; } .card.failed .state, .card.denied .state { color: #ff9a9a; }
+.msg.tool { align-self: flex-start; background: transparent; color: #7a7a90; font-size: 11px; font-style: italic; padding: 0 10px; }

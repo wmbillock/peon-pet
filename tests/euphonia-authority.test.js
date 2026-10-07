@@ -4,7 +4,6 @@ const path = require('path');
 const { buildToolPolicy, isAllowed } = require('../lib/euphonia/authority');
 const { seedKb } = require('../lib/euphonia/kb');
 const { pickCue } = require('../lib/euphonia/voice');
-const approvals = require('../lib/euphonia/approvals');
 const { createStreamParser } = require('../lib/euphonia/stream');
 
 const hubDir = '/Users/x/Claude';
@@ -43,11 +42,6 @@ test('kb seeding is idempotent and never overwrites', () => {
   expect(fs.readFileSync(path.join(dir, 'log.md'), 'utf8')).toBe(log);
   fs.rmSync(path.join(dir, 'INDEX.md'));
   expect(seedKb(dir, { user: 'w' })).toEqual(['INDEX.md']);   // only what is missing
-});
-
-test('approvals seam always says not granted', () => {
-  expect(approvals.isGranted('hub.write', { origin: 'agent' }).granted).toBe(false);
-  expect(approvals.isGranted('hub.write', { origin: 'user' }).granted).toBe(false);
 });
 
 test('voice cue prefers task.complete and never leaves the pack dir', () => {

@@ -122,7 +122,7 @@ describe('per-turn allowlist', () => {
 
   test('access block text and header line', () => {
     const none = computeMcpAccess({ grants: [], catalog, configured: [] });
-    expect(renderAccessBlock(none.summary)).toMatch(/External tools: none/);
+    expect(renderAccessBlock(none.summary)).toMatch(/External tools and actions: none/);
     expect(renderAccessBlock(none.summary)).toMatch(/No other tools/);
     const a = computeMcpAccess({ grants: [{ server: 'slack', level: 'read', expires_at: '2026-10-05T18:00:00.000Z' }, { server: 'jira', level: 'write', expires_at: null }, { server: 'fresh', level: 'read', expires_at: null }], catalog, configured: [] });
     const txt = renderAccessBlock(a.summary);
@@ -240,7 +240,7 @@ test('each turn recomputes the allowlist and prompt from the active grants and l
   await svc.send('one').done;                                   // no grant, catalog unknown: denied, learns the catalog
   expect(flag(calls[0], '--allowedTools')).not.toMatch(/mcp__/);
   expect(flag(calls[0], '--disallowedTools')).toMatch(/mcp__\*/);
-  expect(flag(calls[0], '--append-system-prompt')).toMatch(/External tools: none/);
+  expect(flag(calls[0], '--append-system-prompt')).toMatch(/External tools and actions: none/);
   expect(JSON.parse(fs.readFileSync(path.join(home, 'tools-seen.json'), 'utf8')).servers.slack.tools).toEqual(['slack_read_channel', 'slack_send_message']);
 
   svc.grants.grant({ server: 'slack', level: 'read', duration: '1h' });
@@ -261,14 +261,14 @@ test('each turn recomputes the allowlist and prompt from the active grants and l
 
 test('prompt: carries the access block and the rules she must state', () => {
   const tpl = fs.readFileSync(path.join(__dirname, '../lib/euphonia/prompt.md'), 'utf8');
-  const out = renderPrompt(tpl, { user: 'Willow', kb: '/k', hub: '/h', access: '- ACCESS-BLOCK-HERE' });
+  const out = renderPrompt(tpl, { user: 'Willow', name: 'Euphonia', kb: '/k', hub: '/h', access: '- ACCESS-BLOCK-HERE' });
   expect(out).toContain('- ACCESS-BLOCK-HERE');
   expect(out).not.toMatch(/\{\{/);
   expect(out).toMatch(/cannot change your own permissions/);
   expect(out).toMatch(/Euphonia > Tool access/);
   expect(out).toMatch(/which server and which level/);
-  expect(out).toMatch(/exact\s+text and the exact destination/);
-  expect(out).toMatch(/approves that ONE action/);
+  expect(out).toMatch(/exact\s+text and the exact\s+destination/);
+  expect(out).toMatch(/approves that ONE\s+action/);
   expect(out).toMatch(/Never message a person directly unless/);
   expect(out).toMatch(/Never claim a tool works that is not in it/);
 });
@@ -287,3 +287,4 @@ test('stream parser surfaces init and denials; the chat shows a denial naming se
   expect(s.messages.map((m) => m.role)).toEqual(['user', 'notice', 'assistant'].sort((x, y) => 0) && s.messages.map((m) => m.role));
   expect(s.messages.find((m) => m.role === 'notice').text).toMatch(/slack/);
 });
+

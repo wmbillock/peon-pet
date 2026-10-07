@@ -1,7 +1,7 @@
 // The Euphonia chat bubble: a thin DOM view over the pure model in chat-model.js.
 // It talks only to the main process (window.peonBridge.euphonia*); it never sees the CLI or the files.
 const EuphoniaChat = window.EuphoniaChat;
-const { initial, reduce, keyAction } = EuphoniaChat;
+const { initial, reduce, keyAction, describeCard } = EuphoniaChat;
 
 export function initChat({ onShow } = {}) {
   const $ = (id) => document.getElementById(id);
@@ -14,7 +14,44 @@ export function initChat({ onShow } = {}) {
     $('chat-sub').textContent = EuphoniaChat.describeSession(session);
   }
 
+  const cardsBox = $('chat-cards');
+  const cardEls = new Map();
+  function renderCards() {
+    const now = Date.now();
+    const shown = state.cards.filter((c) => describeCard(c, now).actionable).concat(state.cards.filter((c) => !describeCard(c, now).actionable).slice(-3));
+    const seen = new Set();
+    for (const c of shown) {
+      seen.add(c.id);
+      const d = describeCard(c, now);
+      let el = cardEls.get(c.id);
+      if (!el) { el = document.createElement('div'); cardEls.set(c.id, el); cardsBox.append(el); }
+      el.className = `card ${d.status}`;
+      el.replaceChildren();
+      const mk = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; n.textContent = text; return n; };   // textContent only: card text is model-written
+      el.append(mk('div', 'tool', c.tool), mk('div', 'dest', c.preview.destination));
+      if (c.preview.title) el.append(mk('div', '', `Title: ${c.preview.title}`));
+      el.append(mk('pre', '', c.preview.text || ''));
+      const row = document.createElement('div'); row.className = 'row';
+      if (d.actionable) {
+        for (const [decision, text] of [['approve', 'Approve'], ['deny', 'Deny']]) {
+          const b = mk('button', decision, text);
+          b.addEventListener('click', async () => {
+            b.disabled = true;
+            const r = await window.peonBridge.decideCard({ id: c.id, hash: c.hash, decision });
+            if (!r || !r.ok) dispatch({ type: 'send-failed', message: (r && r.error) || 'Could not decide that card' });
+          });
+          row.append(b);
+        }
+      }
+      row.append(mk('span', 'state', d.label));
+      el.append(row);
+    }
+    for (const [id, el] of cardEls) if (!seen.has(id)) { el.remove(); cardEls.delete(id); }
+  }
+  setInterval(() => { if (state.cards.some((c) => c.status === 'pending')) renderCards(); }, 15000);   // expiry shows without an event
+
   function render() {
+    renderCards();
     // Rebuild only what changed: messages are few (capped), so a keyed rebuild is fine.
     const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 24;
     const existing = new Map([...list.children].map((n) => [n.dataset.id, n]));

@@ -29,6 +29,8 @@ Project frame art no longer draws over tiles (the project still carries an emoji
 
 ## Soon
 
+- [x] Euphonia bridge: app-executed actions with approval cards (replaces the MCP bridge, which the managed policy `allowManagedMcpServersOnly` silently ignores); live check still owed: well-formed blocks, the `--resume` follow-up loop, real Firm and `gh`
+
 - [ ] Per-machine Peon Pet server (owner enhancement, 2026-10-05): one local daemon owns Peon Pet and peon-ping state and
   marshals hook events. The hook becomes a tiny client call over a Unix socket (mode 0600, no TCP port) with a fail-open
   timeout of about 200 ms, instead of starting bash and `peon.sh` per event. Why: pausing in the UI cannot stop the cost,

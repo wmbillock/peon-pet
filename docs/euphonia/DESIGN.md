@@ -30,7 +30,7 @@ built; this slice is the chat bubble and a persistent session behind it.
 | Stream parser | `lib/euphonia/stream.js` | Turns stream-json lines into `session`, `delta`, `break`, `tool`, `result`. |
 | Knowledge base | `lib/euphonia/kb.js` | Seeds `INDEX.md`, `identity.md`, `log.md` once; never overwrites. |
 | Voice | `lib/euphonia/voice.js` | Picks and plays a cue from Euphonia's own sound pack. |
-| Approvals seam | `lib/euphonia/approvals.js` | Stub. Always "not granted". |
+| Actions and approval cards | `lib/euphonia/actions.js`, `lib/euphonia/bridge/` | Parses her action blocks, runs read actions, makes approval cards for writes. |
 | Prompt | `lib/euphonia/prompt.md` | The appended system prompt. |
 | Glue | `lib/euphonia/ipc.js`, `main.js`, `preload.js` | Pet-window-only IPC; events out; cue on reply. |
 | View | `chat/` (window), `renderer/chat.js`, `renderer/chat-model.js`, `lib/euphonia/chat-window.js`, `lib/euphonia/unread.js` | The dedicated chat window and the pet's chat button with its unread dot. The model and unread logic are pure and unit tested. |
@@ -163,10 +163,7 @@ is never stored where the agent can write, and never inferred from conversation 
 
 ### Approvals seam
 
-`lib/euphonia/approvals.js` exports `isGranted(action, ctx)` and always returns
-`{ granted: false }`. When hub writes and external actions arrive they go through it. Planned shape:
-the user grants an action class for a duration ("for 30 minutes") or blanket, from the chat window, with
-expiry checked at use time. Not built.
+This was a stub (`approvals.js`, always "not granted"); it is replaced by the approval cards of the euphonia-bridge section, and the file was deleted.
 
 ## Voice and identity
 
@@ -213,55 +210,65 @@ preferences were cut from 32 species to the 8 published ones. The 24 unpublished
 `lib/character-preferences.local.json` on this machine, so casting here is unchanged; the user-data file works the same way.
 Peon-ping's own `peon` fallback in the voices page and its pack rotation belong to peon-ping's config, not this repo.
 
-## The euphonia-bridge (a route to The Firm and GitHub)
+## The euphonia-bridge: app-executed actions with approval cards (no MCP)
 
 Owner decisions, 2026-10-05: **(1)** The Firm owns agent types; Peon Pet is a client and its writes come only from the user.
-**(2)** Third-party art and sound packs stay out of the shared repo unless they are already on GitHub; only public-domain,
-publishable, non-copyright-issue assets go in. Local-only choices stay local (see "Third-party assets" below).
+**(2)** Third-party art and sound packs stay out of the shared repo unless already on GitHub (see "Third-party assets").
 
-She still has no shell, network or hub writes. The bridge is the one sanctioned route out: a local stdio MCP server
-(`lib/euphonia/bridge/`, plain Node, no dependencies) that the service hands to her `claude` run through a generated
-`--mcp-config` file (`<home>/mcp-bridge.json`; `claude --help`: "--mcp-config <configs...> Load MCP servers from JSON files").
-Under Electron the app binary runs it with `ELECTRON_RUN_AS_NODE=1`. It appears in the dashboard Tool access table as
-`euphonia-bridge`, default **none**, and its tools are known statically (no first-turn learning).
+**Why MCP is out (2026-10-07).** The first design passed a local stdio MCP server through `--mcp-config`. On this managed machine
+`/Library/Application Support/ClaudeCode/managed-settings.json` has `allowManagedMcpServersOnly: true` and no `allowedMcpServers`, so
+the CLI loads only the servers in `managed-mcp.json` and silently ignores everything else: she listed the bridge's tools and every
+call said "No such tool". That is an org security control and is not worked around (no impersonated server names, no policy edits, no
+environment tricks). The MCP transport (stdio server, framing, `mcp-bridge.json`, `--mcp-config`) was deleted; the handlers were kept.
 
-| Tool | Class | What it does |
-|---|---|---|
-| `firm_get_status` | read | `GET /api/workstreams` (counts, cost) and `GET /api/now` |
-| `firm_list_inbox` | read | `GET /api/inbox` |
-| `firm_get_workstream {id}` | read | `GET /api/workstreams/{id}` |
-| `github_view_pr {number}` | read | `gh pr view <n> --repo Affirm/affirm-builders --json ...` |
-| `github_list_prs {state?, limit?}` | read | `gh pr list --repo ... --state <open\|closed\|merged\|all> --limit <1-50> --json ...` |
-| `github_list_issues {label}` | read | `gh issue list --repo ... --label the-firm --state ... --limit ... --json ...` |
-| `github_check_pr {number}` | read | `gh pr checks <n> --repo ... --json ...` (named `check`, not `checks`, so the classifier calls it read) |
-| `firm_send_to_management {text}` | write | WebSocket `/ws/threads/management`, message prefixed `[Assistant] ` |
-| `firm_respond_inbox {id, action, text?}` | write | `POST /api/inbox/{id}/respond`; text prefixed `[Assistant] ` (it lands after The Firm's own `[Inbox]` label) |
-| `firm_file_task {title, body}` | write | `gh issue create --repo ... --title=... --body=... --label=the-firm`; returns the issue URL |
-| `pet_set_cosmetics {name?, soundPack?, border?, species?}` | write | those four keys in her local `config.json`, validated; the app notices within ~2.5 s |
+**The protocol.** She has no tool for these. She ends a reply with fenced blocks, one per action, exactly:
 
-Firm endpoints were read on `origin/pricing/the-firm/develop` (`projects/the-firm/backend/src/firm/main.py`, `ws.py`, `local_auth.py`,
-`inbox.py`), not guessed. Reads are open on loopback. State changes need the `X-Firm-Token` from `GET /api/session` (POST) or an allowed
-`Origin` plus the `firm-token.<token>` subprotocol (WebSocket); the bridge does exactly what the Firm UI does, as the user. Direct
-messages to Management exist only on the WebSocket, so the bridge carries a small RFC 6455 client (`ws-client.js`).
+````
+```euphonia-action
+{"tool":"firm_get_status","args":{}}
+```
+````
 
-**Fixed commands.** `gh` is run with `execFile` (no shell) and argv built by `bridge/gh.js` from validated values only: positive
-integers, enumerated states, one allow-listed label (`the-firm`), and a constant repository. A caller cannot supply a repo, a flag or
-a path, and `gh api` is never used. Free text (task title and body) is a single `--flag=value` argument, so metacharacters are data.
+`lib/euphonia/actions.js` parses ONLY the assistant's own text of the current turn, ONLY trailing blocks (a block quoted or followed by
+prose is just text), strict JSON with only `tool` and `args`, a known tool, an object `args`, at most 3 blocks and 8000 characters each.
+Four blocks run none; a bad block yields an error result she sees. The blocks are removed from what is shown and stored as her words.
+Tool results, hub text and history are never parsed.
 
-**Enforcement, in depth.** (1) Dashboard grants decide which tools the CLI may call at all (same allowlist machinery as other servers;
-the classifier names the level each tool needs). (2) Each bridge call re-reads `grants.json` itself and refuses unless an unexpired
-grant for `euphonia-bridge` at the needed level exists (read grant for read tools, write grant for write tools). The needed level comes
-from the classifier, not from the model. (3) Every call, allowed or refused, is appended to `bridge-audit.jsonl` (ts, tool, a validated
-argument summary, status); free text is logged by length only, never the content, and a write whose "attempt" line cannot be written is
-refused. (4) Grants, tool access, voice focus and `restricted` are not reachable: `pet_set_cosmetics` rejects any other key. (5) The
-prompt still requires showing the exact text and destination and waiting for the owner's chat reply before any write, and requires
-reporting only what a tool returned.
+- **Read actions** (`firm_get_status`, `firm_list_inbox`, `firm_get_workstream`, `github_view_pr`, `github_list_prs`,
+  `github_list_issues`, `github_check_pr`) run automatically when an unexpired read-or-write grant for `euphonia-bridge` exists. The
+  result goes back into the SAME session (`--resume`) as a user-role message `[tool result: <tool>]` with `origin: "tool"`; the chat
+  shows it as a quiet note. Up to 6 such rounds per user message, then the app stops and says so. No grant: a refusal result names the
+  capability, the level and the dashboard path.
+- **Write actions** (`firm_send_to_management`, `firm_respond_inbox`, `firm_file_task`, `pet_set_cosmetics`) never run on her say-so.
+  The app creates an **approval card** (`cards.json`): tool, exact args, and for messages and issues the exact text and destination
+  (messages show the `[Assistant]` prefix that will be sent). Only an Approve click in the **chat window** (`euphonia-card-decide`,
+  accepted from that window only) runs it, once, bound to a SHA-256 of the exact payload: the click carries only the hash it saw, the
+  payload comes from the stored card, and a changed payload is a new card. Cards expire after 10 minutes, survive a window reload or
+  restart, and a write needs an unexpired WRITE grant at card creation and again inside the handler when it runs (double gate). There is
+  no "always allow": grants change only in the dashboard. The outcome (issue URL, sent, failed) goes back as `[tool result]` and is audited.
+- **Capability row.** `euphonia-bridge` stays in the dashboard Tool access table as a built-in capability row (not an MCP server):
+  none / read / write with the same durations. `bridge-audit.jsonl` records every action: cards, attempts, results, refusals, rejected blocks.
+- **Handlers** (`bridge/tools.js`, `gh.js`, `firm-http.js`, `ws-client.js`, `cosmetics.js`) are unchanged: fixed `gh` argv from validated
+  values for Affirm/affirm-builders only, `[Assistant] ` prefix on relayed text, cosmetics limited to name, soundPack, border, species.
+  Firm endpoints (read on `origin/pricing/the-firm/develop`): `GET /api/workstreams`, `/api/workstreams/{id}`, `/api/now`, `/api/inbox`;
+  `GET /api/session` then `POST /api/inbox/{id}/respond` with `X-Firm-Token`; WebSocket `/ws/threads/management` with an allowed Origin
+  and the `firm-token.<token>` subprotocol.
 
-**Not proven (needs a live run):** the real Firm endpoints on the owner's running Firm; `gh` authentication for Affirm/affirm-builders;
-and above all whether `--mcp-config` is honoured at all, because `managed-settings.json` on this machine has
-`allowManagedMcpServersOnly: true`, which may make Claude Code ignore every non-managed server, this one included. If the bridge shows
-as failed or absent in the init event's `mcp_servers`, that is the cause, and the fix is an allow-list entry for `euphonia-bridge` by
-whoever manages the policy.
+Honest limits: a prompt-injected reply that ends with a read block would auto-run a read (reads are bounded, grant-gated and audited);
+it can never run a write without the click. The model could mislead the user in the text of a card, but the card shows the real
+payload, not her description.
+
+**Browser.** The managed `playwright` server is in `managed-mcp.json`, so she can use it through ordinary dashboard grants without the
+bridge. Observation tools (`navigate`, `navigate_back`, `snapshot`, `take_screenshot`, `console_messages`, `network_requests`, `tabs`,
+`wait_for`) classify as read; `click`, `type`, `fill_form`, `evaluate`, `file_upload`, `run_code`, `press_key`, `drag`, `select_option`,
+`handle_dialog`, `hover`, `close`, `install`, `resize` are write. The per-turn allowlist admits a granted server's tools from the init
+event's catalogue (`tools-seen.json`); until a server's tools have been seen once (the first turn after install) a grant allows nothing
+and the access block says so. **URL limits (localhost and Affirm hosts only) cannot be enforced through the CLI: they are a prompt
+rule only.** `navigate` is classed read because it only loads a page; a malicious page could still be fetched.
+
+**Unverified live:** that she reliably emits well-formed trailing blocks; the follow-up-message loop with `--resume`; the real Firm
+endpoints and WebSocket handshake; `gh` authentication; playwright's tool names and whether the managed policy's own allow/ask/deny lists
+still gate a granted tool.
 
 ## Voice focus (one voice at a time)
 

@@ -3,18 +3,13 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
-const { EventEmitter } = require('events');
-const { PassThrough } = require('stream');
 const { classifyTool } = require('../lib/euphonia/tool-class');
 const { createTools, createRunner, grantAllows, SERVER, ASSISTANT_PREFIX } = require('../lib/euphonia/bridge/tools');
-const { createMcpServer } = require('../lib/euphonia/bridge/server');
 const gh = require('../lib/euphonia/bridge/gh');
 const { createAudit } = require('../lib/euphonia/bridge/audit');
 const { createFirmHttp } = require('../lib/euphonia/bridge/firm-http');
 const { sendOnce, frame, parseFrames, GUID } = require('../lib/euphonia/bridge/ws-client');
 const { applyCosmetics } = require('../lib/euphonia/bridge/cosmetics');
-const { BRIDGE_TOOLS } = require('../lib/euphonia/bridge/names');
-const { createEuphonia } = require('../lib/euphonia/service');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'brg-'));
 const READ = ['firm_get_status', 'firm_list_inbox', 'firm_get_workstream', 'github_view_pr', 'github_list_prs', 'github_list_issues', 'github_check_pr'];
@@ -23,7 +18,7 @@ const WRITE = ['firm_send_to_management', 'firm_respond_inbox', 'firm_file_task'
 test('every bridge tool name classifies as intended, so a read grant cannot reach a write tool', () => {
   for (const n of READ) expect([n, classifyTool(n), classifyTool(`mcp__euphonia-bridge__${n}`)]).toEqual([n, 'read', 'read']);
   for (const n of WRITE) expect([n, classifyTool(n)]).toEqual([n, 'write']);
-  expect([...BRIDGE_TOOLS].sort()).toEqual([...READ, ...WRITE].sort());
+  expect(createTools({ firm: {}, ghRun: async () => '', cosmetics: () => ({}) }).map((d) => d.name).sort()).toEqual([...READ, ...WRITE].sort());
 });
 
 // ---- fakes ----
@@ -185,35 +180,6 @@ describe('audit', () => {
   });
 });
 
-describe('MCP stdio protocol', () => {
-  const mk = (s) => createMcpServer({ name: SERVER, version: '1', defs: createTools({ firm: {}, ghRun: async () => '', cosmetics: () => ({}) }), call: s.call });
-  test('initialize, tools/list, tools/call over chunked newline framing', async () => {
-    const s = setup({ grants: G('read') });
-    const server = mk(s);
-    const out = [];
-    const session = server.attach((l) => out.push(JSON.parse(l)));
-    const lines = [
-      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'c', version: '1' } } },
-      { jsonrpc: '2.0', method: 'notifications/initialized' },
-      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
-      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'firm_list_inbox', arguments: {} } },
-      { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'firm_send_to_management', arguments: { text: 'x' } } },
-      { jsonrpc: '2.0', id: 5, method: 'nope' },
-    ].map((m) => JSON.stringify(m)).join('\n') + '\n';
-    for (let i = 0; i < lines.length; i += 37) await session.push(lines.slice(i, i + 37));   // arbitrary chunking
-    await session.push('not json\n');
-    const by = Object.fromEntries(out.filter((o) => o.id !== undefined).map((o) => [o.id, o]));
-    expect(by[1].result).toMatchObject({ protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'euphonia-bridge' } });
-    expect(by[2].result.tools.map((t) => t.name).sort()).toEqual([...READ, ...WRITE].sort());
-    expect(by[2].result.tools[0].inputSchema.type).toBe('object');
-    expect(by[3].result).toMatchObject({ isError: false, content: [{ type: 'text' }] });
-    expect(by[4].result.isError).toBe(true);                       // read grant: write tool refused
-    expect(by[5].error.code).toBe(-32601);
-    expect(out.some((o) => o.error && o.error.code === -32700)).toBe(true);
-    expect(out.filter((o) => o.id === undefined && !o.error)).toEqual([]);   // notifications get no reply
-  });
-});
-
 describe('Firm HTTP + WebSocket', () => {
   test('reads need no token; inbox respond fetches the session token first; ids are validated; non-loopback refused', async () => {
     const seen = [];
@@ -238,6 +204,7 @@ describe('Firm HTTP + WebSocket', () => {
     const got = {};
     const server = http.createServer();
     server.on('upgrade', (req, socket) => {
+      socket.on('error', () => {});   // the client hangs up right after its quiet period
       got.origin = req.headers.origin; got.proto = req.headers['sec-websocket-protocol']; got.path = req.url;
       const accept = crypto.createHash('sha1').update(req.headers['sec-websocket-key'] + GUID).digest('base64');
       socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\nSec-WebSocket-Protocol: firm\r\n\r\n`);
@@ -284,54 +251,5 @@ describe('cosmetics', () => {
     expect(JSON.parse(fs.readFileSync(cfgFile, 'utf8'))).toEqual({ name: 'Nova', restricted: true, openChatOnLaunch: false, soundPack: 'ok', border: 'neon-pink', species: 'kirby' });
     for (const bad of [{ soundPack: 'missing' }, { soundPack: '../x' }, { species: 'nope' }, { species: '../../etc' }, { name: '' }, { name: 'x'.repeat(40) }, { border: 'a b' }]) expect(() => applyCosmetics({ ...ctx, patch: bad })).toThrow();
     expect(JSON.parse(fs.readFileSync(cfgFile, 'utf8')).restricted).toBe(true);
-  });
-});
-
-describe('service integration', () => {
-  function run(grants) {
-    const home = tmp();
-    const calls = [];
-    const spawnImpl = (cmd, args) => {
-      calls.push(args);
-      const c = new EventEmitter(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.stdin.resume();
-      c.stdin.on('end', () => setImmediate(() => { c.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: 'ok', session_id: 's' }) + '\n'); c.stdout.end(); c.emit('close', 0); }));
-      return c;
-    };
-    const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover: () => ({ servers: [], errors: [] }), firmUrl: 'http://127.0.0.1:9999', assetsDir: '/a', userDataDir: '/u', peonDir: '/p' });
-    for (const g of grants) svc.grants.grant(g);
-    return { svc, calls, home, flag: (a, f) => a[a.indexOf(f) + 1] };
-  }
-  test('--mcp-config points at a generated file that launches the bridge with the right paths', async () => {
-    const t = run([]);
-    await t.svc.send('hi').done;
-    const file = t.flag(t.calls[0], '--mcp-config');
-    expect(file).toBe(path.join(t.home, 'mcp-bridge.json'));
-    const cfg = JSON.parse(fs.readFileSync(file, 'utf8')).mcpServers['euphonia-bridge'];
-    expect(cfg.command).toBe(process.execPath);
-    expect(cfg.args).toEqual([expect.stringMatching(/bridge[\\/]main\.js$/), '--home', t.home, '--firm-url', 'http://127.0.0.1:9999', '--assets-dir', '/a', '--user-data-dir', '/u', '--peon-dir', '/p']);
-  });
-  test('default level none: bridge tools denied by server; the access block says none', async () => {
-    const t = run([]);
-    await t.svc.send('hi').done;
-    expect(t.flag(t.calls[0], '--allowedTools')).not.toMatch(/mcp__/);
-    expect(t.flag(t.calls[0], '--disallowedTools')).toMatch(/mcp__euphonia-bridge/);
-    expect(t.svc.discoverServers().servers.map((s) => s.name)).toContain('euphonia-bridge');
-  });
-  test('read grant allows exactly the read tools; write grant adds the write tools; the block lists them', async () => {
-    const r = run([{ server: 'euphonia-bridge', level: 'read', duration: '1h' }]);
-    await r.svc.send('hi').done;
-    const allowed = r.flag(r.calls[0], '--allowedTools');
-    for (const n of READ) expect(allowed).toContain(`mcp__euphonia-bridge__${n}`);
-    for (const n of WRITE) { expect(allowed).not.toContain(`mcp__euphonia-bridge__${n}`); expect(r.flag(r.calls[0], '--disallowedTools')).toContain(`mcp__euphonia-bridge__${n}`); }
-    expect(r.flag(r.calls[0], '--append-system-prompt')).toMatch(/euphonia-bridge: read.*Tools you may call: .*firm_get_status/);
-    const w = run([{ server: 'euphonia-bridge', level: 'write', duration: 'blanket' }]);
-    await w.svc.send('hi').done;
-    for (const n of [...READ, ...WRITE]) expect(w.flag(w.calls[0], '--allowedTools')).toContain(`mcp__euphonia-bridge__${n}`);
-    expect(w.flag(w.calls[0], '--disallowedTools')).not.toContain('mcp__*');
-    expect(w.flag(w.calls[0], '--allowedTools')).not.toMatch(/Bash/);
-  });
-  test('the prompt tells her how to hand work to The Firm and to report only returned results', () => {
-    const tpl = fs.readFileSync(path.join(__dirname, '../lib/euphonia/prompt.md'), 'utf8');
-    expect(tpl).toMatch(/firm_file_task/); expect(tpl).toMatch(/\[Assistant\]/); expect(tpl).toMatch(/Never say a change was made, filed or sent\s+unless you hold that result/);
   });
 });
