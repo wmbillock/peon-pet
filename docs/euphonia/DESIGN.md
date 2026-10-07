@@ -25,12 +25,14 @@ built; this slice is the chat bubble and a persistent session behind it.
 
 | Piece | File | Job |
 |---|---|---|
-| Core | `lib/euphonia/service.js` | `createEuphonia({ home, hubDir, spawnImpl, now })`. Runs one CLI process per message, keeps one conversation, emits events. No Electron imports. |
+| Core | `lib/euphonia/service.js` | `createEuphonia({ home, hubDir, spawnImpl, now })`. Keeps ONE long-lived CLI process per session (stream-json in and out), restarts it with `--resume` when its argv must change, falls back to one process per message, emits events. No Electron imports. |
 | Tool authority | `lib/euphonia/authority.js` | One pure function, `buildToolPolicy`, computes every flag that limits the CLI. |
 | Stream parser | `lib/euphonia/stream.js` | Turns stream-json lines into `session`, `delta`, `break`, `tool`, `result`. |
 | Knowledge base | `lib/euphonia/kb.js` | Seeds `INDEX.md`, `identity.md`, `log.md` once; never overwrites. |
 | Voice | `lib/euphonia/voice.js` | Picks and plays a cue from Euphonia's own sound pack. |
-| Actions and approval cards | `lib/euphonia/actions.js`, `lib/euphonia/bridge/` | Parses her action blocks, runs read actions, makes approval cards for writes. |
+| Actions and approval cards | `lib/euphonia/actions.js`, `lib/euphonia/bridge/` | Parses her action blocks (and the `management` alias), runs read actions, makes approval cards for writes, logs receipts. |
+| Firm mirror | `lib/euphonia/firm-mirror.js` | Writes The Firm's state into `kb/firm/` every 30 s (STATUS.md, inbox.json, events.jsonl). |
+| Browser guard, managed policy, CLI lookup | `lib/euphonia/browser-guard.js`, `managed-policy.js`, `find-claude.js` | PreToolUse host guard passed through `--settings`; tools the machine's managed `ask`/`deny` holds; where `claude` and nvm's node live when launchd's PATH is minimal. |
 | Prompt | `lib/euphonia/prompt.md` | The appended system prompt. |
 | Glue | `lib/euphonia/ipc.js`, `main.js`, `preload.js` | Pet-window-only IPC; events out; cue on reply. |
 | View | `chat/` (window), `renderer/chat.js`, `renderer/chat-model.js`, `lib/euphonia/chat-window.js`, `lib/euphonia/unread.js` | The dedicated chat window and the pet's chat button with its unread dot. The model and unread logic are pure and unit tested. |
@@ -48,37 +50,70 @@ Default home: `~/.euphonia/<os username>` (override with `EUPHONIA_HOME`). Direc
 | `session.json` | `{ id, created_at, updated_at, turns }`. Written only after a turn succeeds. |
 | `kb/` | Euphonia's own Libretto-style store: `INDEX.md` (index), `identity.md`, `log.md` (dated, append-only), plus pages it adds. |
 | `transcript.jsonl` | Append-only turns: `{ ts, turnId, role, origin, text }`. |
-| `config.json` | `name`, `soundPack` (default `ra2_eva_commander`), `species` (default `weeping-willow`), `model` (default: CLI default), `restricted` (default `true`). |
+| `config.json` | `name`, `soundPack` (default none), `species` (default `weeping-willow`), `model` (default: CLI default), `restricted` (default `true`), `browserHosts`, `transport` (`persistent` default, or `per-turn`), **`displayName` and `pronouns`** (how she addresses the owner; the OS login is used for nothing but this directory's name). |
+| `grants.json`, `cards.json`, `tools-seen.json`, `bridge-audit.jsonl` | Tool access grants (dashboard only), approval cards, the tool catalogue learned from the CLI's init events, the action audit. |
+| `mcp-status.json` | Connection state of every MCP server at the CLI's last init (`{ updated, launch, process, servers: { name: { status, tools } } }`). |
+| `kb/identity.md` | Seeded once; **appended verbatim to the system prompt** when present, so the owner edits personality here, never `prompt.md`. |
+| `kb/firm/STATUS.md`, `inbox.json`, `events.jsonl` | The Firm's state, rewritten by the app about every 30 s (read only for her). |
+| `kb/firm/sent.jsonl` | Receipts: one line per approved write that ran (`{ id, ts, action, destination, status: delivered|failed, result, receipt, reply }`). |
 
 `New` in the chat header calls `resetSession()`: the old `session.json` is renamed to
 `session.<ms>.old.json`, nothing is deleted, and the next message starts a fresh conversation.
 
-## How a turn runs
+## How a turn runs (transport: one long-lived CLI per session, 2026-10-07)
 
-1. The chat window sends text over `euphonia-send`. Main accepts it only from that window and stamps
-   `origin: "user"`. The message is appended to `transcript.jsonl` and queued (turns run one at a time).
-2. The service spawns `claude` with `cwd` = the home directory and the message on **stdin** (not argv,
-   so variadic flags can never swallow it and a message starting with `-` is harmless).
-3. First turn: no `--resume`; the session id is read from the stream-json `system` or `result` event.
-   Later turns pass `--resume <id>`. `session.json` is updated only on success.
-4. Events go to subscribers: `start`, `delta` (text as it streams), `tool` (name only, never arguments),
-   `done` (full text), `error` (message). Each carries the turn id. The chat window receives them on
-   `euphonia-event`; the pet window never gets content, only `euphonia-unread {count}`.
-5. On `done`, main plays a cue from Euphonia's sound pack unless sound is muted.
+Why: every turn used to spawn a fresh `claude -p --resume <id>`, so every turn reconnected the ~20 managed MCP servers
+and the npx-launched Playwright servers sometimes missed the window; she told the owner the tools "dropped out". Now:
 
-An error (CLI missing, non-zero exit, `is_error` result, timeout after 5 minutes) emits `error`
-and changes neither `session.json` nor the assistant side of the transcript.
+1. The chat window sends text over `euphonia-send`. Main accepts it only from that window and stamps `origin: "user"`.
+   The message is appended to `transcript.jsonl` and queued (turns run one at a time).
+2. The service computes the process argv (policy from the active grants, the static system prompt, `--settings` with the
+   browser guard, model, `--resume <id>` when a session exists). If a live process exists with the **same argv**, the turn is
+   written to it as one stdin line `{"type":"user","message":{"role":"user","content":[{"type":"text","text":...}]}}`.
+   Otherwise the old process is ended (stdin closed, killed after 3 s) and a new one spawned with
+   `--input-format stream-json`. Grant changes, an edited `identity.md`, a model change and `New` therefore restart the
+   process; the access block does not (see below). A process that died between turns is replaced on the next turn.
+3. The `result` event ends the turn; the process stays. The session id comes from `system`/`result` events; `session.json`
+   is updated only on success. Each turn gets a fresh stream parser, so a `message_start` at the start of turn 2 is not read
+   as a break inside turn 1.
+4. Fallback: if the CLI rejects `--input-format` (stderr names it on the process's first turn), that turn is redone the old
+   way (`claude -p` with the message on stdin, process exits after the reply) and the run stays per-turn; `transport:
+   "per-turn"` in `config.json` forces it. `shutdown()` ends the live process; `main.js` calls it on `before-quit`.
+5. Events go to subscribers: `start`, `delta`, `tool` (name only), `done`, `error`, `notice`, `card`, `receipt`, `denied`,
+   `user-tool`. The chat window receives them on `euphonia-event`; the pet window only gets `euphonia-unread {count}`.
+6. On `done`, main plays a cue from Euphonia's sound pack unless sound is muted.
+
+An error (CLI missing, non-zero exit, `is_error` result, a process dying mid-turn, timeout after 5 minutes, which kills the
+process) emits `error` and changes neither `session.json` nor the assistant side of the transcript.
+
+**The access block travels with the message, not in the system prompt.** The app writes a header at the top of every
+message: `[Current access for this turn ...]` (the block `renderAccessBlock` used to put in the prompt), MCP notes (below),
+`[Recent sends ...]` (the last 24 h of receipts, at most 10 lines) and finally `[Message]` followed by the text. The system
+prompt's `## Current access` says to read it there. A changing block therefore never restarts the process, and the transcript
+keeps only the user's own text.
+
+**MCP status.** Every `system/init` event is recorded to `mcp-status.json` (status and tool count per server) and feeds the
+catalogue. For each granted server the header says `held: still connecting (CLI reported "pending")` when its status at the
+last init was not `connected`, `connection state unknown` on a first turn before any init, and labels a record from an earlier
+launch as such. Live check (2026-10-07, `EUPHONIA_HOME=willow-smoke`, two one-word messages): one process (pid 36739) took
+both; the raw sequence was `... result/success (turn 1) -> system/init (18 MCP servers: 15 connected, buildkite pending,
+lucid needs-auth, pagerduty failed) -> system/status -> message_start -> content_block_delta x24 -> assistant ->
+content_block_stop -> message_delta -> message_stop -> result/success (same session id) -> CLOSE code=0 on shutdown`. The
+CLI emits `system/init` **after each user message**, not at spawn, so the first turn of a process cannot wait for it
+(`initWaitMs` defaults to 0); turn N's status is known to turn N+1 and to the next launch.
 
 CLI invocation (flags verified against `claude --help`, v2.1.289):
 
 ```
-claude -p --output-format stream-json --verbose --include-partial-messages \
-  --append-system-prompt <prompt> --permission-mode dontAsk \
+claude -p --output-format stream-json --verbose --include-partial-messages --input-format stream-json \
+  --append-system-prompt <prompt + kb/identity.md> --system-prompt-snapshot off --permission-mode dontAsk \
   --tools Read,Grep,Glob,Edit,Write \
-  --allowedTools "Read,Grep,Glob,Edit(//<kb>/**),Write(//<kb>/**)" \
-  --disallowedTools "Bash,PowerShell,WebFetch,WebSearch,NotebookEdit,Task,Agent,mcp__*,Edit(//<hub>/**),Write(//<hub>/**),NotebookEdit(//<hub>/**)" \
-  --system-prompt-snapshot off --disable-slash-commands --add-dir <hub> --restricted [--model M] [--resume <id>]
+  --allowedTools "Read,Grep,Glob,Edit(//<kb>/**),Write(//<kb>/**)[,mcp__<server>__<tool>...]" \
+  --disallowedTools "Bash,PowerShell,WebFetch,WebSearch,NotebookEdit,Task,Agent,mcp__*|mcp__<server>...,Edit(//<hub>/**),Write(//<hub>/**),NotebookEdit(//<hub>/**)" \
+  --disable-slash-commands --settings <browser-guard hook JSON> --add-dir <hub> --restricted [--model M] [--resume <id>]
 ```
+Child env: PATH from `find-claude.childPath` (the CLI's own dir, `~/.local/bin`, Homebrew, nvm's node bins so `npx` servers
+start under launchd) and `MCP_TIMEOUT=120000` unless the launcher set one.
 
 ## Authority rules (security)
 
@@ -132,9 +167,8 @@ block says its tools are learned on its first turn; the owner asks again after t
 `<home>/.mcp.json`, plus servers the CLI reported on past turns. `claude mcp list` is not used because it health-checks every
 server. Unreadable or malformed files are shown as errors in the dashboard; an empty result states where it looked.
 
-**What she is told.** Each turn the system prompt carries a "Current access" block built from the active grants, and
-`--system-prompt-snapshot off` makes the CLI re-render it every turn (the default records the prompt once and reuses it on
-resume, which would freeze the block). `prompt.md` and her kb note `settings.md` say: she cannot change her permissions, only the
+**What she is told.** Each turn the message header carries the "Current access" block built from the active grants (see
+"How a turn runs"); `--system-prompt-snapshot off` keeps the static prompt fresh across restarts. `prompt.md` and her kb note `settings.md` say: she cannot change her permissions, only the
 owner in the dashboard under Euphonia > Tool access; she names the server and level she needs and sends the owner there; she never
 claims a tool outside the block; before any write-class action she shows the exact text and destination and waits for a reply in
 chat (approves one action only); she never messages a person unless the owner names them in that message. When the CLI reports a
@@ -234,8 +268,8 @@ prose is just text), strict JSON with only `tool` and `args`, a known tool, an o
 Four blocks run none; a bad block yields an error result she sees. The blocks are removed from what is shown and stored as her words.
 Tool results, hub text and history are never parsed.
 
-- **Read actions** (`firm_get_status`, `firm_list_inbox`, `firm_get_workstream`, `github_view_pr`, `github_list_prs`,
-  `github_list_issues`, `github_check_pr`) run automatically when an unexpired read-or-write grant for `euphonia-bridge` exists. The
+- **Read actions** (`firm_get_status`, `firm_list_inbox`, `firm_get_workstream`, `firm_list_events`, `github_view_pr`, `github_list_prs`,
+  `github_list_issues`, `github_check_pr`, `github_firm_pr_watch`) run automatically when an unexpired read-or-write grant for `euphonia-bridge` exists. The
   result goes back into the SAME session (`--resume`) as a user-role message `[tool result: <tool>]` with `origin: "tool"`; the chat
   shows it as a quiet note. Up to 6 such rounds per user message, then the app stops and says so. No grant: a refusal result names the
   capability, the level and the dashboard path.
@@ -246,13 +280,35 @@ Tool results, hub text and history are never parsed.
   payload comes from the stored card, and a changed payload is a new card. Cards expire after 10 minutes, survive a window reload or
   restart, and a write needs an unexpired WRITE grant at card creation and again inside the handler when it runs (double gate). There is
   no "always allow": grants change only in the dashboard. The outcome (issue URL, sent, failed) goes back as `[tool result]` and is audited.
+  A trailing fenced block tagged `management` (the old draft form) is an **alias** for `firm_send_to_management {text}`: same
+  card, same code path; the separate Send to Management button and its IPC were removed.
+- **Receipts (2026-10-07).** When an approved card runs, the app appends `{ id, ts, action, destination, status: delivered|failed,
+  result, receipt, reply }` to `kb/firm/sent.jsonl`, marks the card `sent HH:MM` (with Management's reply when it arrived within
+  ~20 s, `reply pending` otherwise) or `failed: <reason>`, feeds the result back into her session as `[tool result: <tool>]` with a
+  `[receipt]` line so she confirms from the record, and shows the last 24 h (10 lines) in every message header so a later turn
+  answers "did that get sent?" from the log. The Firm returns no id for a chat message, so the receipt is the `user_message`
+  event (actor `user`, target `management`, same text) found by polling `/api/events?since_id=<last id before the send>`; its
+  `delivered_at`/`acked_at` say whether Management picked it up, and the reply is the next chat-audience assistant message in
+  `/api/threads/management/messages`. A `system` notice after the send is a refusal and fails the action.
 - **Capability row.** `euphonia-bridge` stays in the dashboard Tool access table as a built-in capability row (not an MCP server):
   none / read / write with the same durations. `bridge-audit.jsonl` records every action: cards, attempts, results, refusals, rejected blocks.
-- **Handlers** (`bridge/tools.js`, `gh.js`, `firm-http.js`, `ws-client.js`, `cosmetics.js`) are unchanged: fixed `gh` argv from validated
-  values for Affirm/affirm-builders only, `[Assistant] ` prefix on relayed text, cosmetics limited to name, soundPack, border, species.
-  Firm endpoints (read on `origin/pricing/the-firm/develop`): `GET /api/workstreams`, `/api/workstreams/{id}`, `/api/now`, `/api/inbox`;
-  `GET /api/session` then `POST /api/inbox/{id}/respond` with `X-Firm-Token`; WebSocket `/ws/threads/management` with an allowed Origin
-  and the `firm-token.<token>` subprotocol.
+- **Handlers** (`bridge/tools.js`, `gh.js`, `firm-http.js`, `ws-client.js`, `cosmetics.js`): fixed `gh` argv from validated values
+  for Affirm/affirm-builders only, `[Assistant] ` prefix on relayed text, cosmetics limited to name, soundPack, border, species.
+  **The Firm's API, as read from its source at `a99de04fd4` (2026-10-07):** unauthenticated, loopback-only (`HOST=127.0.0.1`); there
+  is **no** token and **no** `/api/session` (the earlier handshake was removed), and **no** `/api/now`. Reads: `GET /api/workstreams`,
+  `/api/workstreams/{id}`, `/api/inbox` (cards carry `responses[].reply` and `awaiting`), `/api/prs` (The Firm's own PR record:
+  `pr_number`, `branch`, `base_branch`, `pr_state`, `merged_at`), `/api/events?since_id=N&limit=N` or `?latest=1` (cap 500; rows
+  `id, ts, kind, actor, target_agent, payload, delivered_at, acked_at`; `actor` is `user`, `scheduler`, `system` or a thread id),
+  `/api/threads/{id}/messages`, `/api/projects`, `/api/health`, `/api/stats`. Writes: `POST /api/inbox/{item_id}/respond
+  {action, text}` -> `{ sent: text|null, item }`; WebSocket `/ws/threads/management` with a client frame `{"type":"message","text"}`,
+  no ack and no id, a failure as `{"type":"system","text","audience":"chat"}`. `GET/PUT /api/settings` exist (restart required) and
+  are deliberately not used.
+- **GitHub reads** return `baseRefName`, `headRefName`, `state`, `isDraft`, `mergeStateStatus`, `reviewDecision` and
+  `statusCheckRollup` for list and view; `github_check_pr` returns those PR fields with its checks. `github_firm_pr_watch` takes The
+  Firm's open PRs from `/api/prs`, reads each live through `gh pr view` (10 at most) and flags any whose base is not
+  `pricing/the-firm/develop`; without The Firm it falls back to `gh pr list` filtered to the `the-firm` label or a Firm branch.
+- **Events.** `firm_list_events {since: <event id or ISO time>, workstream?, limit?}` returns the rows above (actor included), and
+  the mirror writes the last 200 to `kb/firm/events.jsonl` and lists the last 15 in `STATUS.md`.
 
 Honest limits: a prompt-injected reply that ends with a read block would auto-run a read (reads are bounded, grant-gated and audited);
 it can never run a write without the click. The model could mislead the user in the text of a card, but the card shows the real
@@ -269,6 +325,19 @@ rule only.** `navigate` is classed read because it only loads a page; a maliciou
 **Unverified live:** that she reliably emits well-formed trailing blocks; the follow-up-message loop with `--resume`; the real Firm
 endpoints and WebSocket handshake; `gh` authentication; playwright's tool names and whether the managed policy's own allow/ask/deny lists
 still gate a granted tool.
+
+## Owner follow-ups
+
+- **Relaunch** the running app from this branch for the transport, receipts and header changes to take effect; the running
+  checkout is on `feat/control-panel-pixoo`.
+- **Grants to set** in the dashboard (Euphonia > Tool access) for the Firm work: `euphonia-bridge` write (cards), and read on the
+  servers she should watch (jira, slack, the headless `playwright-local-verify`). Grants restart her CLI process on the next turn.
+- **Your name and pronouns** are in the dashboard (Euphonia: name and voice); `config.json` already carries `displayName: "Willow"`,
+  `pronouns: "she/her"` for the real and the smoke homes. Personality edits go in `~/.euphonia/<user>/kb/identity.md`.
+- **The Firm:** the events feed exists and is used. Not available and not invented: an id or ack for a chat message sent over the
+  WebSocket (the receipt is reconstructed from `/api/events`), and a `/api/now` summary (the mirror omits that section).
+- `docs/firm/EUPHONIA-IT-ALLOWLIST-REQUEST.md` asks IT to allowlist the bridge MCP server; the bridge is no longer an MCP server, so
+  that request is moot unless the owner wants MCP tools for other reasons.
 
 ## Voice focus (one voice at a time)
 
@@ -352,8 +421,8 @@ Changing `species` or `border` through the dashboard re-pins and reloads the pet
 
 | Item | Note |
 |---|---|
-| The Firm bridge | Euphonia relaying between the user and The Firm. |
-| Grants and approvals | Only the stub and the rule above. Hub writes and external actions are impossible today. |
+| Inbox reply watch | Management's reply to a card response is read once, within ~20 s; nothing re-polls a `reply: pending` later. |
+| Approval cards for MCP writes | MCP write tools rely on the prompt rule (show text, wait for "yes"); only the app's own actions have cards. |
 | Slack transport | A persistent per-user DM conversation. The core is transport-independent for this. |
 | Multi-tenancy | One user per machine; `home` is derived from the OS username. No per-user isolation or auth. |
 | Bounded retention | `transcript.jsonl` and the CLI session grow without limit; no compaction or pruning. |
@@ -361,10 +430,13 @@ Changing `species` or `border` through the dashboard re-pins and reloads the pet
 
 ## Tests
 
-`npm test`. New suites: `euphonia-service` (fake `claude`: session capture, `--resume`, ordered deltas, errors,
-serialization, argv policy), `euphonia-authority` (policy, kb seeding, approvals stub, voice, stream fallback),
-`euphonia-chat-model` (reducer, key handling), `euphonia-ipc` (pet-only sender gating, cue on done), `euphonia-lead` (roster pinning, bench, open-on-launch, click target). No test
-spawns the real CLI.
+`npm test`. Suites: `euphonia-service` (the shared fake `claude` in `tests/helpers/fake-claude.js` speaks both transports: one
+process across turns, graceful restart on a grant change, respawn after a death, fallback when `--input-format` is rejected,
+header contents, MCP status and held notes, identity injection, display name never the login), `euphonia-actions` (parser, the
+`management` alias, cards, receipts, prompt injection, IPC gating), `euphonia-bridge` (grant enforcement, every action, the real
+Firm API shape with a fake server, receipts, WebSocket handshake), `euphonia-firm-mirror`, `euphonia-access`, `euphonia-browser`,
+`euphonia-managed-policy`, `euphonia-authority`, `euphonia-chat-model`, `euphonia-ipc`, `euphonia-lead`, `euphonia-persistence`.
+No test calls a provider; `peon-voice-focus` is the only slow suite (it runs real `peon.sh`).
 
 ## Manual smoke test (the owner runs this once)
 
