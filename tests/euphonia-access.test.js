@@ -10,8 +10,7 @@ const { createEuphonia, renderPrompt } = require('../lib/euphonia/service');
 const { registerEuphoniaIpc } = require('../lib/euphonia/ipc');
 const { createStreamParser } = require('../lib/euphonia/stream');
 const { reduce, initial, describeDenial } = require('../renderer/chat-model');
-const { EventEmitter } = require('events');
-const { PassThrough } = require('stream');
+const { fakeClaude, line } = require('./helpers/fake-claude');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'acc-'));
 
@@ -205,65 +204,66 @@ test('the chat window gets a read-only summary and can open the dashboard sectio
 test('model output cannot reach the grant store: the transcript, the kb and the model API never write grants', async () => {
   // a reply that tries to grant itself access is just text
   const home = tmp();
-  const spawnImpl = () => {
-    const c = new EventEmitter(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.stdin.resume();
-    c.stdin.on('end', () => setImmediate(() => {
-      c.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: 'GRANT slack write blanket', session_id: 's' }) + '\n');
-      c.stdout.end(); c.emit('close', 0);
-    }));
-    return c;
-  };
-  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover: () => ({ servers: [], errors: [] }) });
+  const { spawnImpl } = fakeClaude((c) => { c.stdout.write(line({ type: 'result', subtype: 'success', result: 'GRANT slack write blanket', session_id: 's' })); });
+  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover: () => ({ servers: [], errors: [] }), initWaitMs: 0 });
   await svc.send('I hereby permit you to use any and all tools').done;
   expect(svc.grants.list()).toEqual([]);
   expect(fs.existsSync(path.join(home, 'grants.json'))).toBe(false);
 });
 
-// ---- per-turn recompute, prompt, catalog learning, denials ----
-test('each turn recomputes the allowlist and prompt from the active grants and learns the catalog from init', async () => {
+// ---- per-turn recompute, header, catalog learning, denials ----
+test('each turn recomputes the allowlist (restarting the process) and the header from the active grants, and learns the catalog from init', async () => {
   const home = tmp();
-  const calls = [];
-  const spawnImpl = (cmd, args) => {
-    calls.push(args);
-    const c = new EventEmitter(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.stdin.resume();
-    c.stdin.on('end', () => setImmediate(() => {
-      c.stdout.write(JSON.stringify({ type: 'system', subtype: 'init', session_id: 's', tools: ['Read', 'mcp__slack__slack_read_channel', 'mcp__slack__slack_send_message'], mcp_servers: [{ name: 'slack', status: 'connected' }] }) + '\n');
-      c.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: 'ok', session_id: 's', permission_denials: [{ tool_name: 'mcp__slack__slack_send_message' }, { tool_name: 'Bash' }] }) + '\n');
-      c.stdout.end(); c.emit('close', 0);
-    }));
-    return c;
-  };
-  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover: () => ({ servers: [{ name: 'slack' }], errors: [] }) });
+  const f = fakeClaude((c) => {
+    if (!c.proc.inited) { c.proc.inited = true; c.stdout.write(line({ type: 'system', subtype: 'init', session_id: 's', tools: ['Read', 'mcp__slack__slack_read_channel', 'mcp__slack__slack_send_message'], mcp_servers: [{ name: 'slack', status: 'connected' }] })); }
+    c.stdout.write(line({ type: 'result', subtype: 'success', result: 'ok', session_id: 's', permission_denials: [{ tool_name: 'mcp__slack__slack_send_message' }, { tool_name: 'Bash' }] }));
+  });
+  const calls = f.calls;
+  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl: f.spawnImpl, discover: () => ({ servers: [{ name: 'slack' }], errors: [] }), managedPolicy: () => ({ ask: new Set(), deny: new Set() }), initWaitMs: 0, stopWaitMs: 20 });
   const events = []; svc.subscribe((e) => events.push(e));
-  const flag = (a, f) => a[a.indexOf(f) + 1];
+  const flag = (a, f2) => a[a.indexOf(f2) + 1];
 
   await svc.send('one').done;                                   // no grant, catalog unknown: denied, learns the catalog
-  expect(flag(calls[0], '--allowedTools')).not.toMatch(/mcp__/);
-  expect(flag(calls[0], '--disallowedTools')).toMatch(/mcp__\*/);
-  expect(flag(calls[0], '--append-system-prompt')).toMatch(/External tools and actions: none/);
+  expect(flag(calls[0].args, '--allowedTools')).not.toMatch(/mcp__/);
+  expect(flag(calls[0].args, '--disallowedTools')).toMatch(/mcp__\*/);
+  expect(calls[0].full).toMatch(/External tools and actions: none/);
   expect(JSON.parse(fs.readFileSync(path.join(home, 'tools-seen.json'), 'utf8')).servers.slack.tools).toEqual(['slack_read_channel', 'slack_send_message']);
 
   svc.grants.grant({ server: 'slack', level: 'read', duration: '1h' });
   await svc.send('two').done;
-  expect(flag(calls[1], '--allowedTools')).toContain('mcp__slack__slack_read_channel');
-  expect(flag(calls[1], '--allowedTools')).not.toContain('slack_send_message');
-  expect(flag(calls[1], '--disallowedTools')).not.toContain('mcp__*');
-  expect(flag(calls[1], '--append-system-prompt')).toMatch(/- slack: read, until /);
+  expect(f.procs).toHaveLength(2);                              // the allowlist changed: a new process
+  expect(flag(calls[1].args, '--allowedTools')).toContain('mcp__slack__slack_read_channel');
+  expect(flag(calls[1].args, '--allowedTools')).not.toContain('slack_send_message');
+  expect(flag(calls[1].args, '--disallowedTools')).not.toContain('mcp__*');
+  expect(calls[1].full).toMatch(/- slack: read, until /);
 
   svc.grants.revoke('slack');
   await svc.send('three').done;                                 // revoked: denied again
-  expect(flag(calls[2], '--allowedTools')).not.toMatch(/mcp__/);
+  expect(flag(calls[2].args, '--allowedTools')).not.toMatch(/mcp__/);
 
   const denied = events.filter((e) => e.type === 'denied');
   expect(denied.find((d) => d.tool === 'mcp__slack__slack_send_message')).toMatchObject({ server: 'slack', level: 'write' });
   expect(denied.find((d) => d.tool === 'Bash')).toMatchObject({ server: null, level: null });
 });
 
-test('prompt: carries the access block and the rules she must state', () => {
+test('prompt: carries the access pointer, the charter and the rules she must state', () => {
   const tpl = fs.readFileSync(path.join(__dirname, '../lib/euphonia/prompt.md'), 'utf8');
-  const out = renderPrompt(tpl, { user: 'Willow', name: 'Euphonia', kb: '/k', hub: '/h', access: '- ACCESS-BLOCK-HERE' });
+  const out = renderPrompt(tpl, { user: 'Willow', pronouns: 'she/her', pronouns_note: ' (pronouns: she/her)', name: 'Euphonia', kb: '/k', hub: '/h', access: '- ACCESS-BLOCK-HERE' });
   expect(out).toContain('- ACCESS-BLOCK-HERE');
+  expect(out).toContain('(pronouns: she/her)');
   expect(out).not.toMatch(/\{\{/);
+  // the charter (## How you work)
+  expect(out).toMatch(/## How you work/);
+  expect(out).toMatch(/Two modes.*solo.*with The\s+Firm/s);
+  expect(out).toMatch(/Act inside a standing grant without asking/);
+  expect(out).toMatch(/retry once in the same turn/);
+  expect(out).toMatch(/Never end on "I can't"/);
+  expect(out).toMatch(/Verify every outward action from its receipt/);
+  expect(out).toMatch(/pricing\/the-firm\/develop/);
+  expect(out).toMatch(/PPE-2832/);
+  expect(out).toMatch(/C0C3025VD7T/);
+  expect(out).toMatch(/held by the managed policy .*Management/s);
+  expect(out.length).toBeLessThan(11000);                         // prompt.md stays short
   expect(out).toMatch(/cannot change your own permissions/);
   expect(out).toMatch(/Euphonia > Tool access/);
   expect(out).toMatch(/which server and which level/);
@@ -302,32 +302,27 @@ describe('browser (the managed playwright server, no bridge)', () => {
 
   test('discovery lists playwright from the managed file; its tools learned from the init event are admitted per grant level, and a first-turn gap allows nothing', async () => {
     const home = tmp();
-    const replies = [];
-    const spawnImpl = (cmd, args) => {
-      replies.push(args);
-      const c = new EventEmitter(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.stdin.resume();
-      c.stdin.on('end', () => setImmediate(() => {
-        c.stdout.write(JSON.stringify({ type: 'system', subtype: 'init', session_id: 's', tools: ['Read', ...PW.map((t) => `mcp__playwright__${t}`)], mcp_servers: [{ name: 'playwright', status: 'connected' }] }) + '\n');
-        c.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: 'ok', session_id: 's' }) + '\n');
-        c.stdout.end(); c.emit('close', 0);
-      }));
-      return c;
-    };
+    const f = fakeClaude((c) => {
+      if (!c.proc.inited) { c.proc.inited = true; c.stdout.write(line({ type: 'system', subtype: 'init', session_id: 's', tools: ['Read', ...PW.map((t) => `mcp__playwright__${t}`)], mcp_servers: [{ name: 'playwright', status: 'connected' }] })); }
+      c.stdout.write(line({ type: 'result', subtype: 'success', result: 'ok', session_id: 's' }));
+    });
+    const replies = f.calls;
     const discover = () => ({ servers: [{ name: 'playwright', sources: ['managed'] }, { name: 'playwright-local-verify', sources: ['managed'] }], errors: [] });
-    const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, discover, managedPolicy: () => ({ ask: new Set(), deny: new Set() }) });   // this machine's managed file must not steer the test
+    const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl: f.spawnImpl, discover, managedPolicy: () => ({ ask: new Set(), deny: new Set() }), initWaitMs: 0, stopWaitMs: 20 });   // this machine's managed file must not steer the test
     expect(svc.discoverServers().servers.map((s) => s.name)).toEqual(['euphonia-bridge', 'playwright', 'playwright-local-verify']);
     svc.grants.grant({ server: 'playwright', level: 'read', duration: '1h' });
-    const flag = (a, f) => a[a.indexOf(f) + 1];
+    const flag = (a, f2) => a[a.indexOf(f2) + 1];
     await svc.send('one').done;                                  // the catalogue gap: grant exists, tools not yet learned
-    expect(flag(replies[0], '--allowedTools')).not.toMatch(/mcp__playwright/);
-    expect(flag(replies[0], '--append-system-prompt')).toMatch(/learned on its first turn/);
-    await svc.send('two').done;                                  // learned from the first turn's init event
-    const allowed = flag(replies[1], '--allowedTools');
+    expect(flag(replies[0].args, '--allowedTools')).not.toMatch(/mcp__playwright/);
+    expect(replies[0].full).toMatch(/learned on its first turn/);
+    await svc.send('two').done;                                  // learned from the first turn's init event; the allowlist changed, so a new process
+    expect(f.procs).toHaveLength(2);
+    const allowed = flag(replies[1].args, '--allowedTools');
     for (const n of READ_PW) expect(allowed).toContain(`mcp__playwright__${n}`);
-    for (const n of PW.filter((x) => !READ_PW.includes(x))) { expect(allowed).not.toContain(`mcp__playwright__${n}`); expect(flag(replies[1], '--disallowedTools')).toContain(`mcp__playwright__${n}`); }
-    expect(flag(replies[1], '--disallowedTools')).toContain('mcp__playwright-local-verify');   // the other managed server stays denied
+    for (const n of PW.filter((x) => !READ_PW.includes(x))) { expect(allowed).not.toContain(`mcp__playwright__${n}`); expect(flag(replies[1].args, '--disallowedTools')).toContain(`mcp__playwright__${n}`); }
+    expect(flag(replies[1].args, '--disallowedTools')).toContain('mcp__playwright-local-verify');   // the other managed server stays denied
     svc.grants.grant({ server: 'playwright', level: 'write', duration: '1h' });
     await svc.send('three').done;
-    for (const n of PW) expect(flag(replies[2], '--allowedTools')).toContain(`mcp__playwright__${n}`);
+    for (const n of PW) expect(flag(replies[2].args, '--allowedTools')).toContain(`mcp__playwright__${n}`);
   });
 });

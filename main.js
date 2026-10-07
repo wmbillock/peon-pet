@@ -1343,7 +1343,10 @@ if (!gotLock) {
     startHotReload();
   });
   // Say why the app is going away: a clean exit (code 0) is not restarted by launchd, so it is hard to notice otherwise.
-  app.on('before-quit', () => console.log(`[app] before-quit (${new Date().toLocaleTimeString()})`));
+  app.on('before-quit', () => {
+    console.log(`[app] before-quit (${new Date().toLocaleTimeString()})`);
+    if (euphonia) euphonia.shutdown().catch(() => {});   // end Euphonia's long-lived CLI process (stdin closed, then killed)
+  });
   for (const sig of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(sig, () => { console.log(`[app] ${sig} received, exiting`); app.quit(); });
   app.on('window-all-closed', () => { console.log('[app] last window closed, quitting'); app.quit(); });
 }

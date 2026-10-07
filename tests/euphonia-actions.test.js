@@ -1,9 +1,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { EventEmitter } = require('events');
-const { PassThrough } = require('stream');
-const { parseActions, hashOf, MAX_HOPS, CARD_TTL_MS } = require('../lib/euphonia/actions');
+const { parseActions, hashOf, renderReceipts, MAX_HOPS, CARD_TTL_MS } = require('../lib/euphonia/actions');
+const { fakeClaude, line } = require('./helpers/fake-claude');
 const { createEuphonia } = require('../lib/euphonia/service');
 const { registerEuphoniaIpc } = require('../lib/euphonia/ipc');
 const { reduce, initial, describeCard, toolLabel } = require('../renderer/chat-model');
@@ -54,37 +53,31 @@ describe('action-block parser', () => {
 });
 
 // ---- the service with a scripted fake CLI and fake Firm/gh/cosmetics ----
-function build({ replies, grants = [], ghOut = 'https://github.com/Affirm/affirm-builders/issues/77' }) {
+function build({ replies, grants = [], ghOut = 'https://github.com/Affirm/affirm-builders/issues/77', firmSend = null }) {
   const home = tmp();
-  const calls = { cli: [], firm: [], gh: [], cos: [] };
+  const calls = { firm: [], gh: [], cos: [] };
   let n = 0;
-  const spawnImpl = (cmd, args) => {
-    const c = new EventEmitter(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.stdin.resume();
-    let stdin = '';
-    c.stdin.on('data', (d) => { stdin += d; });
-    c.stdin.on('end', () => setImmediate(() => {
-      calls.cli.push({ args, stdin });
-      const text = typeof replies === 'function' ? replies(stdin, ++n) : replies[Math.min(n++, replies.length - 1)];
-      c.stdout.write(JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } }) + '\n');
-      c.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: text, session_id: 's' }) + '\n');
-      c.stdout.end(); c.emit('close', 0);
-    }));
-    return c;
-  };
+  const fake = fakeClaude((c, call) => {
+    const text = typeof replies === 'function' ? replies(call.stdin, ++n) : replies[Math.min(n++, replies.length - 1)];
+    c.stdout.write(line({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } }));
+    c.stdout.write(line({ type: 'result', subtype: 'success', result: text, session_id: 's' }));
+    if (!c.proc.persistent) c.proc.close(0);
+  });
+  calls.cli = fake.calls;
   const actionDeps = {
     firm: {
-      workstreams: async () => [{ id: 'ws_1', title: 'T', status: 'active', counts: {}, cost_usd: 1 }], now: async () => ({}), inbox: async () => [], workstream: async (id) => ({ id }),
-      sendToManagement: async (t) => { calls.firm.push(['send', t]); return { sent: true, notes: [] }; }, respondInbox: async () => ({ ok: true }),
+      workstreams: async () => [{ id: 'ws_1', title: 'T', status: 'active', counts: {}, cost_usd: 1 }], inbox: async () => [], workstream: async (id) => ({ id }),
+      sendToManagement: async (t) => { calls.firm.push(['send', t]); return firmSend ? firmSend(t) : { sent: true, notes: [], receipt: null, reply: 'pending' }; }, respondInbox: async () => ({ ok: true }),
     },
     ghRun: async (a) => { calls.gh.push(a); return a[0] === 'issue' ? ghOut : '{"number":7}'; },
     cosmetics: (p) => { calls.cos.push(p); return { changed: Object.keys(p) }; },
   };
   let clock = Date.parse('2026-10-07T12:00:00Z');
-  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl, actionDeps, discover: () => ({ servers: [], errors: [] }), now: () => new Date(clock) });
+  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', spawnImpl: fake.spawnImpl, actionDeps, discover: () => ({ servers: [], errors: [] }), managedPolicy: () => ({ ask: new Set(), deny: new Set() }), initWaitMs: 0, stopWaitMs: 20, now: () => new Date(clock) });
   for (const g of grants) svc.grants.grant(g);
   const events = []; svc.subscribe((e) => events.push(e));
   const audit = () => (fs.existsSync(path.join(home, 'bridge-audit.jsonl')) ? fs.readFileSync(path.join(home, 'bridge-audit.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
-  return { svc, calls, events, home, audit, tick: (ms) => { clock += ms; }, userTurns: () => calls.cli.map((c) => c.stdin) };
+  return { svc, calls, events, home, audit, procs: fake.procs, tick: (ms) => { clock += ms; }, userTurns: () => calls.cli.map((c) => c.stdin), headers: () => calls.cli.map((c) => c.full) };
 }
 const READ_G = [{ server: 'euphonia-bridge', level: 'read', duration: '1h' }];
 const WRITE_G = [{ server: 'euphonia-bridge', level: 'write', duration: '1h' }];
@@ -98,7 +91,7 @@ describe('read actions', () => {
     expect(t.userTurns()).toHaveLength(2);
     expect(t.userTurns()[1]).toMatch(/^\[tool result: firm_get_status\]\n/);
     expect(t.userTurns()[1]).toContain('ws_1');
-    expect(t.calls.cli[1].args[t.calls.cli[1].args.indexOf('--resume') + 1]).toBe('s');
+    expect(t.calls.cli[1].proc).toBe(t.calls.cli[0].proc);     // the same live process, so the same session
     const h = t.svc.history();
     expect(h.map((m) => [m.role, m.origin])).toEqual([['user', 'user'], ['assistant', 'agent'], ['user', 'tool'], ['assistant', 'agent']]);
     expect(h[1].text).toBe('Checking.');                       // the block is not shown or stored as her words
@@ -148,6 +141,38 @@ describe('write actions', () => {
     expect(t.calls.gh).toHaveLength(1);
     expect(t.audit().map((a) => `${a.tool}:${a.status}`)).toEqual(['firm_file_task:card', 'firm_file_task:attempt', 'firm_file_task:ok']);
   });
+  test('receipts: an approved write is logged to kb/firm/sent.jsonl, the card shows sent HH:MM, the result goes back to her, and the next header carries it', async () => {
+    const firmSend = async () => ({ sent: true, notes: [], receipt: { event_id: 123, ts: '2026-10-07T12:00:05Z', delivered_at: '2026-10-07T12:00:06Z', acked_at: null }, reply: 'On it: planning X.' });
+    const t = build({ replies: [block({ tool: 'firm_send_to_management', args: { text: 'plan X' } }), 'Sent and acknowledged.', 'yes it was sent'], grants: WRITE_G, firmSend });
+    await t.svc.send('tell management to plan X').done; await t.svc.idle();
+    const [card] = t.svc.cards();
+    await t.svc.decideCard({ id: card.id, hash: card.hash, decision: 'approve' }); await t.svc.idle();
+    const sent = fs.readFileSync(path.join(t.home, 'kb', 'firm', 'sent.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ id: card.id, action: 'firm_send_to_management', destination: 'The Firm: message to Management, sent as you', status: 'delivered', receipt: { event_id: 123, delivered_at: '2026-10-07T12:00:06Z' }, reply: 'On it: planning X.' });
+    expect(typeof sent[0].ts).toBe('string');
+    const done = t.svc.cards()[0];
+    expect(done).toMatchObject({ status: 'executed', receipt: { event_id: 123 }, reply: 'On it: planning X.', receipt_logged: true });
+    expect(describeCard(done).label).toMatch(/^sent \d\d:\d\d · reply: On it: planning X\./);
+    expect(t.events.some((e) => e.type === 'receipt' && e.receipt.status === 'delivered')).toBe(true);
+    expect(t.userTurns()[1]).toMatch(/^\[tool result: firm_send_to_management\]\n.*\[receipt\] delivered at .*Firm event 123 delivered to Management; Management's reply: On it: planning X\./s);
+    await t.svc.send('did that get sent?').done;
+    expect(t.headers()[2]).toMatch(/\[Recent sends through your approval cards, last 24 h.*\n- \d\d:\d\d firm_send_to_management -> The Firm: message to Management, sent as you: delivered \(Firm event 123, delivered to Management\) reply: "On it: planning X\."/s);
+    expect(t.headers()[0]).not.toMatch(/Recent sends/);        // nothing to report before the first send
+    expect(renderReceipts(path.join(t.home, 'kb', 'firm', 'sent.jsonl'), { now: Date.parse(sent[0].ts) + 25 * 3600e3 })).toBe('');   // older than a day: gone from the header
+  });
+  test('receipts: a failed write is logged as failed with the reason, and the card says so', async () => {
+    const t = build({ replies: [block({ tool: 'firm_send_to_management', args: { text: 'plan Y' } }), 'It failed.'], grants: WRITE_G, firmSend: async () => { throw new Error('The Firm closed the chat socket'); } });
+    await t.svc.send('x').done; await t.svc.idle();
+    const [card] = t.svc.cards();
+    expect(await t.svc.decideCard({ id: card.id, hash: card.hash, decision: 'approve' })).toEqual({ ok: true, status: 'failed' }); await t.svc.idle();
+    const sent = fs.readFileSync(path.join(t.home, 'kb', 'firm', 'sent.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    expect(sent[0]).toMatchObject({ status: 'failed', result: 'The Firm closed the chat socket', receipt: null });
+    expect(describeCard(t.svc.cards()[0]).label).toBe('failed: The Firm closed the chat socket');
+    expect(t.userTurns()[1]).toMatch(/Failed: The Firm closed the chat socket/);
+    await t.svc.send('and?').done;
+    expect(t.headers()[2]).toMatch(/firm_send_to_management -> .*: failed \(The Firm closed the chat socket\)/);
+  });
   test('a read grant is not enough: no card is made, a refusal goes back', async () => {
     const t = build({ replies: [fileTask, 'ok'], grants: READ_G });
     await t.svc.send('file').done; await t.svc.idle();
@@ -182,7 +207,7 @@ describe('write actions', () => {
     const t = build({ replies: [fileTask, 'ok'], grants: WRITE_G });
     await t.svc.send('file').done; await t.svc.idle();
     const [card] = t.svc.cards();
-    const again = createEuphonia({ home: t.home, hubDir: path.join(t.home, 'hub'), user: 'w', discover: () => ({ servers: [], errors: [] }), actionDeps: {}, now: () => new Date(Date.parse(card.created_at) + 1000) });
+    const again = createEuphonia({ home: t.home, hubDir: path.join(t.home, 'hub'), user: 'w', discover: () => ({ servers: [], errors: [] }), actionDeps: {}, spawnImpl: () => { throw new Error('no'); }, now: () => new Date(Date.parse(card.created_at) + 1000) });
     expect(again.cards()[0]).toMatchObject({ id: card.id, status: 'pending' });
     t.tick(CARD_TTL_MS + 1000);
     expect(t.svc.cards()[0].status).toBe('expired');
@@ -263,9 +288,12 @@ describe('chat model: cards and tool results', () => {
     expect(describeCard(card, Date.parse('2026-10-07T12:11:00Z'))).toMatchObject({ status: 'expired', actionable: false });
     s = reduce(s, { type: 'event', event: { type: 'card', card: { ...card, status: 'executed' } } });
     expect(s.cards).toHaveLength(1);
-    expect(describeCard(s.cards[0])).toMatchObject({ label: 'Done', actionable: false });
+    expect(describeCard(s.cards[0])).toMatchObject({ label: 'sent', actionable: false });   // no sent_at on this card: bare "sent"
+    expect(describeCard({ ...card, status: 'executed', sent_at: '2026-10-07T12:03:00.000Z' }).label).toBe(`sent ${new Date('2026-10-07T12:03:00.000Z').getHours().toString().padStart(2, '0')}:03`);
+    expect(describeCard({ ...card, status: 'executed', sent_at: '2026-10-07T12:03:00.000Z', reply: 'pending' }).label).toMatch(/· reply pending$/);
     expect(describeCard({ ...card, status: 'denied' }).label).toBe('Denied');
-    expect(describeCard({ ...card, status: 'failed' }).label).toBe('Failed');
+    expect(describeCard({ ...card, status: 'failed' }).label).toBe('failed: see the result');
+    expect(describeCard({ ...card, status: 'failed', failed_reason: 'no grant' }).label).toBe('failed: no grant');
     s = reduce(s, { type: 'history', records: [], cards: [card] });
     expect(s.cards[0].status).toBe('pending');   // cards survive a reload
   });

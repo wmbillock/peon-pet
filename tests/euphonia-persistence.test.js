@@ -11,7 +11,7 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'per-'));
 
 // Everything a "restart" recreates: the service, the roster, the IPC. State lives only in the two directories.
 function boot({ home, rosterFile, packs = ['alpha', 'beta'], peon = null, spawnImpl = () => { throw new Error('no cli'); } }) {
-  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', discover: () => ({ servers: [], errors: [] }), spawnImpl });
+  const svc = createEuphonia({ home, hubDir: path.join(home, 'hub'), user: 'w', discover: () => ({ servers: [], errors: [] }), spawnImpl, initWaitMs: 0 });
   const roster = createRoster({ file: rosterFile, isSpecies: (s) => INSTALLED.includes(s) });
   const facade = { pinReserved: (spec) => roster.pinReserved(spec), update: (id, p) => roster.update(id, p) };
   const handlers = {};
@@ -92,13 +92,8 @@ test('the very next reply uses the saved pack, without a restart', async () => {
     fs.writeFileSync(path.join(peon, 'packs', n, 'sounds', `${n}.mp3`), 'x');
     fs.writeFileSync(path.join(peon, 'packs', n, 'openpeon.json'), JSON.stringify({ categories: { 'task.complete': { sounds: [{ file: `${n}.mp3` }] } } }));
   }
-  const { EventEmitter } = require('events');
-  const { PassThrough } = require('stream');
-  const spawnImpl = () => {
-    const c = new EventEmitter(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.stdin.resume();
-    c.stdin.on('end', () => setImmediate(() => { c.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', result: 'hi', session_id: 's' }) + '\n'); c.stdout.end(); c.emit('close', 0); }));
-    return c;
-  };
+  const { fakeClaude, line } = require('./helpers/fake-claude');
+  const { spawnImpl } = fakeClaude((c) => { c.stdout.write(line({ type: 'result', subtype: 'success', result: 'hi', session_id: 's' })); });
   const a = boot({ home: tmp(), rosterFile: path.join(tmp(), 'pets.json'), peon, spawnImpl });
   const reply = () => new Promise((resolve) => {
     const off = a.svc.subscribe((ev) => { if (ev.type === 'done') { off(); resolve(); } });

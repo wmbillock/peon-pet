@@ -63,3 +63,14 @@ test('"allow reading on all connected servers" is dashboard-only, grants read bl
   expect(granted.map((g) => `${g.server}:${g.level}:${g.duration}`)).toEqual(['jira:read:blanket', 'notion:read:blanket']);
   expect(t.svc.learnTools).toHaveBeenCalledTimes(1);
 });
+
+test('how she addresses the owner (displayName, pronouns) is set from the dashboard only, like the name', async () => {
+  const t = setup();
+  expect((await t.handlers['euphonia-set-config']({ sender: t.chat }, { displayName: 'Willow' })).ok).toBe(false);
+  expect((await t.handlers['euphonia-set-config']({ sender: t.pet }, { pronouns: 'she/her' })).ok).toBe(false);
+  expect(t.svc.setConfig).not.toHaveBeenCalled();
+  const r = await t.handlers['euphonia-set-config']({ sender: t.dash }, { displayName: 'Willow', pronouns: 'she/her' });
+  expect(r.ok).toBe(true);
+  expect(t.svc.setConfig).toHaveBeenCalledWith({ displayName: 'Willow', pronouns: 'she/her' });
+  expect(r.config).toMatchObject({ displayName: 'Willow', pronouns: 'she/her' });
+});

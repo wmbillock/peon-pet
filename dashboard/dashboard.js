@@ -289,10 +289,12 @@ window.dashBridge.getCornerView().then(markCornerView);
 // --- Euphonia name and voice. Saves on change and confirms from what was read back from disk. ---
 const euphPack = document.getElementById('euph-pack');
 const euphName = document.getElementById('euph-name');
+const euphOwner = document.getElementById('euph-owner-name');
+const euphPronouns = document.getElementById('euph-pronouns');
 const euphNote = document.getElementById('euph-note');
 function euphSaved(cfg, warning) {
   euphNote.style.color = warning ? '#ffcc66' : '#6dff7a';
-  euphNote.textContent = `${warning ? warning + ' ' : ''}Saved \u2713 ${cfg.name}, voice: ${cfg.soundPack || '(none)'}`;
+  euphNote.textContent = `${warning ? warning + ' ' : ''}Saved \u2713 ${cfg.name}, voice: ${cfg.soundPack || '(none)'}, you: ${cfg.displayName || '(the owner)'}${cfg.pronouns ? ` (${cfg.pronouns})` : ''}`;
 }
 function euphFailed(msg) { euphNote.style.color = '#ff6060'; euphNote.textContent = `NOT saved: ${msg}`; }
 async function loadEuphonia() {
@@ -304,6 +306,8 @@ async function loadEuphonia() {
     euphPack.replaceChildren(...opts);
     euphPack.value = r.config.soundPack || '';
     euphName.value = r.config.name;
+    euphOwner.value = r.config.displayName || '';
+    euphPronouns.value = r.config.pronouns || '';
     euphSaved(r.config);
   } catch (e) { euphFailed(e.message); }
 }
@@ -316,6 +320,8 @@ async function saveEuph(patch) {
 }
 euphPack.addEventListener('change', () => saveEuph({ soundPack: euphPack.value }));
 euphName.addEventListener('change', () => saveEuph({ name: euphName.value }));
+euphOwner.addEventListener('change', () => saveEuph({ displayName: euphOwner.value }));
+euphPronouns.addEventListener('change', () => saveEuph({ pronouns: euphPronouns.value }));
 document.getElementById('euph-audition').addEventListener('click', () => audition(euphPack.value));
 loadEuphonia();
 

@@ -17,11 +17,15 @@
     return m ? `Result of ${m[1]} returned to Euphonia` : 'Tool result returned to Euphonia';
   }
   // The state of an approval card, in words.
+  const hhmm = (iso) => { const d = new Date(iso || NaN); return Number.isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   function describeCard(card, now = Date.now()) {
     const expired = card.status === 'pending' && Date.parse(card.expires_at) <= now;
     const status = expired ? 'expired' : card.status;
     const words = { pending: 'Waiting for your approval', running: 'Running...', executed: 'Done', failed: 'Failed', denied: 'Denied', expired: 'Expired (nothing was done)' };
-    return { status, label: words[status] || status, actionable: status === 'pending' };
+    let label = words[status] || status;
+    if (status === 'executed') { const at = hhmm(card.sent_at || card.decided_at); label = at ? `sent ${at}` : 'sent'; if (card.reply && card.reply !== 'pending') label += ` · reply: ${String(card.reply).slice(0, 80)}`; else if (card.reply === 'pending') label += ' · reply pending'; }
+    if (status === 'failed') label = `failed: ${card.failed_reason || 'see the result'}`;
+    return { status, label, actionable: status === 'pending' };
   }
 
   // A denied tool, named with the server and the access level it needs, and where to grant it.
