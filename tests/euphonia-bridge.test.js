@@ -12,7 +12,7 @@ const { sendOnce, frame, parseFrames, GUID } = require('../lib/euphonia/bridge/w
 const { applyCosmetics } = require('../lib/euphonia/bridge/cosmetics');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'brg-'));
-const READ = ['firm_get_status', 'firm_list_inbox', 'firm_get_workstream', 'github_view_pr', 'github_list_prs', 'github_list_issues', 'github_check_pr'];
+const READ = ['firm_get_status', 'firm_list_inbox', 'firm_get_workstream', 'firm_list_events', 'github_view_pr', 'github_list_prs', 'github_list_issues', 'github_check_pr', 'github_firm_pr_watch'];
 const WRITE = ['firm_send_to_management', 'firm_respond_inbox', 'firm_file_task', 'pet_set_cosmetics'];
 
 test('every bridge tool name classifies as intended, so a read grant cannot reach a write tool', () => {
@@ -27,8 +27,10 @@ function setup({ grants = [], ghOut = {} } = {}) {
   const calls = { firm: [], gh: [], cosmetics: [] };
   const firm = {
     workstreams: async () => [{ id: 'ws_1', title: 'T', status: 'active', counts: { done: 1 }, cost_usd: 1.5, secret: 'x' }],
-    now: async () => ({ ws_1: 'working' }), inbox: async () => [{ id: 'i1', kind: 'plan_ok' }],
+    inbox: async () => [{ id: 'i1', kind: 'plan_ok' }],
     workstream: async (id) => ({ id }),
+    events: async ({ sinceId = 0, limit = 100, latest = false } = {}) => { calls.firm.push(['events', latest ? 'latest' : sinceId, limit]); return EVENTS.filter((e) => latest || e.id > sinceId).slice(latest ? -limit : 0, latest ? undefined : limit); },
+    prs: async () => FIRM_PRS,
     sendToManagement: async (text) => { calls.firm.push(['send', text]); return { sent: true, notes: [] }; },
     respondInbox: async (id, action, text) => { calls.firm.push(['respond', id, action, text]); return { ok: true }; },
   };
@@ -41,6 +43,16 @@ function setup({ grants = [], ghOut = {} } = {}) {
   return { call, calls, home, audit, setGrants: (g) => { granted = g; }, auditLines: () => (fs.existsSync(audit.file) ? fs.readFileSync(audit.file, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []) };
 }
 const G = (level, expires_at = null) => [{ server: SERVER, level, expires_at }];
+const EVENTS = [
+  { id: 1, ts: '2026-10-07T10:00:00Z', kind: 'user_message', actor: 'user', target_agent: 'management', payload: { text: 'hi' }, delivered_at: '2026-10-07T10:00:01Z', acked_at: null },
+  { id: 2, ts: '2026-10-07T11:00:00Z', kind: 'bead_done', actor: 'lead:ws_1', target_agent: 'management', payload: { workstream_id: 'ws_1' }, delivered_at: null, acked_at: null },
+  { id: 3, ts: '2026-10-07T12:00:00Z', kind: 'pr_opened', actor: 'scheduler', target_agent: null, payload: { workstream_id: 'ws_2', pr_url: 'u' }, delivered_at: null, acked_at: null },
+];
+const FIRM_PRS = [
+  { workstream_id: 'ws_1', title: 'Pixoo', pr_number: '7', branch: 'firm/ws_1', base_branch: 'pricing/the-firm/develop', status: 'running', pr_state: 'open', merged_at: null },
+  { workstream_id: 'ws_2', title: 'Old', pr_number: '8', branch: 'firm/ws_2', base_branch: 'main', status: 'running', pr_state: 'open', merged_at: null },
+  { workstream_id: 'ws_3', title: 'Done', pr_number: '9', branch: 'firm/ws_3', base_branch: 'main', status: 'done', pr_state: 'merged', merged_at: '2026-10-01T00:00:00Z' },
+];
 
 describe('grant enforcement inside the bridge', () => {
   test('no grant: every tool is refused and nothing is called', async () => {
@@ -84,13 +96,47 @@ describe('grant enforcement inside the bridge', () => {
 describe('tools', () => {
   test('read tools return what the Firm and gh returned', async () => {
     const s = setup({ grants: G('read'), ghOut: { 'pr:view': '{"number":7,"state":"OPEN"}' } });
-    expect(JSON.parse((await s.call('firm_get_status')).text).workstreams[0]).toEqual({ id: 'ws_1', title: 'T', status: 'active', counts: { done: 1 }, cost_usd: 1.5 });
+    const st = JSON.parse((await s.call('firm_get_status')).text);
+    expect(st.workstreams[0]).toEqual({ id: 'ws_1', title: 'T', status: 'active', counts: { done: 1 }, cost_usd: 1.5 });
+    expect(st.inbox_waiting).toBe(1);
     expect(JSON.parse((await s.call('firm_get_workstream', { id: 'ws_1' })).text)).toEqual({ id: 'ws_1' });
     expect(JSON.parse((await s.call('github_view_pr', { number: 7 })).text)).toEqual({ number: 7, state: 'OPEN' });
     await s.call('github_list_prs', { state: 'merged', limit: 5 });
     await s.call('github_list_issues', { label: 'the-firm' });
-    await s.call('github_check_pr', { number: 7 });
-    expect(s.calls.gh.map((a) => a.slice(0, 2).join(' '))).toEqual(['pr view', 'pr list', 'issue list', 'pr checks']);
+    const chk = JSON.parse((await s.call('github_check_pr', { number: 7 })).text);
+    expect(chk).toEqual({ pr: { number: 7, state: 'OPEN' }, checks: [] });   // the PR's base/head/state come with its checks
+    expect(s.calls.gh.map((a) => a.slice(0, 2).join(' ')).sort()).toEqual(['issue list', 'pr checks', 'pr list', 'pr view', 'pr view'].sort());
+    for (const cmd of [gh.commands.viewPr({ number: 1 }), gh.commands.listPrs(), gh.commands.listFirmPrs()]) {
+      const fields = cmd[cmd.indexOf('--json') + 1].split(',');
+      for (const f of ['baseRefName', 'headRefName', 'state', 'isDraft', 'mergeStateStatus', 'reviewDecision', 'statusCheckRollup']) expect(fields).toContain(f);
+    }
+  });
+  test('firm_list_events: newest by default, after an id, after a timestamp, filtered to a workstream; the actor comes through', async () => {
+    const s = setup({ grants: G('read') });
+    expect(JSON.parse((await s.call('firm_list_events')).text).map((e) => [e.id, e.actor])).toEqual([[1, 'user'], [2, 'lead:ws_1'], [3, 'scheduler']]);
+    expect(JSON.parse((await s.call('firm_list_events', { since: 1 })).text).map((e) => e.id)).toEqual([2, 3]);
+    expect(JSON.parse((await s.call('firm_list_events', { since: '2026-10-07T11:30:00Z' })).text).map((e) => e.id)).toEqual([3]);
+    expect(JSON.parse((await s.call('firm_list_events', { workstream: 'ws_2' })).text).map((e) => e.id)).toEqual([3]);
+    for (const bad of [{ since: 'yesterday' }, { limit: 0 }, { limit: 501 }, { workstream: 'a;b' }]) expect((await s.call('firm_list_events', bad)).isError).toBe(true);
+  });
+  test("github_firm_pr_watch: The Firm's open PRs read live from gh, flagged when the base is not the Firm develop branch; merged ones skipped", async () => {
+    const views = { '7': '{"number":7,"state":"OPEN","baseRefName":"pricing/the-firm/develop","headRefName":"firm/ws_1","isDraft":false}', '8': '{"number":8,"state":"OPEN","baseRefName":"main","headRefName":"firm/ws_2","isDraft":true,"url":"u8"}' };
+    const s = setup({ grants: G('read') });
+    s.ghRun = null;
+    const defs = createTools({ firm: { prs: async () => FIRM_PRS }, ghRun: async (args) => { s.calls.gh.push(args); return views[args[2]]; }, cosmetics: () => ({}) });
+    const call = createRunner({ defs, readGrants: () => G('read'), audit: s.audit });
+    const r = JSON.parse((await call('github_firm_pr_watch')).text);
+    expect(r.source).toBe('the-firm /api/prs');
+    expect(r.prs.map((p) => [p.number, p.workstream_id])).toEqual([[7, 'ws_1'], [8, 'ws_2']]);
+    expect(r.flagged).toEqual([{ number: 8, baseRefName: 'main', headRefName: 'firm/ws_2', url: 'u8', problem: 'base is main, not pricing/the-firm/develop' }]);
+    expect(r.note).toMatch(/1 PR\(s\) are not based on pricing\/the-firm\/develop/);
+    // The Firm unreachable: gh pr list, filtered to the-firm label or a Firm branch
+    const list = JSON.stringify([{ number: 1, baseRefName: 'main', headRefName: 'firm/x', labels: [] }, { number: 2, baseRefName: 'pricing/the-firm/develop', headRefName: 'feat/y', labels: [{ name: 'the-firm' }] }, { number: 3, baseRefName: 'main', headRefName: 'feat/z', labels: [] }]);
+    const defs2 = createTools({ firm: { prs: async () => { throw new Error('ECONNREFUSED'); } }, ghRun: async () => list, cosmetics: () => ({}) });
+    const r2 = JSON.parse((await createRunner({ defs: defs2, readGrants: () => G('read'), audit: s.audit })('github_firm_pr_watch')).text);
+    expect(r2.source).toMatch(/gh pr list.*ECONNREFUSED/);
+    expect(r2.prs.map((p) => p.number)).toEqual([1, 2]);
+    expect(r2.flagged.map((p) => p.number)).toEqual([1]);
   });
   test('[Assistant] prefix on messages to Management and on inbox responses', async () => {
     const s = setup({ grants: G('write') });
@@ -103,6 +149,9 @@ describe('tools', () => {
       ['respond', 'i1', 'approve', '[Assistant] relayed by the assistant'],
     ]);
     expect(ASSISTANT_PREFIX).toBe('[Assistant] ');
+    const refusing = createTools({ firm: { sendToManagement: async () => ({ sent: true, notes: ['Management is busy'] }) }, ghRun: async () => '', cosmetics: () => ({}) });
+    const r = await createRunner({ defs: refusing, readGrants: () => G('write'), audit: s.audit })('firm_send_to_management', { text: 'x' });
+    expect(r.isError).toBe(true); expect(r.text).toMatch(/refused the message: Management is busy/);
   });
   test('firm_file_task creates a labelled issue with fixed arguments and returns the URL', async () => {
     const s = setup({ grants: G('write'), ghOut: { 'issue:create': 'https://github.com/Affirm/affirm-builders/issues/4321\n' } });
@@ -173,6 +222,7 @@ describe('audit', () => {
       ['firm_send_to_management', 'attempt'], ['firm_send_to_management', 'ok'],
       ['firm_file_task', 'attempt'], ['firm_file_task', 'ok'], ['github_view_pr', 'ok'], ['firm_list_inbox', 'refused'],
     ]);
+    expect(lines.find((l) => l.tool === 'firm_send_to_management').args).toEqual({ text: { chars: 25 } });
     expect(lines[0].args).toEqual({ text: { chars: 25 } });
     expect(fs.readFileSync(s.audit.file, 'utf8')).not.toMatch(/secret|abc123/);
     expect(lines.every((l) => typeof l.ts === 'string')).toBe(true);
@@ -181,55 +231,96 @@ describe('audit', () => {
 });
 
 describe('Firm HTTP + WebSocket', () => {
-  test('reads need no token; inbox respond fetches the session token first; ids are validated; non-loopback refused', async () => {
-    const seen = [];
+  // A fake Firm: events feed, management transcript, inbox respond. No token anywhere (the API is loopback-only and unauthenticated).
+  function fakeFirmServer({ replyAfterMs = 0 } = {}) {
+    const state = { events: [{ id: 10, ts: 't0', kind: 'bead_done', actor: 'lead:ws_1', target_agent: 'management', payload: {}, delivered_at: null, acked_at: null }], msgs: [], seen: [] };
     const fetchImpl = async (url, init = {}) => {
-      seen.push([init.method || 'GET', url.replace('http://127.0.0.1:8420', ''), init.headers && init.headers['X-Firm-Token'], init.body]);
-      return { ok: true, status: 200, json: async () => (url.endsWith('/api/session') ? { token: 'tok' } : { ok: true }) };
+      const u = new URL(url);
+      state.seen.push([init.method || 'GET', u.pathname + u.search, init.headers && init.headers['X-Firm-Token'], init.body]);
+      const ok = (body) => ({ ok: true, status: 200, json: async () => body });
+      if (u.pathname === '/api/events') {
+        const since = Number(u.searchParams.get('since_id') || 0), limit = Number(u.searchParams.get('limit') || 100);
+        return ok(u.searchParams.get('latest') ? state.events.slice(-limit) : state.events.filter((e) => e.id > since).slice(0, limit));
+      }
+      if (u.pathname === '/api/threads/management/messages') return ok(state.msgs);
+      if (u.pathname.startsWith('/api/inbox/') && u.pathname.endsWith('/respond')) {
+        const { action, text } = JSON.parse(init.body);
+        const sent = action === 'dismiss' ? null : `[Inbox] ${action}: ${text}`;
+        if (sent) state.userSent(sent);
+        return ok({ sent, item: null });
+      }
+      return ok({ ok: true, path: u.pathname });
     };
-    const f = createFirmHttp({ fetchImpl });
-    await f.workstreams(); await f.inbox(); await f.workstream('ws_28b136');
-    await f.respondInbox('item:1', 'reply', '[Assistant] hi');
-    expect(seen).toEqual([
-      ['GET', '/api/workstreams', undefined, undefined], ['GET', '/api/inbox', undefined, undefined], ['GET', '/api/workstreams/ws_28b136', undefined, undefined],
-      ['GET', '/api/session', undefined, undefined], ['POST', '/api/inbox/item%3A1/respond', 'tok', JSON.stringify({ action: 'reply', text: '[Assistant] hi' })],
+    state.userSent = (text) => {
+      const id = state.events[state.events.length - 1].id + 1;
+      state.events.push({ id, ts: `t${id}`, kind: 'user_message', actor: 'user', target_agent: 'management', payload: { text }, delivered_at: `d${id}`, acked_at: null });
+      state.msgs.push({ type: 'text', role: 'user', text, audience: 'chat' });
+      setTimeout(() => state.msgs.push({ type: 'text', role: 'assistant', text: `Noted: ${text.slice(0, 20)}`, audience: 'chat' }), replyAfterMs);
+    };
+    return { state, fetchImpl };
+  }
+
+  test('reads carry no token; inbox respond posts { action, text } and returns the receipt for the message The Firm says it sent', async () => {
+    const { state, fetchImpl } = fakeFirmServer();
+    const f = createFirmHttp({ fetchImpl, sleep: () => new Promise((r) => setTimeout(r, 1)), receiptWaitMs: 500, receiptStepMs: 1 });
+    await f.workstreams(); await f.inbox(); await f.workstream('ws_28b136'); await f.prs(); await f.events({ sinceId: 3, limit: 5 });
+    expect(state.seen.map((x) => x.slice(0, 3))).toEqual([
+      ['GET', '/api/workstreams', undefined], ['GET', '/api/inbox', undefined], ['GET', '/api/workstreams/ws_28b136', undefined], ['GET', '/api/prs', undefined], ['GET', '/api/events?since_id=3&limit=5', undefined],
     ]);
+    expect(state.seen.some((x) => x[1].includes('session'))).toBe(false);
+    const r = await f.respondInbox('item:1', 'reply', '[Assistant] hi');
+    const post = state.seen.find((x) => x[0] === 'POST');
+    expect(post).toEqual(['POST', '/api/inbox/item%3A1/respond', undefined, JSON.stringify({ action: 'reply', text: '[Assistant] hi' })]);
+    expect(r.sent).toBe('[Inbox] reply: [Assistant] hi');
+    expect(r.receipt).toMatchObject({ event_id: 11, delivered_at: 'd11' });
+    expect(r.reply).toMatch(/^Noted: /);
     expect(() => f.workstream('../x')).toThrow();
+    expect(() => f.events({ limit: 501 })).toThrow(/limit/);
     expect(() => createFirmHttp({ baseUrl: 'http://example.com:8420' })).toThrow(/localhost/);
-    const bad = createFirmHttp({ fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ detail: 'missing or wrong token' }) }) });
-    await expect(bad.inbox()).rejects.toThrow(/HTTP 401: missing or wrong token/);
+    const bad = createFirmHttp({ fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({ detail: 'Inbox item x is no longer open' }) }) });
+    await expect(bad.inbox()).rejects.toThrow(/HTTP 404: Inbox item x is no longer open/);
   });
 
-  test('sendToManagement uses the token subprotocol and an allowed Origin (local socket only)', async () => {
+  test('sendToManagement: Origin set, no subprotocol, one message frame; the receipt is the user_message event and the reply follows', async () => {
     const got = {};
     const server = http.createServer();
+    const { state, fetchImpl } = fakeFirmServer();
     server.on('upgrade', (req, socket) => {
-      socket.on('error', () => {});   // the client hangs up right after its quiet period
+      socket.on('error', () => {});
       got.origin = req.headers.origin; got.proto = req.headers['sec-websocket-protocol']; got.path = req.url;
       const accept = crypto.createHash('sha1').update(req.headers['sec-websocket-key'] + GUID).digest('base64');
-      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\nSec-WebSocket-Protocol: firm\r\n\r\n`);
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
       const serverFrame = (o) => { const b = Buffer.from(JSON.stringify(o)); return Buffer.concat([Buffer.from([0x81, b.length]), b]); };
-      socket.write(serverFrame({ type: 'status' }));   // history replay
+      socket.write(serverFrame({ type: 'status' }));   // history replay + status frame come first
       let buf = Buffer.alloc(0);
       socket.on('data', (d) => {
         buf = Buffer.concat([buf, d]);
         if (buf.length < 6 || (buf[0] & 0x0f) !== 1) return;
         const len = buf[1] & 0x7f; const mask = buf.slice(2, 6); const body = Buffer.from(buf.slice(6, 6 + len).map((c, i) => c ^ mask[i % 4]));
         got.message = JSON.parse(body.toString());
-        socket.write(serverFrame({ type: 'system', text: 'Management is busy', audience: 'chat' }));
+        state.userSent(got.message.text);   // the server records it; it sends no ack
+        socket.write(serverFrame({ type: 'text', role: 'user', text: got.message.text, audience: 'chat' }));
       });
     });
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
-    const port = server.address().port;
-    const base = `http://127.0.0.1:${port}`;
-    const f = createFirmHttp({ baseUrl: base, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ token: 'tok-1' }) }), wsSend: (o) => sendOnce({ ...o, quietMs: 60, listenMs: 250 }) });
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const f = createFirmHttp({ baseUrl: base, fetchImpl, wsSend: (o) => sendOnce({ ...o, quietMs: 60, listenMs: 250 }), sleep: () => new Promise((r) => setTimeout(r, 1)), receiptWaitMs: 500, receiptStepMs: 1 });
     const r = await f.sendToManagement('[Assistant] hello');
     server.close();
     expect(got.origin).toBe(base);
-    expect(got.proto).toBe('firm, firm-token.tok-1');
+    expect(got.proto).toBeUndefined();
     expect(got.path).toBe('/ws/threads/management');
     expect(got.message).toEqual({ type: 'message', text: '[Assistant] hello' });
-    expect(r).toEqual({ sent: true, notes: ['Management is busy'] });
+    expect(r).toMatchObject({ sent: true, notes: [], receipt: { event_id: 11, ts: 't11', delivered_at: 'd11', acked_at: null }, reply: 'Noted: [Assistant] hello' });
+    expect(state.seen.filter((x) => x[1].startsWith('/api/events?since_id=10'))).not.toHaveLength(0);   // polled from the id seen before the send
+  });
+
+  test('a refusal notice after the send means no receipt; a reply that never comes stays pending', async () => {
+    const { fetchImpl } = fakeFirmServer({ replyAfterMs: 10000 });
+    const f = createFirmHttp({ fetchImpl, wsSend: async () => ({ sent: true, notes: ['This lead takes direction from Management only'] }), sleep: async () => {}, receiptWaitMs: 1, receiptStepMs: 1 });
+    expect(await f.sendToManagement('x')).toMatchObject({ sent: true, notes: ['This lead takes direction from Management only'], receipt: null, reply: null });
+    const g = createFirmHttp({ fetchImpl, wsSend: async () => ({ sent: true, notes: [] }), sleep: async () => {}, receiptWaitMs: 1, receiptStepMs: 1 });
+    expect(await g.sendToManagement('never recorded')).toMatchObject({ sent: true, receipt: null, reply: 'pending' });
   });
 
   test('frame helpers round-trip', () => {

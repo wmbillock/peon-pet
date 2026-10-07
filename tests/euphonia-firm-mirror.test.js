@@ -6,8 +6,8 @@ const { createFirmMirror, renderStatus } = require('../lib/euphonia/firm-mirror'
 const fakeFirm = (over = {}) => ({
   origin: 'http://127.0.0.1:8420',
   workstreams: async () => [{ id: 'ws_1', title: 'Pixoo cutout', status: 'running', counts: { workers: 2 }, cost_usd: 1.234 }],
-  now: async () => [{ id: 'ws_1', text: 'editing lib/pixoo-frames.js' }],
   inbox: async () => [{ id: 'in_9', kind: 'question', workstream_id: 'ws_1', question: 'Ship it?', buttons: ['approve', 'changes'] }],
+  events: async ({ limit }) => [{ id: 41, ts: '2026-10-07T12:00:00Z', kind: 'user_message', actor: 'user', target_agent: 'management', payload: { text: 'hi' }, delivered_at: null, acked_at: null }, { id: 42, ts: '2026-10-07T12:01:00Z', kind: 'bead_done', actor: 'lead:ws_1', target_agent: 'management', payload: {}, delivered_at: null, acked_at: null }].slice(-limit),
   ...over,
 });
 
@@ -29,6 +29,10 @@ test('refresh writes STATUS.md and inbox.json under kb/firm, mode 0600, and only
   expect(md).toContain('ws_1 · Pixoo cutout · running · workers 2 · $1.23');
   expect(md).toContain('in_9 · question · ws_1 · Ship it? · buttons: approve / changes');
   expect(JSON.parse(fs.readFileSync(m.files.inbox, 'utf8')).inbox[0].id).toBe('in_9');
+  expect(md).toContain('#42 2026-10-07T12:01:00Z bead_done by lead:ws_1 -> management');   // the actor is in the snapshot
+  const evs = fs.readFileSync(m.files.events, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  expect(evs.map((e) => [e.id, e.actor])).toEqual([[41, 'user'], [42, 'lead:ws_1']]);
+  expect(md).not.toMatch(/## Now/);   // this Firm has no /api/now; the section is omitted, not faked
   expect(fs.statSync(m.files.status).mode & 0o777).toBe(0o600);
   const before = fs.statSync(m.files.status).mtimeMs;
   await new Promise((r2) => setTimeout(r2, 5));
