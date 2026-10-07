@@ -88,3 +88,10 @@ test("the child's PATH carries nvm's node bins, so a managed server started with
   expect(p.indexOf('/Users/me/.nvm/versions/node/v22.1.0/bin')).toBeLessThan(p.indexOf('/usr/bin'));
   expect(childPath('/x/claude', { PATH: '/usr/bin' }, '/nohome', () => { throw new Error('ENOENT'); })).toBe('/x:/Users/me/.local/bin'.replace('/Users/me', '/nohome') + ':/opt/homebrew/bin:/usr/local/bin:/usr/bin');
 });
+
+test('the CLI child gets a two-minute MCP startup window unless the launcher set one', () => {
+  const { childEnv, MCP_STARTUP_MS } = require('../lib/euphonia/service');
+  expect(childEnv('/x/claude', { PATH: '/usr/bin' }).MCP_TIMEOUT).toBe(String(MCP_STARTUP_MS));
+  expect(childEnv('/x/claude', { PATH: '/usr/bin', MCP_TIMEOUT: '5000' }).MCP_TIMEOUT).toBe('5000');
+  expect(childEnv('/x/claude', { PATH: '/usr/bin' }).PATH.split(':')[0]).toBe('/x');
+});
