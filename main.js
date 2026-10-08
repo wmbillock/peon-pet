@@ -414,7 +414,7 @@ function createSubAgentWindow(sessionId, parentSessionId) {
     subWin.webContents.send('peon-config', { size: 100, subAgent: true });
     if (parentLook) subWin.webContents.send('pet-look', parentLook); else sendLook(subWin);
     subWin.webContents.send('peon-event', { anim: 'waking', event: 'SessionStart' });
-    startMouseTrackingForWindow(subWin);
+    // no mouse tracking: mini pets stay click-through (setIgnoreMouseEvents(true) above)
   });
 
   // Don't quit app when sub-agent window closes
@@ -1072,6 +1072,16 @@ let dragOffsetX = 0;
 let dragOffsetY = 0;
 let ignoringMouse = true;  // tracks last setIgnoreMouseEvents value
 
+// While dragging, the window follows the cursor on its own ~60 Hz timer. The shared 50 ms hover poll made drags
+// visibly lag and stutter, worse when the machine is busy.
+let dragTimer = null;
+function dragTick() {
+  if (!isDragging || !win || win.isDestroyed()) { clearInterval(dragTimer); dragTimer = null; return; }
+  const { x: cx, y: cy } = screen.getCursorScreenPoint();
+  const nx = cx - dragOffsetX, ny = cy - dragOffsetY;
+  const [wx, wy] = win.getPosition();
+  if (nx !== wx || ny !== wy) win.setPosition(nx, ny);
+}
 ipcMain.on('drag-start', () => {
   if (!win || win.isDestroyed()) return;
   isDragging = true;
@@ -1083,10 +1093,13 @@ ipcMain.on('drag-start', () => {
     win.setIgnoreMouseEvents(false);
     ignoringMouse = false;
   }
+  if (!dragTimer) dragTimer = setInterval(dragTick, 16);
 });
 
 ipcMain.on('drag-stop', () => {
   isDragging = false;
+  if (dragTimer) { clearInterval(dragTimer); dragTimer = null; }
+  repositionSubAgentWindows();
 });
 
 // Poll cursor position to enable mouse events only when hovering the window.
@@ -1100,13 +1113,7 @@ function startMouseTrackingForWindow(targetWin) {
     }
     const { x: cx, y: cy } = screen.getCursorScreenPoint();
 
-    if (targetWin === win && isDragging) {
-      const nx = cx - dragOffsetX;
-      const ny = cy - dragOffsetY;
-      const [wx, wy] = targetWin.getPosition();
-      if (nx !== wx || ny !== wy) targetWin.setPosition(nx, ny);
-      return;
-    }
+    if (targetWin === win && isDragging) return;   // the drag timer moves the window
 
     const [wx, wy] = targetWin.getPosition();
     const [ww, wh] = targetWin.getSize();
@@ -1116,9 +1123,9 @@ function startMouseTrackingForWindow(targetWin) {
         targetWin.setIgnoreMouseEvents(!inside);
         ignoringMouse = !inside;
       }
-    } else {
-      targetWin.setIgnoreMouseEvents(!inside);
     }
+    // Mini sub-agent pets stay click-through always: they sit beside the lead pet now, and making them clickable on
+    // hover stole clicks meant for the pet and for windows underneath.
   }, 50);
 }
 
