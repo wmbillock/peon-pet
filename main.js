@@ -108,6 +108,7 @@ function getEuphonia() {
     euphonia = createEuphonia({
       home: process.env.EUPHONIA_HOME || undefined, hubDir: process.env.EUPHONIA_HUB || undefined,
       firmUrl: () => firmUrl || 'http://127.0.0.1:8420', assetsDir: bundledAssetsDir, userDataDir: app.getPath('userData'), peonDir: peonSound.peonDir(),
+      persistent: true,   // one long-lived claude process: her MCP servers connect once and stay up
     });
   }
   return euphonia;
@@ -160,6 +161,7 @@ function initPets() {
   pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
   try {
     pinEuphonia();   // Euphonia is always the lead pet, ahead of every agent
+    setTimeout(() => { if (getEuphonia().start()) console.log('[euphonia] live session started', JSON.stringify(getEuphonia().status())); }, 1500);
   } catch (e) { console.error('[euphonia] could not pin the lead pet:', e.message); }
   registerPetIpc({
     ipcMain, dialog, nativeImage, pets, mutate, petSnapshot, savePetConfig, reloadPetWindows, borderById,
@@ -359,15 +361,20 @@ async function readRemoteState(baseUrl) {
   }
 }
 
-function repositionSubAgentWindows() {
+// Mini pets sit beside the lead pet's window (Euphonia) on its display; with no pet window, the old bottom-left corner.
+function subAgentPosition(n) {
+  const { subAgentSlot } = require('./lib/sub-agent-layout');
+  if (win && !win.isDestroyed()) {
+    const anchor = win.getBounds();
+    return subAgentSlot(anchor, screen.getDisplayMatching(anchor).workArea, n);
+  }
   const { height } = screen.getPrimaryDisplay().workAreaSize;
+  return { x: 20, y: (height - SUB_AGENT_BASE_Y_OFFSET) - (n + 1) * 100 };
+}
+function repositionSubAgentWindows() {
   let i = 0;
   for (const [, subWin] of subAgentWindows) {
-    if (!subWin.isDestroyed()) {
-      const mainY = height - SUB_AGENT_BASE_Y_OFFSET;
-      subWin.setPosition(20, mainY - (i + 1) * 100);
-      i++;
-    }
+    if (!subWin.isDestroyed()) { const p = subAgentPosition(i); subWin.setPosition(p.x, p.y); i++; }
   }
 }
 
@@ -377,14 +384,14 @@ function createSubAgentWindow(sessionId, parentSessionId) {
   if (subAgentWindows.has(sessionId)) return;
   const parentLook = parentSessionId ? latestLooks.get(parentSessionId) : null;
 
-  const { height } = screen.getPrimaryDisplay().workAreaSize;
   const idx = subAgentWindows.size;
+  const pos = subAgentPosition(idx);
 
   const subWin = new BrowserWindow({
     width: 100,
     height: 100,
-    x: 20,
-    y: (height - SUB_AGENT_BASE_Y_OFFSET) - (idx + 1) * 100,
+    x: pos.x,
+    y: pos.y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -1252,6 +1259,7 @@ function createWindow() {
     saveBoundsTimer = setTimeout(() => { if (win && !win.isDestroyed()) savePetConfig({ winBounds: win.getBounds() }); }, 400);
   };
   win.on('move', rememberBounds);
+  win.on('moved', () => repositionSubAgentWindows());   // mini pets follow the lead pet
   win.on('resize', rememberBounds);
 
   win.setIgnoreMouseEvents(true);
@@ -1348,7 +1356,7 @@ if (!gotLock) {
     startHotReload();
   });
   // Say why the app is going away: a clean exit (code 0) is not restarted by launchd, so it is hard to notice otherwise.
-  app.on('before-quit', () => console.log(`[app] before-quit (${new Date().toLocaleTimeString()})`));
+  app.on('before-quit', () => { console.log(`[app] before-quit (${new Date().toLocaleTimeString()})`); try { if (euphonia) euphonia.shutdown(); } catch { /* quitting anyway */ } });
   for (const sig of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(sig, () => { console.log(`[app] ${sig} received, exiting`); app.quit(); });
   app.on('window-all-closed', () => { console.log('[app] last window closed, quitting'); app.quit(); });
 }

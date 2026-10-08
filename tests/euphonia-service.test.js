@@ -235,3 +235,85 @@ test('learnTools runs a throwaway session with the same grants and merges the to
   const scratchGrants = JSON.parse(fs.readFileSync(path.join(`${e.paths.home}.learn`, 'grants.json'), 'utf8')).grants;
   expect(scratchGrants.map((g) => g.server)).toEqual(['jira']);
 });
+
+// ---- persistent mode: one process, many turns ----
+function liveClaude() {
+  const procs = [];
+  const spawnImpl = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough();
+    child.pid = 4242 + procs.length; child.kill = () => { child.emit('close', 0); };
+    const p = { args, child, inputs: [] };
+    procs.push(p);
+    let buf = '';
+    child.stdin.on('data', (d) => {
+      buf += d; let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const msg = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1);
+        p.inputs.push(msg.message.content);
+        setImmediate(() => {
+          child.stdout.write(line({ type: 'system', subtype: 'init', session_id: 'sess-live', tools: [], mcp_servers: [] }));
+          child.stdout.write(line({ type: 'stream_event', event: { type: 'message_start' } }));
+          child.stdout.write(delta(`re: ${msg.message.content}`));
+          child.stdout.write(line({ type: 'result', subtype: 'success', is_error: false, result: `re: ${msg.message.content}`, session_id: 'sess-live' }));
+        });
+      }
+    });
+    child.stdin.on('finish', () => setImmediate(() => child.emit('close', 0)));
+    return child;
+  };
+  return { spawnImpl, procs };
+}
+
+test('persistent: start() spawns one named stream-json process; turns go through it and keep the session', async () => {
+  const f = liveClaude();
+  const { e } = mk(null, { spawnImpl: f.spawnImpl, persistent: true });
+  expect(e.start()).toBe(true);
+  expect(f.procs).toHaveLength(1);
+  const a = f.procs[0].args;
+  expect(a).toContain('--input-format'); expect(a[a.indexOf('--input-format') + 1]).toBe('stream-json');
+  expect(a[a.indexOf('--name') + 1]).toBe('Euphonia (willow)');
+  expect(a).not.toContain('--resume');
+  const r1 = []; e.subscribe((ev) => { if (ev.type === 'done') r1.push(ev.text); });
+  await e.send('one').done;
+  await e.send('two').done;
+  expect(f.procs).toHaveLength(1);                 // same process for both turns
+  expect(f.procs[0].inputs).toEqual(['one', 'two']);
+  expect(r1).toEqual(['re: one', 're: two']);       // no stray paragraph break leaking between turns
+  expect(e.getSession()).toMatchObject({ id: 'sess-live', turns: 2 });
+  expect(e.status()).toMatchObject({ persistent: true, running: true });
+});
+
+test('persistent: a grant change replaces the process, resuming the same conversation; reset and shutdown stop it', async () => {
+  const f = liveClaude();
+  const { e } = mk(null, { spawnImpl: f.spawnImpl, persistent: true });
+  await e.send('hi').done;
+  expect(f.procs).toHaveLength(1);
+  e.grants.grant({ server: 'jira', level: 'read', duration: 'blanket' });
+  e.start();
+  expect(f.procs).toHaveLength(2);
+  const a = f.procs[1].args;
+  expect(a[a.indexOf('--resume') + 1]).toBe('sess-live');
+  e.start();
+  expect(f.procs).toHaveLength(2);                  // nothing changed: no restart
+  e.resetSession();
+  expect(e.status().running).toBe(false);
+  await e.send('fresh').done;
+  expect(f.procs).toHaveLength(3);
+  expect(f.procs[2].args).not.toContain('--resume');
+  e.shutdown();
+  expect(e.status().running).toBe(false);
+});
+
+test('persistent: the process dying mid-turn reports an error and the next message starts a new one', async () => {
+  const f = liveClaude();
+  const { e, events } = mk(null, { spawnImpl: f.spawnImpl, persistent: true });
+  e.start();
+  f.procs[0].child.stdin.removeAllListeners('data');
+  f.procs[0].child.stdin.on('data', () => setImmediate(() => { f.procs[0].child.stderr.write('boom: crashed\n'); f.procs[0].child.emit('close', 1); }));
+  await e.send('x').done;
+  expect(events.filter((ev) => ev.type === 'error').pop().message).toMatch(/boom: crashed/);
+  await e.send('y').done;
+  expect(f.procs).toHaveLength(2);
+  expect(events.filter((ev) => ev.type === 'done').pop().text).toBe('re: y');
+});
