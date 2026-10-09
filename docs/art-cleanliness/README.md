@@ -16,4 +16,6 @@ The renderer uses shared UV coordinates inset by half a source texel after the t
 
 Run `node scripts/clean-pet-art.js output/art-cleanliness/sources.json <new-staging-directory>` to reproduce the cleanup. It writes a staging bundle; review it before copying the atlas/icon pairs into `renderer/assets/`. Use original generated PNGs or the preserved source backup, not an already repaired sheet. This pass repairs slicing and contamination; it preserves the original animation and any drawing quirks intrinsic to the source.
 
-No artwork was pushed or published. The original tracked assets remain recoverable in the base revision.
+This fork branch includes the repaired artwork for home and work swarm use. The release flags and distribution filtering remain unchanged; the pets require vetting before broader release. The original tracked assets remain recoverable in the local base revision.
+
+[Before/after comparison](comparison.png) shows recovery of Marvin's split sleeping pose.
