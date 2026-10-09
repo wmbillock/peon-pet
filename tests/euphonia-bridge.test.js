@@ -12,7 +12,7 @@ const { sendOnce, frame, parseFrames, GUID } = require('../lib/euphonia/bridge/w
 const { applyCosmetics } = require('../lib/euphonia/bridge/cosmetics');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'brg-'));
-const READ = ['firm_get_status', 'firm_list_inbox', 'firm_get_workstream', 'firm_list_events', 'github_view_pr', 'github_list_prs', 'github_check_pr', 'github_firm_pr_watch'];
+const READ = ['firm_get_status', 'firm_list_inbox', 'firm_get_workstream', 'firm_list_events', 'github_view_pr', 'github_list_prs', 'github_check_pr', 'github_firm_pr_watch', 'sessions_list', 'sessions_get_summary'];
 const WRITE = ['firm_send_to_management', 'firm_respond_inbox', 'pet_set_cosmetics'];
 
 test('every bridge tool name classifies as intended, so a read grant cannot reach a write tool', () => {

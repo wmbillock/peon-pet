@@ -323,6 +323,19 @@ function startFirm() {
   }
 }
 
+// A list-only copy of the owner's local Claude Code / Codex sessions in Euphonia's kb (kb/sessions/STATUS.md). Reads only under
+// sessionRoots in her config.json (empty = off). Read only; it never touches a session.
+let sessionsMirror = null;
+function startSessionsMirror() {
+  if (sessionsMirror) { sessionsMirror.stop(); sessionsMirror = null; }
+  try {
+    const { createSessionsMirror } = require('./lib/euphonia/sessions-mirror');
+    const { createSessions } = require('./lib/euphonia/bridge/sessions');
+    sessionsMirror = createSessionsMirror({ kbDir: getEuphonia().paths.kbDir, sessions: createSessions({ roots: () => getEuphonia().getConfig().sessionRoots }), log: (m) => console.log(m) });
+    sessionsMirror.start();
+  } catch (e) { console.error('[sessions-mirror] disabled:', e.message); }
+}
+
 ipcMain.handle('firm-set', (_e, { enabled, url }) => {
   const clean = String(url || '').trim();
   if (clean) parseBaseUrl(clean);   // throws a readable error for anything but a localhost http URL
@@ -648,6 +661,7 @@ function startPolling() {
   setInterval(refreshLive, 4000);
 
   startFirm();
+  startSessionsMirror();
 
   // Heartbeat: refresh session hot/warm status so the pet correctly decays.
   // Sessions with pending tools are kept hot so the pet stays awake during long tool runs.

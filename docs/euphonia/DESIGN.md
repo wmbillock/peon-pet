@@ -277,10 +277,16 @@ Four blocks run none; a bad block yields an error result she sees. The blocks ar
 Tool results, hub text and history are never parsed.
 
 - **Read actions** (`firm_get_status`, `firm_list_inbox`, `firm_get_workstream`, `firm_list_events`, `github_view_pr`, `github_list_prs`,
-  `github_check_pr`, `github_firm_pr_watch`) run automatically when an unexpired read-or-write grant for `euphonia-bridge` exists. The
+  `github_check_pr`, `github_firm_pr_watch`, `sessions_list`, `sessions_get_summary`) run automatically when an unexpired read-or-write grant for `euphonia-bridge` exists. The
   result goes back into the SAME session (`--resume`) as a user-role message `[tool result: <tool>]` with `origin: "tool"`; the chat
   shows it as a quiet note. Up to 6 such rounds per user message, then the app stops and says so. No grant: a refusal result names the
   capability, the level and the dashboard path.
+- **Local sessions** (`lib/euphonia/bridge/sessions.js`, `redact.js`, `sessions-mirror.js`): read-only view of the owner's Claude Code
+  (`~/.claude/projects/<encoded-cwd>/<id>.jsonl`) and Codex (`~/.codex/sessions/YYYY/MM/DD/rollout-...-<id>.jsonl`) transcripts.
+  Reads only under `sessionRoots` in `config.json` (default empty = off; set by hand, not in `setConfig`, not reachable by her).
+  Symlinks are never followed, `id` must be a plain filename stem, only user/assistant text is returned (redacted, then truncated),
+  tool calls by name only. The app mirrors a list-only `kb/sessions/STATUS.md` every 30 s. The summary action is named
+  `sessions_get_summary`, not `sessions_summary`, because the grant classifier treats a name with no read verb as a write.
 - **Write actions** (`firm_send_to_management`, `firm_respond_inbox`, `pet_set_cosmetics`) never run on her say-so. (`firm_file_task` and `github_list_issues` were removed on 2026-10-08: The Firm's intake is Jira under PPE-2832 since 2026-10-06, and nobody reads `the-firm` GitHub issues.)
   The app creates an **approval card** (`cards.json`): tool, exact args, and for messages and issues the exact text and destination
   (messages show the `[Assistant]` prefix that will be sent). Only an Approve click in the **chat window** (`euphonia-card-decide`,
