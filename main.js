@@ -161,6 +161,7 @@ function initPets() {
   pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
   try {
     pinEuphonia();   // Euphonia is always the lead pet, ahead of every agent
+    getEuphonia().subscribe((ev) => { if (ev.type === 'live-exit') console.error(`[euphonia] live session ended: ${ev.why}`); });
     setTimeout(() => { if (getEuphonia().start()) console.log('[euphonia] live session started', JSON.stringify(getEuphonia().status())); }, 1500);
   } catch (e) { console.error('[euphonia] could not pin the lead pet:', e.message); }
   registerPetIpc({
