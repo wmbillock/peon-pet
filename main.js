@@ -1351,6 +1351,8 @@ if (!gotLock) {
   app.quit();
 } else {
   app.whenReady().then(() => {
+    // The chat renderer never needs camera, microphone, notifications or the like.
+    session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     initPets();
     registerCharacterProtocol();
     createWindow();
@@ -1359,8 +1361,6 @@ if (!gotLock) {
     startHotReload();
   });
   // Say why the app is going away: a clean exit (code 0) is not restarted by launchd, so it is hard to notice otherwise.
-  // The chat renderer never needs camera, microphone, notifications or the like.
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   // Give her CLI process a moment to end cleanly (its MCP servers with it) before the app exits.
   let quitting = false;
   app.on('will-quit', (e) => {
