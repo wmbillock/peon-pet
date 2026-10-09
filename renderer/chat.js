@@ -15,38 +15,51 @@ export function initChat({ onShow } = {}) {
   }
 
   const cardsBox = $('chat-cards');
-  const cardEls = new Map();
+  const cardEls = new Map();      // id -> { el, sig }
+  const expanded = new Set();     // finished cards the user opened to read the full text
+  // Cards: a pending card shows its whole text and the buttons. A finished card collapses to one line (tool and outcome);
+  // click it to read the text again. A card is rebuilt only when what it shows changed, so streaming never flickers them.
   function renderCards() {
     const now = Date.now();
     const shown = state.cards.filter((c) => describeCard(c, now).actionable).concat(state.cards.filter((c) => !describeCard(c, now).actionable).slice(-3));
     const seen = new Set();
+    const mk = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; n.textContent = text; return n; };   // textContent only: card text is model-written
     for (const c of shown) {
       seen.add(c.id);
       const d = describeCard(c, now);
-      let el = cardEls.get(c.id);
-      if (!el) { el = document.createElement('div'); cardEls.set(c.id, el); cardsBox.append(el); }
-      el.className = `card ${d.status}${c.kind === 'policy' ? ' policy' : ''}`;
+      const open = d.actionable || expanded.has(c.id);
+      const sig = `${d.status}|${d.label}|${open ? 1 : 0}|${c.hash}`;
+      let rec = cardEls.get(c.id);
+      if (rec && rec.sig === sig) continue;
+      if (!rec) { rec = { el: document.createElement('div'), sig: '' }; cardEls.set(c.id, rec); cardsBox.append(rec.el); }
+      rec.sig = sig;
+      const el = rec.el;
+      el.className = `card ${d.status}${c.kind === 'policy' ? ' policy' : ''}${open ? '' : ' collapsed'}`;
       el.replaceChildren();
-      const mk = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; n.textContent = text; return n; };   // textContent only: card text is model-written
-      el.append(mk('div', 'tool', c.tool), mk('div', 'dest', c.preview.destination));
-      if (c.preview.title) el.append(mk('div', '', `Title: ${c.preview.title}`));
-      el.append(mk('pre', '', c.preview.text || ''));
-      const row = document.createElement('div'); row.className = 'row';
-      if (d.actionable) {
-        for (const [decision, text] of [['approve', 'Approve'], ['deny', 'Deny']]) {
-          const b = mk('button', decision, text);
-          b.addEventListener('click', async () => {
-            b.disabled = true;
-            const r = await window.peonBridge.decideCard({ id: c.id, hash: c.hash, decision });
-            if (!r || !r.ok) dispatch({ type: 'send-failed', message: (r && r.error) || 'Could not decide that card' });
-          });
-          row.append(b);
+      const head = document.createElement('div'); head.className = 'row head';
+      head.append(mk('span', 'tool', c.tool), mk('span', 'state', d.label));
+      el.append(head);
+      if (open) {
+        el.append(mk('div', 'dest', c.preview.destination));
+        if (c.preview.title) el.append(mk('div', '', `Title: ${c.preview.title}`));
+        el.append(mk('pre', '', c.preview.text || ''));
+        if (d.actionable) {
+          const row = document.createElement('div'); row.className = 'row';
+          for (const [decision, text] of [['approve', 'Approve'], ['deny', 'Deny']]) {
+            const b = mk('button', decision, text);
+            b.addEventListener('click', async () => {
+              for (const x of row.querySelectorAll('button')) x.disabled = true;
+              const r = await window.peonBridge.decideCard({ id: c.id, hash: c.hash, decision });
+              if (!r || !r.ok) { for (const x of row.querySelectorAll('button')) x.disabled = false; dispatch({ type: 'send-failed', message: (r && r.error) || 'Could not decide that card' }); }
+            });
+            row.append(b);
+          }
+          el.append(row);
         }
       }
-      row.append(mk('span', 'state', d.label));
-      el.append(row);
+      if (!d.actionable) head.addEventListener('click', () => { if (expanded.has(c.id)) expanded.delete(c.id); else expanded.add(c.id); rec.sig = ''; renderCards(); });
     }
-    for (const [id, el] of cardEls) if (!seen.has(id)) { el.remove(); cardEls.delete(id); }
+    for (const [id, rec] of cardEls) if (!seen.has(id)) { rec.el.remove(); cardEls.delete(id); expanded.delete(id); }
   }
   setInterval(() => { if (state.cards.some((c) => c.status === 'pending')) renderCards(); }, 15000);   // expiry shows without an event
 
