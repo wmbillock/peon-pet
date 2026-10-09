@@ -317,3 +317,91 @@ test('persistent: the process dying mid-turn reports an error and the next messa
   expect(f.procs).toHaveLength(2);
   expect(events.filter((ev) => ev.type === 'done').pop().text).toBe('re: y');
 });
+
+// ---- approval cards: the CLI's permission prompts reach the owner ----
+function askingClaude(toolName) {
+  const procs = [];
+  const spawnImpl = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.stdin = new PassThrough();
+    child.kill = () => child.emit('close', 0);
+    const p = { args, child, responses: [] };
+    procs.push(p);
+    let buf = '';
+    child.stdin.on('data', (d) => {
+      buf += d; let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const msg = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1);
+        if (msg.type === 'user') {
+          setImmediate(() => child.stdout.write(line({ type: 'control_request', request_id: 'r1', request: { subtype: 'can_use_tool', tool_name: toolName, input: { issueIdOrKey: 'PPE-1', labels: ['x'] } } })));
+        } else if (msg.type === 'control_response') {
+          p.responses.push(msg.response);
+          const ok = msg.response.response.behavior === 'allow';
+          setImmediate(() => {
+            child.stdout.write(delta(ok ? 'edited' : 'not edited'));
+            child.stdout.write(line({ type: 'result', subtype: 'success', is_error: false, result: ok ? 'edited' : 'not edited', session_id: 's-ask' }));
+          });
+        }
+      }
+    });
+    child.stdin.on('finish', () => setImmediate(() => child.emit('close', 0)));
+    return child;
+  };
+  return { spawnImpl, procs };
+}
+const policyAsk = () => ({ ask: new Set(['mcp__jira__editJiraIssue']), deny: new Set(), known: { jira: ['editJiraIssue', 'getJiraIssue'] } });
+
+test('approval: a policy-held tool on a write-granted server becomes a card; only the owner\'s answer lets it run', async () => {
+  const f = askingClaude('mcp__jira__editJiraIssue');
+  const { e, events } = mk(null, { spawnImpl: f.spawnImpl, persistent: true, managedPolicy: policyAsk });
+  e.grants.grant({ server: 'jira', level: 'write', duration: 'blanket' });
+  const a = e.accessSummary().find((s) => s.server === 'jira');
+  expect(a.approve).toEqual(['editJiraIssue']);
+  const turn = e.send('label PPE-1').done;
+  await new Promise((r) => setTimeout(r, 30));
+  const args = f.procs[0].args;
+  expect(args[args.indexOf('--permission-mode') + 1]).toBe('default');
+  expect(args[args.indexOf('--permission-prompt-tool') + 1]).toBe('stdio');
+  expect(args[args.indexOf('--disallowedTools') + 1]).not.toContain('mcp__jira__editJiraIssue');
+  const card = events.find((ev) => ev.type === 'approval');
+  expect(card).toMatchObject({ tool: 'mcp__jira__editJiraIssue', server: 'jira', level: 'write' });
+  expect(card.input).toContain('PPE-1');
+  expect(f.procs[0].responses).toHaveLength(0);           // nothing answers by itself
+  expect(e.pendingApprovals()).toHaveLength(1);
+  expect(e.answerApproval('nope', true)).toBe(false);
+  expect(e.answerApproval(card.id, true)).toBe(true);
+  await turn;
+  expect(f.procs[0].responses[0]).toMatchObject({ subtype: 'success', request_id: 'r1', response: { behavior: 'allow', updatedInput: { issueIdOrKey: 'PPE-1' } } });
+  expect(events.find((ev) => ev.type === 'approval-closed')).toMatchObject({ id: card.id, approved: true, by: 'owner' });
+  expect(events.filter((ev) => ev.type === 'done').pop().text).toBe('edited');
+  expect(e.answerApproval(card.id, true)).toBe(false);    // one click, one call
+  const audit = fs.readFileSync(path.join(e.paths.home, 'approvals.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  expect(audit.map((r) => r.decision)).toEqual(['asked', 'approved']);
+});
+
+test('approval: deny is passed through; a tool that is not approvable is refused with no card', async () => {
+  const f = askingClaude('mcp__jira__editJiraIssue');
+  const { e, events } = mk(null, { spawnImpl: f.spawnImpl, persistent: true, managedPolicy: policyAsk });
+  e.grants.grant({ server: 'jira', level: 'write', duration: 'blanket' });
+  const turn = e.send('label it').done;
+  await new Promise((r) => setTimeout(r, 30));
+  e.answerApproval(events.find((ev) => ev.type === 'approval').id, false);
+  await turn;
+  expect(f.procs[0].responses[0].response).toMatchObject({ behavior: 'deny', message: 'The owner denied this call.' });
+
+  const g = askingClaude('mcp__slack__slack_send_message');   // no grant, not held: never a card
+  const m2 = mk(null, { spawnImpl: g.spawnImpl, persistent: true, managedPolicy: policyAsk });
+  m2.e.grants.grant({ server: 'jira', level: 'read', duration: 'blanket' });
+  await m2.e.send('post it').done;
+  expect(m2.events.some((ev) => ev.type === 'approval')).toBe(false);
+  expect(g.procs[0].responses[0].response.behavior).toBe('deny');
+});
+
+test('approval: a read grant does not make a held write tool approvable', () => {
+  const f = askingClaude('x');
+  const { e } = mk(null, { spawnImpl: f.spawnImpl, persistent: true, managedPolicy: policyAsk });
+  e.grants.grant({ server: 'jira', level: 'read', duration: 'blanket' });
+  const a = e.accessSummary().find((s) => s.server === 'jira');
+  expect(a.approve).toEqual([]);
+  expect(a.held).toContain('editJiraIssue');
+});

@@ -64,3 +64,15 @@ html, body { height: 100%; background: #0c0c14; color: #ddd; font: 13px/1.45 -ap
 .msg .draft-result { font-size: 11px; color: #9a9ab4; }
 .msg .draft-result.ok { color: #7be08a; }
 .msg .draft-result.bad { color: #ff9a9a; }
+
+/* Approval cards: a held tool call waiting for the owner's click */
+.approvals { display: flex; flex-direction: column; gap: 8px; padding: 0 12px; }
+.approval { border: 1px solid #c9a227; border-radius: 10px; background: rgba(201, 162, 39, 0.10); padding: 8px 10px; }
+.approval.closed { opacity: 0.6; }
+.approval-label { font-weight: 600; font-size: 12px; margin-bottom: 4px; word-break: break-all; }
+.approval-body { max-height: 180px; overflow: auto; font-size: 11px; white-space: pre-wrap; word-break: break-word; margin: 0 0 6px; }
+.approval-row { display: flex; gap: 8px; align-items: center; }
+.approval-row button { padding: 4px 12px; border-radius: 6px; border: 0; cursor: pointer; background: #4b5bd6; color: #fff; }
+.approval-row button.deny { background: #555; }
+.approval-row button:disabled { opacity: 0.5; cursor: default; }
+.approval-result { font-size: 11px; }

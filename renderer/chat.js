@@ -97,7 +97,45 @@ export function initChat({ onShow } = {}) {
   const setName = (n) => { if (!n) return; $('chat-name').textContent = n; document.title = n; $('chat-input').placeholder = `Ask ${n}… (Enter sends, Shift+Enter newline)`; };
   if (window.peonBridge.onEuphoniaConfig) window.peonBridge.onEuphoniaConfig((c) => setName(c.name));
   refreshAccess();
+  // Approval cards live outside the message list (which re-renders): one per open request, newest last.
+  const cards = document.createElement('div'); cards.className = 'approvals';
+  list.after(cards);
+  const openCards = new Map();
+  function approvalCard(a) {
+    if (openCards.has(a.id) || !window.peonBridge.euphoniaAnswerApproval) return;
+    const box = document.createElement('div'); box.className = 'approval';
+    const label = document.createElement('div'); label.className = 'approval-label';
+    label.textContent = `Approve ${a.level === 'write' ? 'a write' : 'a call'}: ${a.tool}`;
+    const body = document.createElement('pre'); body.className = 'approval-body'; body.textContent = a.input || '{}';
+    const row = document.createElement('div'); row.className = 'approval-row';
+    const yes = document.createElement('button'); yes.type = 'button'; yes.textContent = 'Approve';
+    const no = document.createElement('button'); no.type = 'button'; no.className = 'deny'; no.textContent = 'Deny';
+    const result = document.createElement('span'); result.className = 'approval-result'; result.setAttribute('role', 'status');
+    const answer = async (allow) => {
+      yes.disabled = no.disabled = true;
+      let r; try { r = await window.peonBridge.euphoniaAnswerApproval(a.id, allow); } catch (e) { r = { ok: false, error: e.message }; }
+      if (!r || !r.ok) { result.textContent = (r && r.error) || 'Could not answer'; }
+    };
+    yes.addEventListener('click', () => answer(true));
+    no.addEventListener('click', () => answer(false));
+    row.append(yes, no, result);
+    box.append(label, body, row);
+    cards.append(box);
+    openCards.set(a.id, { box, result });
+    cards.scrollIntoView({ block: 'end' });
+  }
+  function closeCard(id, approved, by) {
+    const c = openCards.get(id); if (!c) return;
+    openCards.delete(id);
+    c.box.classList.add('closed');
+    c.result.textContent = approved ? 'Approved.' : by === 'owner' ? 'Denied.' : by === 'timeout' ? 'Expired, not run.' : 'Closed, not run.';
+    setTimeout(() => c.box.remove(), 4000);
+  }
+  if (window.peonBridge.euphoniaApprovals) window.peonBridge.euphoniaApprovals().then((xs) => (xs || []).forEach(approvalCard)).catch(() => {});
+
   window.peonBridge.onEuphoniaEvent((event) => {
+    if (event.type === 'approval') { approvalCard(event); return; }
+    if (event.type === 'approval-closed') { closeCard(event.id, event.approved, event.by); return; }
     dispatch({ type: 'event', event });
     if (event.type === 'done' || event.type === 'error') refreshAccess();
     if (event.type === 'done') window.peonBridge.euphoniaHistory().then((h) => sessionLine(h.session)).catch(() => {});
