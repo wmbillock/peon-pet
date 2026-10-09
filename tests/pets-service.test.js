@@ -251,4 +251,57 @@ describe('agent types', () => {
     svc.agentTypes.setAutoRoots(true);
     expect(svc.assign([root('r')]).get('r').type.slug).toBe('boss');
   });
+
+  test('spread: fifteen auto-picked workers in one project do not all wear the same pet; the first of a kind keeps its own', () => {
+    addTypes();
+    const kids = Array.from({ length: 15 }, (_, i) => kid(`k${i}`, 'r', 'worker', { order: i + 1, title: 'Backend handler' }));
+    const m = svc.assign([root('r'), ...kids]);
+    const sp = kids.map((k) => m.get(k.id).species);
+    expect(m.get('k0').species).toBe('retro-robot');           // robo's own pet goes to the first match
+    expect(new Set(sp).size).toBeGreaterThanOrEqual(5);         // the rest spread over the pool (preference-weighted, not uniform)
+    const counts = sp.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map());
+    expect(Math.max(...counts.values())).toBeLessThanOrEqual(Math.ceil(0.25 * 15));   // the variety cap: no species dominates
+    expect(m.get('k3').type.slug).toBeTruthy();                 // the kind (and its personality) is kept
+  });
+
+  test('spread keeps each agent\'s look between refreshes, even as other agents come and go', () => {
+    addTypes();
+    const kids = Array.from({ length: 8 }, (_, i) => kid(`k${i}`, 'r', 'worker', { order: i + 1 }));
+    const first = svc.assign([root('r'), ...kids]);
+    const again = svc.assign([root('r'), ...kids.slice(0, 5)]);   // three left
+    for (const k of kids.slice(0, 5)) expect(again.get(k.id).species).toBe(first.get(k.id).species);
+  });
+
+  test('spread off, or a pinned kind, wears exactly the kind\'s own pet', () => {
+    addTypes();
+    const kids = Array.from({ length: 6 }, (_, i) => kid(`k${i}`, 'r', 'worker', { order: i + 1, title: 'Backend handler' }));
+    svc.agentTypes.setSpread(false);
+    const off = svc.assign([root('r'), ...kids]);
+    for (const k of kids) expect(off.get(k.id).species).toBe('retro-robot');
+    svc.agentTypes.setSpread(true);
+    svc.agentTypes.pin('session', 'k4', 'robo');
+    expect(svc.assign([root('r'), ...kids]).get('k4').species).toBe('retro-robot');
+  });
+
+  test('seeded casting: an orc-typed fleet is not an orc army; installs differ; a Forge pin wins; Euphonia is out of the pool', () => {
+    svc.agentTypes.put({ slug: 'smith', name: 'Smith', category: 'worker', species: 'orc', traits: ['backend'], personality: 'blunt' }, svc.typeChecks);
+    const kids = Array.from({ length: 24 }, (_, i) => kid(`k${i}`, 'r', 'worker', { order: i + 1, title: 'Backend handler' }));
+    const agents = [root('r'), ...kids];
+    const species = (s) => kids.map((k) => s.assign(agents).get(k.id).species);
+    const mine = species(svc);
+    expect(mine.filter((s) => s === 'orc').length).toBeLessThanOrEqual(2);
+    for (const n of new Map(mine.map((s) => [s, mine.filter((x) => x === s).length])).values()) expect(n).toBeLessThanOrEqual(6);   // 25% of 24
+    expect(species(svc)).toEqual(mine);   // stable between refreshes
+
+    const other = createPetsService({ userDataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'svc2-')), assetsDir: ASSETS, bundled: BUNDLED, getSeed: () => 'another-install' });
+    other.seed('orc');
+    other.agentTypes.put({ slug: 'smith', name: 'Smith', category: 'worker', species: 'orc', traits: ['backend'], personality: 'blunt' }, other.typeChecks);
+    expect(species(other)).not.toEqual(mine);
+
+    svc.agentTypes.pin('session', 'k3', 'smith');   // Forge pin: exactly the kind's own pet
+    expect(svc.assign(agents).get('k3').species).toBe('orc');
+    svc.agentTypes.pin('session', 'k3', null);      // cleared: back to the seeded pick
+    expect(svc.assign(agents).get('k3').species).toBe(mine[3]);
+  });
 });
+

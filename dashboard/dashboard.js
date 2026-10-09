@@ -117,6 +117,7 @@ function renderRows() {
 
     const voiceTd = document.createElement('td');
     const sel = document.createElement('select');
+    sel.setAttribute('aria-label', `Voice for ${s.name || s.id}`);
     packOptions(sel, packState.sessionPacks[s.peonKey || s.id], `Default (${displayName(packState.defaultPack)})`);
     sel.addEventListener('change', async () => {
       try {
@@ -207,7 +208,27 @@ const pixooBrightVal = document.getElementById('pixoo-bright-val');
 const pixooLook = document.getElementById('pixoo-look');
 const pixooLookVal = document.getElementById('pixoo-look-val');
 
-function renderPixoo({ ip, enabled, status, look, brightness }) {
+const pixooInterval = document.getElementById('pixoo-interval');
+
+const pixooRotate = document.getElementById('pixoo-rotate');
+const pixooRotateSec = document.getElementById('pixoo-rotate-sec');
+const pixooPin = document.getElementById('pixoo-pin');
+let pixooPinWanted = '';
+let pixooAgents = [];   // [{id, label}] from the live session list
+function fillPinOptions() {
+  const opts = [new Option('(rotate)', '')];
+  for (const a of pixooAgents) opts.push(new Option(a.label, a.id));
+  if (pixooPinWanted && !pixooAgents.some((a) => a.id === pixooPinWanted)) opts.push(new Option(`${pixooPinWanted} (not running)`, pixooPinWanted));
+  pixooPin.replaceChildren(...opts);
+  pixooPin.value = pixooPinWanted;
+}
+
+function renderPixoo({ ip, enabled, status, look, brightness, minIntervalSec, rotate, rotateSeconds, pin }) {
+  pixooRotate.checked = rotate !== false;
+  if (document.activeElement !== pixooRotateSec) pixooRotateSec.value = rotateSeconds ?? 60;
+  pixooPinWanted = pin || '';
+  fillPinOptions();
+  if (document.activeElement !== pixooInterval && minIntervalSec !== undefined) pixooInterval.value = minIntervalSec;
   if (document.activeElement !== pixooLook) { pixooLook.value = look; pixooLookVal.textContent = look; }
   if (document.activeElement !== pixooBright) {
     pixooBright.value = brightness ?? 100;
@@ -236,6 +257,8 @@ pixooLook.addEventListener('change', () => savePixoo({ look: Number(pixooLook.va
 pixooBright.addEventListener('input', () => { pixooBrightVal.textContent = `${pixooBright.value}%`; });
 pixooBright.addEventListener('change', () => savePixoo({ brightness: Number(pixooBright.value) }));
 pixooIp.addEventListener('change', () => { if (pixooOn.checked) savePixoo(); });
+// A busy display is the main reason to slow updates, so this applies to the next send without forcing one.
+pixooInterval.addEventListener('change', () => savePixoo({ minIntervalSec: pixooInterval.value === '' ? 60 : Number(pixooInterval.value) }));
 window.dashBridge.onPixooState(renderPixoo);
 window.dashBridge.getPixoo().then(renderPixoo);
 
@@ -262,3 +285,136 @@ for (const b of cornerSeg.querySelectorAll('button')) {
 }
 window.dashBridge.onCornerView(markCornerView);
 window.dashBridge.getCornerView().then(markCornerView);
+
+// --- Euphonia name and voice. Saves on change and confirms from what was read back from disk. ---
+const euphPack = document.getElementById('euph-pack');
+const euphName = document.getElementById('euph-name');
+const euphOwner = document.getElementById('euph-owner-name');
+const euphPronouns = document.getElementById('euph-pronouns');
+const euphNote = document.getElementById('euph-note');
+function euphSaved(cfg, warning) {
+  euphNote.style.color = warning ? '#ffcc66' : '#6dff7a';
+  euphNote.textContent = `${warning ? warning + ' ' : ''}Saved \u2713 ${cfg.name}, voice: ${cfg.soundPack || '(none)'}, you: ${cfg.displayName || '(the owner)'}${cfg.pronouns ? ` (${cfg.pronouns})` : ''}`;
+}
+function euphFailed(msg) { euphNote.style.color = '#ff6060'; euphNote.textContent = `NOT saved: ${msg}`; }
+async function loadEuphonia() {
+  try {
+    const r = await window.dashBridge.euphoniaGetConfig();
+    if (!r) { euphFailed('could not read Euphonia\'s settings'); return; }
+    const opts = [new Option('(no voice)', '')].concat(r.packs.map((p) => new Option(p.display === p.name ? p.name : `${p.display} (${p.name})`, p.name)));
+    if (r.config.soundPack && !r.packs.some((p) => p.name === r.config.soundPack)) opts.unshift(new Option(`${r.config.soundPack} (not installed)`, r.config.soundPack));   // never show a different pack than the saved one
+    euphPack.replaceChildren(...opts);
+    euphPack.value = r.config.soundPack || '';
+    euphName.value = r.config.name;
+    euphOwner.value = r.config.displayName || '';
+    euphPronouns.value = r.config.pronouns || '';
+    euphSaved(r.config);
+  } catch (e) { euphFailed(e.message); }
+}
+async function saveEuph(patch) {
+  try {
+    const r = await window.dashBridge.euphoniaSetConfig(patch);
+    if (!r || !r.ok) { euphFailed((r && r.error) || 'unknown error'); return; }
+    euphSaved(r.config, r.warning);
+  } catch (e) { euphFailed(e.message); }
+}
+euphPack.addEventListener('change', () => saveEuph({ soundPack: euphPack.value }));
+euphName.addEventListener('change', () => saveEuph({ name: euphName.value }));
+euphOwner.addEventListener('change', () => saveEuph({ displayName: euphOwner.value }));
+euphPronouns.addEventListener('change', () => saveEuph({ pronouns: euphPronouns.value }));
+document.getElementById('euph-audition').addEventListener('click', () => audition(euphPack.value));
+loadEuphonia();
+
+// --- Euphonia: tool access (grants). Only this window can change them. ---
+const accessRows = document.getElementById('euph-access-rows');
+const accessNote = document.getElementById('euph-access-note');
+const accessErrors = document.getElementById('euph-access-errors');
+const DUR_LABELS = { '1h': '1 hour', '4h': '4 hours', eod: 'until end of day', '7d': '7 days', blanket: 'blanket (until revoked)' };
+const WRITE_WARNING = 'Write access, with no expiry, lets Euphonia use EVERY tool this server offers that is not a plain look-up: sending messages, creating and editing tickets and pages, and anything the app does not recognise as read-only. It stays until you revoke it. She will still show you the exact text and destination in chat and wait for your reply before each write, but that is her behaviour, not a lock.\n\nGrant blanket write access?';
+function accessMsg(text) { accessNote.textContent = text; setTimeout(() => { if (accessNote.textContent === text) accessNote.textContent = ''; }, 3500); }
+
+function renderAccess(data) {
+  accessErrors.replaceChildren();
+  if (!data.ok) { accessErrors.textContent = data.error || 'Could not load tool access'; return; }
+  for (const e of data.errors || []) {
+    const p = document.createElement('div'); p.className = 'help'; p.style.color = '#ff9a9a';
+    p.textContent = `Server discovery: ${e.message}`; accessErrors.append(p);
+  }
+  const byServer = new Map((data.grants || []).map((g) => [g.server, g]));
+  const rows = [...data.servers];
+  for (const g of data.grants || []) if (!rows.some((s) => s.name === g.server)) rows.push({ name: g.server, sources: ['grant'] });   // a grant for a server no longer configured stays visible so it can be revoked
+  accessRows.replaceChildren(...rows.map((s) => {
+    const g = byServer.get(s.name);
+    const tr = document.createElement('tr');
+    const td = (...kids) => { const c = document.createElement('td'); c.append(...kids); tr.append(c); return c; };
+    td(s.name);
+    td((s.sources || []).join(', ') + (s.status ? ` (${s.status})` : ''));
+    const level = document.createElement('select');
+    for (const v of ['none', 'read', 'write']) level.append(new Option(v, v));
+    level.value = g ? g.level : 'none';
+    const dur = document.createElement('select');
+    for (const [v, label] of Object.entries(DUR_LABELS)) dur.append(new Option(label, v));
+    dur.value = g ? (g.expires_at ? '1h' : 'blanket') : '1h';
+    td(level); td(dur);
+    td(g ? (g.expires_at ? new Date(g.expires_at).toLocaleString() : 'never (blanket)') : '');
+    const grant = document.createElement('button'); grant.textContent = 'Grant';
+    const revoke = document.createElement('button'); revoke.textContent = 'Revoke'; revoke.disabled = !g;
+    grant.addEventListener('click', async () => {
+      if (level.value === 'none') { accessMsg('Pick read or write first (none means no access: use Revoke).'); return; }
+      if (level.value === 'write' && dur.value === 'blanket' && !window.confirm(WRITE_WARNING)) return;
+      const r = await window.dashBridge.euphoniaAccessSet({ server: s.name, level: level.value, duration: dur.value });
+      if (!r.ok) { accessMsg(r.error); return; }
+      accessMsg(`${s.name}: ${level.value} granted`); loadAccess();
+    });
+    revoke.addEventListener('click', async () => { await window.dashBridge.euphoniaAccessRevoke({ server: s.name }); accessMsg(`${s.name}: revoked`); loadAccess(); });
+    td(grant, revoke);
+    return tr;
+  }));
+}
+async function loadAccess() {
+  try { renderAccess(await window.dashBridge.euphoniaAccessGet()); } catch (e) { renderAccess({ ok: false, error: e.message }); }
+}
+document.getElementById('euph-grant-connected').addEventListener('click', async (ev) => {
+  const btn = ev.currentTarget; btn.disabled = true; accessMsg('Granting read access and learning the tool lists (a few seconds)...');
+  try {
+    const r = await window.dashBridge.euphoniaGrantConnected();
+    if (!r.ok) accessMsg(r.error); else accessMsg(r.warning || `Read access on ${r.granted.length} servers (${Object.keys(r.learned).length} with tools learned). Writes still need a write grant.`);
+  } catch (e) { accessMsg(e.message); }
+  btn.disabled = false; loadAccess();
+});
+document.getElementById('euph-revoke-all').addEventListener('click', async () => {
+  await window.dashBridge.euphoniaAccessRevoke({ all: true }); accessMsg('All tool access revoked'); loadAccess();
+});
+document.querySelector('#nav button[data-page="euphonia"]').addEventListener('click', loadAccess);
+window.dashBridge.onShowEuphonia(() => { showPage('euphonia'); loadAccess(); });
+loadAccess();
+
+// --- Crowding limit ---
+const crowdInput = document.getElementById('crowd-limit');
+window.dashBridge.getLimits().then((l) => { crowdInput.value = l.crowd; });
+crowdInput.addEventListener('change', async () => {
+  try { showError(null); const l = await window.dashBridge.setLimits({ crowd: crowdInput.value === '' ? 20 : Number(crowdInput.value) }); crowdInput.value = l.crowd; }
+  catch (e) { showError(e); window.dashBridge.getLimits().then((l) => { crowdInput.value = l.crowd; }); }
+});
+
+// --- Voice focus: which agent holds the voice ---
+const voiceMode = document.getElementById('voice-mode');
+const voiceNow = document.getElementById('voice-now');
+const VOICE_WHY = { pixoo: 'the Pixoo is showing', chat: 'her chat window is focused', view: 'the main view shows', 'fallback-lead': 'nothing else resolves, so the lead', none: 'nothing resolves' };
+function renderVoice(st) {
+  if (!st) { voiceNow.textContent = ''; return; }
+  voiceMode.value = st.mode;
+  voiceNow.textContent = st.mode === 'all' ? 'Voice: every agent (filtering off)' : `Voice: ${st.name || 'nobody'} (${VOICE_WHY[st.reason] || st.reason})`;
+}
+voiceMode.addEventListener('change', async () => renderVoice(await window.dashBridge.voiceFocusSet(voiceMode.value)));
+window.dashBridge.onVoiceFocus(renderVoice);
+window.dashBridge.voiceFocusGet().then(renderVoice).catch(() => {});
+
+pixooRotate.addEventListener('change', () => savePixoo({ rotate: pixooRotate.checked }));
+pixooRotateSec.addEventListener('change', () => savePixoo({ rotateSeconds: Number(pixooRotateSec.value) }));
+pixooPin.addEventListener('change', () => savePixoo({ pin: pixooPin.value || null }));
+window.dashBridge.onSessions((data) => {
+  const next = [{ id: 'euphonia', label: 'Euphonia (lead)' }].concat((data.sessions || []).filter((s) => s.isRoot !== false).map((s) => ({ id: s.id, label: s.title || s.name || s.id })));
+  if (JSON.stringify(next) === JSON.stringify(pixooAgents)) return;
+  pixooAgents = next; fillPinOptions();
+});

@@ -1,4 +1,5 @@
 import * as THREE from '../node_modules/three/build/three.module.js';
+import '../lib/frame-uv.js';
 
 // updateDframe() is called from playAnim at load time, before the frame's elements exist: stay quiet until ready.
 let dframeReady = false;
@@ -56,6 +57,7 @@ const atlas = loader.load(assetUrl('sprite-atlas.png'), () => {
   atlas.minFilter = THREE.NearestFilter;
   atlas.generateMipmaps = false;
   atlas.needsUpdate = true;
+  setFrame(currentAnim, currentFrame);
 });
 
 // Square sprite — fills most of the 200×200 window
@@ -127,6 +129,8 @@ scene.add(tintMesh);
 let petLook = null;
 window.peonBridge.onPetLook((look) => {
   petLook = look;
+  // The chat button belongs to Euphonia, the lead pet, in the main window only (never sub-agent windows).
+  document.body.classList.toggle('has-chat-btn', look.petId === 'euphonia' && !isSubAgent);
   tintMesh.material.color.setRGB(look.tintRgb[0] / 255, look.tintRgb[1] / 255, look.tintRgb[2] / 255);
   tintMesh.material.opacity = look.tintAlpha;
   // The dungeon backdrop is dimmed to sit behind baked art; environment plates should be full colour.
@@ -306,10 +310,8 @@ function setFrame(animName, frame) {
   const { row, extra } = ANIM_CONFIG[animName];
   const rows = extra ? extrasRows : ATLAS_ROWS;
   // UV coords: u left→right, v bottom=0/top=1 (Three.js convention)
-  const u0 = frame / ATLAS_COLS;
-  const u1 = (frame + 1) / ATLAS_COLS;
-  const v0 = (rows - 1 - row) / rows;  // bottom of this row
-  const v1 = (rows - row) / rows;       // top of this row
+  const image = (extra ? extrasTex : atlas)?.image;
+  const { u0, u1, v0, v1 } = window.peonFrameUVs(frame, row, ATLAS_COLS, rows, image?.width, image?.height);
   // PlaneGeometry vertex UV order: [0]=TL, [1]=TR, [2]=BL, [3]=BR
   const uv = geometry.attributes.uv;
   uv.setXY(0, u0, v1); // TL
@@ -405,7 +407,10 @@ canvas.addEventListener('pointercancel', () => {
   window.peonBridge.stopDrag();
 });
 
+// Hover tooltips are off: the session list covered the pet and the views behind it (owner's call, 2026-10-08).
+const HOVER_TIPS = false;
 function handleMouseMove(e) {
+  if (!HOVER_TIPS) return;
   if (dragging) return;  // suppress tooltip during drag
   const px = e.offsetX;
   const py = e.offsetY;
@@ -476,20 +481,25 @@ function summaryButton(cls, text, tip, data) {
   for (const [k, v] of Object.entries(data)) b.dataset[k] = v;
   return b;
 }
-function renderSummary(sessions) {
-  const s = AgentSummary.summarizeAgents(sessions);
-  const tips = AgentSummary.summaryTips(sessions);
+function renderSummary(sessions, limit = 0, capped = 0) {
+  const s = AgentSummary.summarizeAgents(sessions, Date.now(), { limit });
+  const tips = AgentSummary.summaryTips(sessions, Date.now(), { limit });
+  // The list sent to the window is capped; say so rather than let the counts look complete.
+  const more = capped > 0 ? `\n+${capped} more agents not shown (the list is capped)` : '';
   const parts = [];
-  if (!s.total) parts.push(Object.assign(document.createElement('span'), { className: 'none', textContent: 'no agents' }));
+  if (!s.total) parts.push(Object.assign(document.createElement('span'), { className: 'none', textContent: 'no agents', title: `Nothing is running or waiting. ${s.finished} finished.` }));
   else {
-    parts.push(summaryButton('work', `● ${s.working}`, tips.working, { status: 'working' }));
-    parts.push(summaryButton('idle', `◐ ${s.idle}`, tips.idle, { status: 'idle' }));
+    parts.push(summaryButton(s.over ? 'work over' : 'work', s.over ? `● ${s.working}/${s.limit}` : `● ${s.working}`, tips.working + more, { status: 'working' }));
+    parts.push(summaryButton('idle', `◐ ${s.idle}`, tips.idle + more, { status: 'idle' }));
     if (s.attention) parts.push(summaryButton('alert', `⚠ ${s.attention}`, tips.attention, { status: 'attention' }));
+    const f = s.firm, firmTotal = f.working + f.waiting;
+    if (firmTotal) parts.push(summaryButton('idle', `🏛 ${f.working}/${f.waiting}`, `${firmTotal} Firm agents: ${f.working} working, ${f.waiting} waiting\nAlready included in the ● and ◐ counts. From The Firm's own thread status, not from files.\nClick to see everyone`, {}));
     if (s.projects.length) {
       parts.push(Object.assign(document.createElement('span'), { className: 'sep' }));
-      // Two project chips fit beside three count chips; the rest are one "+N" away when there is room.
-      for (const p of s.projects.slice(0, 2)) parts.push(summaryButton('', `${p.emoji}${p.count}`, tips.projects[p.key] || p.name, { project: p.key }));
-      if (s.projects.length > 2 && !s.attention) parts.push(summaryButton('idle', `+${s.projects.length - 2}`, `${s.projects.length} projects in all\n${s.projects.slice(2).map((p) => `${p.emoji} ${p.name} (${p.count})`).join('\n')}\nClick to see everyone`, {}));
+      // Two project chips fit beside three count chips (one beside four); the rest are one "+N" away when there is room.
+      const room = firmTotal ? 1 : 2;
+      for (const p of s.projects.slice(0, room)) parts.push(summaryButton('', `${p.emoji}${p.count}`, tips.projects[p.key] || p.name, { project: p.key }));
+      if (s.projects.length > room && !s.attention) parts.push(summaryButton('idle', `+${s.projects.length - room}`, `${s.projects.length} projects in all\n${s.projects.slice(room).map((p) => `${p.emoji} ${p.name} (${p.count})`).join('\n')}\nClick to see everyone`, {}));
     }
   }
   summaryEl.replaceChildren(...parts);
@@ -569,6 +579,23 @@ bar.addEventListener('pointerdown', (e) => {
 bar.addEventListener('pointerup', () => window.peonBridge.stopDrag());
 bar.addEventListener('lostpointercapture', () => window.peonBridge.stopDrag());
 
+// A dedicated grip (bottom-centre pill) moves the window in every view. It never counts as a click, so it can't
+// cycle the view the way a tap on the pet does, and the pill is big enough to find without aiming.
+const grip = document.getElementById('grip');
+const gripStop = () => { grip.classList.remove('grabbing'); window.peonBridge.stopDrag(); };
+grip.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  tooltip.style.display = 'none';
+  grip.classList.add('grabbing');
+  grip.setPointerCapture(e.pointerId);
+  window.peonBridge.startDrag();
+});
+grip.addEventListener('pointerup', gripStop);
+grip.addEventListener('pointercancel', gripStop);
+grip.addEventListener('lostpointercapture', gripStop);
+
 // --- Master sound toggle ---
 const soundBtn = document.getElementById('sound-btn');
 soundBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -584,7 +611,7 @@ window.peonBridge.onSoundState(({ muted }) => {
 let isSubAgent = false;
 
 window.peonBridge.onConfig(({ size, subAgent }) => {
-  if (subAgent) isSubAgent = true;
+  if (subAgent) { isSubAgent = true; grip.style.display = 'none'; }   // the mini windows are click-through
   // Resize HTML body to match window
   document.documentElement.style.width = `${size}px`;
   document.documentElement.style.height = `${size}px`;
@@ -686,7 +713,7 @@ window.peonBridge.onEvent(({ anim, event }) => {
 window.peonBridge.onSessionUpdate((payload) => {
   const { sessions } = payload;
   lastPayload = payload;
-  renderSummary(sessions);
+  renderSummary(sessions, (payload.limits && payload.limits.crowd) || 0, payload.capped || 0);
   if (dash) dash.update(payload);
   // The frame wears the colour of whichever project is busiest right now.
   const busiest = sessions.filter((a) => a.hot && a.mark).sort((x, y) => y.lastActive - x.lastActive)[0] || sessions.find((a) => a.mark);
@@ -792,3 +819,13 @@ Tip.attach();
 dframeReady = true;
 updateDframe();
 requestAnimationFrame(animate);
+
+// --- Euphonia chat button + unread dot (the chat itself lives in its own window) ---
+{
+  const btn = document.getElementById('chat-btn'), dot = document.getElementById('chat-dot');
+  const showCount = (n) => { dot.classList.toggle('on', n > 0); dot.textContent = n > 1 ? (n > 9 ? '9+' : String(n)) : ''; btn.dataset.tip = n > 0 ? `Chat with Euphonia (${n} new)` : 'Chat with Euphonia'; };
+  btn.addEventListener('click', (e) => { e.stopPropagation(); window.peonBridge.openChat(); });
+  btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  window.peonBridge.onEuphoniaUnread(({ count }) => showCount(count));
+  if (!isSubAgent) window.peonBridge.euphoniaUnreadGet().then((r) => showCount((r && r.count) || 0)).catch(() => {});
+}

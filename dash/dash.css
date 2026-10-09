@@ -11,9 +11,10 @@
 .led { position: absolute; top: 8px; left: 8px; width: 10px; height: 10px; border-radius: 50%; background: #555; box-shadow: 0 0 0 2px rgba(0,0,0,0.5); }
 .hot .led { background: #44ff44; box-shadow: 0 0 8px #44ff44, 0 0 0 2px rgba(0,0,0,0.5); }
 .warm .led { background: #1aaa1a; }
-.badges { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+.badges { position: absolute; top: 6px; right: 6px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #cde; }
-.badge.role { background: color-mix(in srgb, var(--ring) 70%, #000); color: #fff; }
+.badge.em { font-size: 15px; line-height: 1; padding: 3px 4px; border-radius: 8px; background: rgba(8, 8, 16, 0.72); border: 1px solid color-mix(in srgb, var(--ring) 60%, transparent); }
+.sub .badge.em, .mini .badge.em, .compact .badge.em { font-size: 11px; padding: 2px 3px; border-radius: 6px; }
 .info { padding: 6px 9px 8px; min-width: 0; background: var(--plate, #161622); }
 .info .pet { color: #fff; font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .info .pet small { color: #8a8aa0; font-weight: 400; font-size: 11px; margin-left: 4px; }
@@ -92,7 +93,7 @@
 .info .what { color: rgba(255, 255, 255, 0.72); }
 .info .pet small { color: rgba(255, 255, 255, 0.62); }
 .info .what b { color: #fff; }
-.scene .pframe { image-rendering: pixelated; background-size: 100% 100%; pointer-events: none; }
+.scene .pframe { display: none; }   /* the border colour is the agent's kind now; project frame art no longer draws over the tile */
 .proj { margin-bottom: 18px; }
 .proj-title { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #eef; margin: 0 0 8px 2px; padding-bottom: 5px; border-bottom: 2px solid var(--ring); }
 .proj-title .emoji { font-size: 18px; }

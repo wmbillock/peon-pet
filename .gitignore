@@ -8,3 +8,9 @@ dist/
 docs/plans/
 
 *.DS_Store
+
+# worktree symlink
+node_modules
+
+# local-only character preferences (species not in the published repo)
+lib/character-preferences.local.json

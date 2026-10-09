@@ -189,6 +189,8 @@ test('agent types: list, edit with permissions, pin, auto roots, and ask "can it
   st = await invoke('types-pin', 'session', 's1', null);
   expect(st.pins.sessions).toEqual({});
   expect((await invoke('types-auto-roots', true)).autoRoots).toBe(true);
+  expect((await invoke('types-get')).spread).toBe(true);                       // copies spread across pets by default
+  expect((await invoke('types-spread', false)).spread).toBe(false);
   st = await invoke('types-remove', 'careful');
   expect(st.types.some((t) => t.slug === 'careful')).toBe(false);
 });

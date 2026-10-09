@@ -72,15 +72,30 @@ test('a pet filter you set yourself is respected and does not use up a shade', (
   expect(m.get('c').look.shade).toBe(1);
 });
 
-test('role sets the shade of the name plate: lead brighter than critique, same hue', () => {
+test('the border colour says what kind of agent it is, the emoji which project: same project, different kinds, different colours', () => {
   const agents = [
     agent('lead', { cwd: '/w/p', firmRole: 'lead', order: 0 }),
     agent('crit', { cwd: '/w/p', firmRole: 'critique', isRoot: false, order: 1 }),
   ];
   const m = applyMarks({ agents, looks: new Map(), resolveProject: resolve });
-  expect(m.get('lead').mark.plate).not.toBe(m.get('crit').mark.plate);
-  expect(m.get('lead').mark.hue).toBe(m.get('crit').mark.hue);
+  expect(m.get('lead').mark.ring).not.toBe(m.get('crit').mark.ring);
+  expect(m.get('lead').mark.hue).toBe(28);                      // lead
+  expect(m.get('crit').mark.hue).toBe(315);                     // critique
+  expect(m.get('lead').mark.emoji).toBe(m.get('crit').mark.emoji);   // one project, one emoji
   expect(m.get('lead').look).toBeNull();
+});
+
+test('a kind with its own hue colours the border; shades only separate copies of the same kind on the same pet', () => {
+  const kind = (slug, hue) => ({ ...look('orc'), type: { slug, hue, category: 'worker' } });
+  const agents = ['a', 'b', 'c', 'd'].map((id, i) => agent(id, { cwd: '/w/p', order: i }));
+  const looks = new Map([['a', kind('smith', 100)], ['b', kind('smith', 100)], ['c', kind('tinker', 200)], ['d', kind('smith', 100)]]);
+  const m = applyMarks({ agents, looks, resolveProject: resolve });
+  expect(m.get('a').mark.hue).toBe(100);
+  expect(m.get('c').mark.hue).toBe(200);
+  expect(m.get('a').look.shade).toBe(0);
+  expect(m.get('b').look.shade).toBe(1);
+  expect(m.get('c').look.shade).toBe(0);     // a different kind on the same pet is told apart by its border, not a shade
+  expect(m.get('d').look.shade).toBe(2);
 });
 
 test('Firm agents group by Firm project and use its title', () => {
@@ -97,7 +112,7 @@ test('Firm-supplied project looks seed the project (emoji, hue, frame, backgroun
   const agents = [agent('l', { firm: { role: 'lead', projectId: 'p9' }, firmRole: 'lead', order: 0 })];
   const m = applyMarks({ agents, looks: new Map(), resolveProject: resolve, firmProjects: { p9: { id: 'p9', title: 'Pricing CLI', emoji: '🏦', hue: 215, frame: 'gold', env: 'dungeon' } } });
   expect(m.get('l').project).toMatchObject({ key: 'firm:p9', name: 'Pricing CLI', emoji: '🏦', hue: 215, frame: 'gold', env: 'dungeon' });
-  expect(m.get('l').mark.hue).toBe(215);
+  expect(m.get('l').mark.emoji).toBe('🏦');   // the project's emoji; the border colour is the kind's, not the project's
 });
 
 test('an assignment moves an agent to the chosen project, whatever its folder says', () => {

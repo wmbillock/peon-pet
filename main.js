@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain, dialog, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const {
@@ -11,13 +11,20 @@ const { JsonlWatcher } = require('./lib/jsonl-watcher');
 const { CodexWatcher } = require('./lib/codex-watcher');
 const peonSound = require('./lib/peon-sound');
 const peonPacks = require('./lib/peon-packs');
+const { createEuphonia } = require('./lib/euphonia/service');
+const { registerEuphoniaIpc } = require('./lib/euphonia/ipc');
+const euphLaunch = require('./lib/euphonia/launch');
+const euphLead = require('./lib/euphonia/lead');
+const voiceFocus = require('./lib/voice-focus');
+const rotation = require('./lib/pixoo-rotation');
+const { createChatWindowManager } = require('./lib/euphonia/chat-window');
 const BUNDLED_CHARS = require('./lib/bundled-characters');
 const { createPetsService } = require('./lib/pets-service');
 const { byId: borderById } = require('./lib/borders');
 const { registerPetIpc } = require('./lib/ipc-pets');
 const { readSessionRegistry, transcriptFor, codexMasters } = require('./lib/live-agents');
 const { createFirmClient, createFirmPoller, parseBaseUrl } = require('./lib/firm-client');
-const { buildAgents } = require('./lib/agent-graph');
+const { selectAgents } = require('./lib/agent-graph');
 const { applyMarks } = require('./lib/marks');
 const { summarizeAgents } = require('./dash/summary');
 const { BORDERS } = require('./lib/borders');
@@ -25,6 +32,22 @@ const { computeCornerBounds } = require('./lib/corner-window');
 const { watchApp } = require('./lib/hot-reload');
 const { PixooClient, isValidDeviceIp, applyLook, applyTint, drawSummary } = require('./lib/pixoo');
 const { buildAnimFrames } = require('./lib/pixoo-frames');
+const { waitMs, cleanInterval } = require('./lib/pixoo-throttle');
+const { createMonitor } = require('./lib/monitor');
+const { diffThreads } = require('./lib/lifecycle');
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'peon-asset',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
 
 let win;
 let petVisible = true;
@@ -78,25 +101,89 @@ function thumb(file, px) {
   } catch { return null; }
 }
 
+// Euphonia's service is created on first use (here: at start, because she is the lead pet).
+let euphonia = null;
+function getEuphonia() {
+  if (!euphonia) {
+    euphonia = createEuphonia({
+      home: process.env.EUPHONIA_HOME || undefined, hubDir: process.env.EUPHONIA_HUB || undefined,
+      firmUrl: () => firmUrl || 'http://127.0.0.1:8420', assetsDir: bundledAssetsDir, userDataDir: app.getPath('userData'), peonDir: peonSound.peonDir(),
+    });
+  }
+  return euphonia;
+}
+const euphoniaLeads = () => !!(pets && pets.lead() && pets.lead().id === euphLaunch.RESERVED_ID);
+// The lead window wears Euphonia's own border while she leads; everything else keeps the global choice.
+const leadBorder = () => (euphoniaLeads() ? getEuphonia().getConfig().border || euphLaunch.DEFAULT_BORDER : loadPetConfig().border);
+
+// Startup: make sure she exists and leads, without overwriting a name or species the owner changed.
+function pinEuphonia() {
+  return euphLead.startupPin({ roster: { pinReserved: (spec) => pets.pinReserved(spec), update: (id, p) => pets.roster.update(id, p) }, svc: getEuphonia() });
+}
+// The owner changed her name/species in Euphonia's settings: update the roster, the plate, the chat header and window title.
+// The bridge's pet_set_cosmetics writes config.json from another process. Notice the change and update the pet (idempotent:
+// a change already applied from the dashboard compares equal and does nothing).
+let appliedCosmetics = '';
+const cosmeticsSig = (c) => JSON.stringify([c.name, c.species, c.border, c.soundPack]);
+function watchCosmetics() {
+  try {
+    const sig = cosmeticsSig(getEuphonia().getConfig());
+    if (!appliedCosmetics) { appliedCosmetics = sig; return; }
+    if (sig !== appliedCosmetics) applyEuphoniaConfig();
+  } catch (e) { console.error('[euphonia] cosmetics sync failed:', e.message); }
+}
+function applyEuphoniaConfig() {
+  appliedCosmetics = cosmeticsSig(getEuphonia().getConfig());
+  mutate(() => euphLead.applyConfigToLead({ roster: { update: (id, p) => pets.roster.update(id, p) }, svc: getEuphonia() }));
+  reloadPetWindows();
+  const name = getEuphonia().getConfig().name;
+  chatMgr.setTitle(name);
+  const wc = chatMgr.webContents();
+  if (wc) wc.send('euphonia-config', { name });
+}
+
+// Per-install seed for casting auto-picked agent pets: two installs get different casts, one install keeps its own.
+function installSeed() {
+  const cur = loadPetConfig().characterSeed;
+  if (typeof cur === 'string' && cur) return cur;
+  const seed = require('crypto').randomBytes(8).toString('hex');
+  savePetConfig({ characterSeed: seed });
+  return seed;
+}
+
 function initPets() {
   const savedView = loadPetConfig().cornerView;
-  if (CORNER_VIEWS.includes(savedView)) cornerView = savedView;
+  cornerView = euphLaunch.migrateCornerView(savedView, CORNER_VIEWS);
+  if (savedView !== cornerView) savePetConfig({ cornerView, ...(savedView === 'chat' ? { winBounds: null } : {}) });   // the pet window no longer has a chat view
   armyOn = loadPetConfig().army === true;
-  pets = createPetsService({ userDataDir: app.getPath('userData'), assetsDir: bundledAssetsDir, bundled: BUNDLED_CHARS, thumb });
+  pets = createPetsService({ userDataDir: app.getPath('userData'), assetsDir: bundledAssetsDir, bundled: BUNDLED_CHARS, thumb, getSeed: installSeed });
   pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
+  try {
+    pinEuphonia();   // Euphonia is always the lead pet, ahead of every agent
+    getEuphonia().subscribe((ev) => { if (ev.type === 'live-exit') console.error(`[euphonia] live session ended: ${ev.why}`); });
+    setTimeout(() => { if (getEuphonia().start()) console.log('[euphonia] live session started', JSON.stringify(getEuphonia().status())); }, 1500);
+  } catch (e) { console.error('[euphonia] could not pin the lead pet:', e.message); }
   registerPetIpc({
     ipcMain, dialog, nativeImage, pets, mutate, petSnapshot, savePetConfig, reloadPetWindows, borderById,
     getParentWindow: () => dashWin || undefined,
+    onPetUpdated: (pet) => {   // a rename or species change made in the Pets tab / Forge writes through to her config
+      if (!pet || pet.id !== euphLaunch.RESERVED_ID) return;
+      euphLead.mirrorLeadToConfig({ svc: getEuphonia(), pet });
+      chatMgr.setTitle(pet.name);
+      const wc = chatMgr.webContents();
+      if (wc) wc.send('euphonia-config', { name: pet.name });
+    },
     clearThumbs: () => thumbCache.clear(),
     onRolesChanged: () => sendSessionUpdate(Date.now()),
     onProjectsChanged: () => sendSessionUpdate(Date.now()),
     frames: BORDERS,
+    getMonitor,
   });
   try { pets.setRoleSpecies(loadPetConfig().roleSpecies || {}); } catch (e) { console.error('[forge] ignoring stale role map:', e.message); }
   try { pets.setRoleTint(loadPetConfig().roleTint || {}); } catch (e) { console.error('[forge] ignoring stale role filters:', e.message); }
 }
 
-const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { border: loadPetConfig().border, ...opts });
+const resolveAsset = (filename, opts = {}) => pets.resolveAsset(filename, { border: leadBorder(), ...opts });
 
 function registerCharacterProtocol() {
   // peon-asset://<file>[?char=<species>&env=<environment>] — defaults to the lead pet.
@@ -170,6 +257,18 @@ let liveIds = new Set();   // every session in Claude's registry (its process is
 let busyIds = new Set();   // …of which currently mid-turn
 const sessionRegistry = new Map();  // session_id → registry entry (name, entrypoint, status…)
 let firmState = { available: false, threads: [], error: null };   // The Firm's agents (read-only poll)
+let prevFirmThreads = null;   // last successful poll, to derive lifecycle events from what changed
+// The monitor role, kept here until The Firm has one: judges what agents do against their kind's permissions and
+// writes credits and violations to the ledger. Only agents wearing a kind are judged.
+let monitor = null;
+function getMonitor() {
+  if (monitor || !pets) return monitor;
+  const typeOf = (id) => { const l = id && latestLooks.get(id); return l && l.type ? pets.agentTypes.get(l.type.slug) : null; };
+  monitor = createMonitor({ ledger: pets.ledger, typeOf });
+  let lastLogged = '';
+  setInterval(() => { const st = JSON.stringify(monitor.stats()); if (st !== lastLogged) { lastLogged = st; console.log(`[monitor] ${st}`); } }, 60000);
+  return monitor;
+}
 let firmUrl = null;
 let latestLooks = new Map();   // agent id → pet look, so sub-agent windows can wear their parent's tint
 const DEFAULT_WORKER_PATTERNS = ['/.firm/worktrees/'];
@@ -190,17 +289,31 @@ function setSessionTitle(id, title, kind) {
 
 let sessionUpdateTimer = null;
 let firmPoller = null;
+let firmMirror = null;   // Euphonia's read-only copy of The Firm's state, as files in her kb (her bridge MCP cannot load under the managed policy)
+function startFirmMirror() {
+  if (firmMirror) { firmMirror.stop(); firmMirror = null; }
+  try {
+    const { createFirmMirror } = require('./lib/euphonia/firm-mirror');
+    const { createFirmHttp } = require('./lib/euphonia/bridge/firm-http');
+    const http = createFirmHttp({ baseUrl: firmUrl });
+    firmMirror = createFirmMirror({ kbDir: getEuphonia().paths.kbDir, firm: () => http, log: (m) => console.log(m) });
+    firmMirror.start();
+  } catch (e) { console.error('[firm-mirror] disabled:', e.message); }
+}
 // (Re)connect to The Firm per the saved settings. Read-only and optional.
 function startFirm() {
   if (firmPoller) { firmPoller.stop(); firmPoller = null; }
   const cfg = loadPetConfig();
   firmState = { available: false, threads: [], error: null };
   firmUrl = cfg.firmUrl || 'http://127.0.0.1:8420';
-  if (cfg.firm === false) { scheduleSessionUpdate(); return; }
+  if (cfg.firm === false) { if (firmMirror) { firmMirror.stop(); firmMirror = null; } scheduleSessionUpdate(); return; }
+  startFirmMirror();
   try {
     firmPoller = createFirmPoller({
       client: createFirmClient({ baseUrl: firmUrl }),
-      onChange: (st) => { firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
+      onChange: (st) => {
+        if (st.available) { const m = getMonitor(); if (m) m.lifecycle(diffThreads(prevFirmThreads, st.threads)); prevFirmThreads = st.threads; } else prevFirmThreads = null;
+        firmState = st; scheduleSessionUpdate(); if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('firm-state', firmSummary()); },
       onTransition: (st) => console.log(st.available ? `[firm] connected (${st.threads.length} agents)` : `[firm] unreachable: ${st.error}`),
     });
     firmPoller.start();
@@ -208,6 +321,19 @@ function startFirm() {
     firmState = { available: false, threads: [], error: e.message };
     console.error('[firm] disabled:', e.message);
   }
+}
+
+// A list-only copy of the owner's local Claude Code / Codex sessions in Euphonia's kb (kb/sessions/STATUS.md). Reads only under
+// sessionRoots in her config.json (empty = off). Read only; it never touches a session.
+let sessionsMirror = null;
+function startSessionsMirror() {
+  if (sessionsMirror) { sessionsMirror.stop(); sessionsMirror = null; }
+  try {
+    const { createSessionsMirror } = require('./lib/euphonia/sessions-mirror');
+    const { createSessions } = require('./lib/euphonia/bridge/sessions');
+    sessionsMirror = createSessionsMirror({ kbDir: getEuphonia().paths.kbDir, sessions: createSessions({ roots: () => getEuphonia().getConfig().sessionRoots }), log: (m) => console.log(m) });
+    sessionsMirror.start();
+  } catch (e) { console.error('[sessions-mirror] disabled:', e.message); }
 }
 
 ipcMain.handle('firm-set', (_e, { enabled, url }) => {
@@ -248,15 +374,20 @@ async function readRemoteState(baseUrl) {
   }
 }
 
-function repositionSubAgentWindows() {
+// Mini pets sit beside the lead pet's window (Euphonia) on its display; with no pet window, the old bottom-left corner.
+function subAgentPosition(n) {
+  const { subAgentSlot } = require('./lib/sub-agent-layout');
+  if (win && !win.isDestroyed()) {
+    const anchor = win.getBounds();
+    return subAgentSlot(anchor, screen.getDisplayMatching(anchor).workArea, n);
+  }
   const { height } = screen.getPrimaryDisplay().workAreaSize;
+  return { x: 20, y: (height - SUB_AGENT_BASE_Y_OFFSET) - (n + 1) * 100 };
+}
+function repositionSubAgentWindows() {
   let i = 0;
   for (const [, subWin] of subAgentWindows) {
-    if (!subWin.isDestroyed()) {
-      const mainY = height - SUB_AGENT_BASE_Y_OFFSET;
-      subWin.setPosition(20, mainY - (i + 1) * 100);
-      i++;
-    }
+    if (!subWin.isDestroyed()) { const p = subAgentPosition(i); subWin.setPosition(p.x, p.y); i++; }
   }
 }
 
@@ -266,14 +397,14 @@ function createSubAgentWindow(sessionId, parentSessionId) {
   if (subAgentWindows.has(sessionId)) return;
   const parentLook = parentSessionId ? latestLooks.get(parentSessionId) : null;
 
-  const { height } = screen.getPrimaryDisplay().workAreaSize;
   const idx = subAgentWindows.size;
+  const pos = subAgentPosition(idx);
 
   const subWin = new BrowserWindow({
     width: 100,
     height: 100,
-    x: 20,
-    y: (height - SUB_AGENT_BASE_Y_OFFSET) - (idx + 1) * 100,
+    x: pos.x,
+    y: pos.y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -296,7 +427,7 @@ function createSubAgentWindow(sessionId, parentSessionId) {
     subWin.webContents.send('peon-config', { size: 100, subAgent: true });
     if (parentLook) subWin.webContents.send('pet-look', parentLook); else sendLook(subWin);
     subWin.webContents.send('peon-event', { anim: 'waking', event: 'SessionStart' });
-    startMouseTrackingForWindow(subWin);
+    // no mouse tracking: mini pets stay click-through (setIgnoreMouseEvents(true) above)
   });
 
   // Don't quit app when sub-agent window closes
@@ -377,7 +508,26 @@ function handleSessionEvent({ sessionId, event, cwd, timestamp, agent, title, ti
   }
 }
 
+// The swarm is easy to overrun: warn (summary strip turns red) when more than this many agents are working at once.
+// 20 matches the Firm's own cap on active agents. 0 turns the warning off.
+const CROWD_DEFAULT = 20;
+function crowdLimit() {
+  const v = loadPetConfig().crowdLimit;
+  return Number.isFinite(v) && v >= 0 ? Math.min(500, Math.round(v)) : CROWD_DEFAULT;
+}
+ipcMain.handle('limits-get', () => ({ crowd: crowdLimit() }));
+ipcMain.handle('limits-set', (_e, patch) => {
+  if (patch && 'crowd' in patch) {
+    const n = Number(patch.crowd);
+    if (!Number.isFinite(n) || n < 0) throw new Error('The limit is a whole number, or 0 for no warning');
+    savePetConfig({ crowdLimit: Math.min(500, Math.round(n)) });
+    sendSessionUpdate(Date.now());
+  }
+  return { crowd: crowdLimit() };
+});
+
 let lastSessionSig = '';
+const AGENT_CAP = 48;   // most agents the pet, grid and bar are sent
 function sendSessionUpdate(now) {
   const sessions = buildSessionStates(tracker.entries(), now, HOT_MS, WARM_MS, 200);
   const times = new Map(tracker.entries());
@@ -394,7 +544,7 @@ function sendSessionUpdate(now) {
       titleKind: t ? t.kind : null,
       role,
       status: busyIds.has(s.id) ? 'busy' : liveIds.has(s.id) ? 'idle' : null,
-      live: liveIds.has(s.id),
+      live: liveIds.has(s.id) || remoteSessionIds.has(s.id),   // remote: the relay still lists it, and we cannot see its process
       rank: role === 'master' ? 0 : 1,
       agent: sessionAgents.get(s.id) || 'claude',
       peonKey: peonKey(s.id),
@@ -403,11 +553,11 @@ function sendSessionUpdate(now) {
     };
   });
   // Merge in The Firm's agents, then order: roots (masters first, stable) each followed by their children.
-  const agents = buildAgents({ sessions: rows, firmThreads: firmState.threads, now }).slice(0, 48);
-  const sig = `${agents.length}/${agents.filter((r) => r.hot).length}/${agents.filter((r) => r.warm).length}`;
+  const { agents, capped } = selectAgents({ rows, firmThreads: firmState.threads || [], now, cap: AGENT_CAP });   // capped: shown in the bar's tooltip
+  const sig = `${agents.length}/${agents.filter((r) => r.hot).length}/${agents.filter((r) => r.live && !r.hot).length}`;
   if (sig !== lastSessionSig) {   // one line per change: total/hot/warm and who
     lastSessionSig = sig;
-    console.log(`[sessions] ${sig} ${agents.map((r) => `${r.isRoot ? (r.role === 'master' ? 'M:' : 'R:') : ' ·'}${(r.title || r.name || '?').slice(0, 16)}${r.hot ? '*' : r.warm ? '~' : '.'}`).join(' ')}`);
+    console.log(`[sessions] ${sig} ${agents.map((r) => `${r.isRoot ? (r.role === 'master' ? 'M:' : 'R:') : ' ·'}${(r.title || r.name || '?').slice(0, 16)}${r.hot ? '*' : r.live ? '~' : '.'}`).join(' ')}`);
   }
   const baseLooks = pets ? pets.assign(agents) : new Map();
   // Project identity (emoji, colour family, frame, environment) and per-type shades.
@@ -417,6 +567,8 @@ function sendSessionUpdate(now) {
   const payload = {
     sessions: agents.map((r) => ({ ...r, pet: looks.get(r.id) || null, project: (marks.get(r.id) || {}).project || null, mark: (marks.get(r.id) || {}).mark || null })),
     firm: { available: firmState.available, url: firmUrl },
+    limits: { crowd: crowdLimit() },
+    capped,
   };
   latestSessions = payload;
   if (gridWin && !gridWin.isDestroyed()) gridWin.webContents.send('grid-sessions', payload);
@@ -467,6 +619,7 @@ function startPolling() {
 
   for (const w of watchers) {
     w.on('session-event', handleSessionEvent);
+    w.on('tool-use', (ev) => { const m = getMonitor(); if (m) m.toolUse(ev); });
     w.on('subagent-event', ({ sessionId: parentSession, parentToolId, event }) => {
       if (event === 'SubagentStart' && win && !win.isDestroyed()) win.webContents.send('peon-event', { anim: null, event });  // lets pets react to a newcomer
       if (event === 'SubagentStart') createSubAgentWindow(parentToolId, parentSession);
@@ -510,6 +663,7 @@ function startPolling() {
   setInterval(refreshLive, 4000);
 
   startFirm();
+  startSessionsMirror();
 
   // Heartbeat: refresh session hot/warm status so the pet correctly decays.
   // Sessions with pending tools are kept hot so the pet stays awake during long tool runs.
@@ -537,7 +691,7 @@ function startPolling() {
 
 // --- Pixoo 64 mirror ---
 // Pushes the pet's current animation (plus session dots) to a Divoom Pixoo 64 on the LAN.
-const pixoo = { client: null, status: 'off', lastSig: null, busy: false, dirty: false, timer: null };
+const pixoo = { rot: {}, displayed: null, client: null, status: 'off', lastSig: null, busy: false, dirty: false, timer: null, lastSentAt: 0, force: false };
 const pixooFrameCache = new Map();  // anim → { frames, speedMs }
 let petAnim = 'sleeping';
 
@@ -548,6 +702,11 @@ function pixooConfig() {
     ip: c.ip || '',
     look: Number.isFinite(c.look) ? c.look : 60,
     brightness: Number.isFinite(c.brightness) ? c.brightness : null,  // null = leave the device alone
+    minIntervalSec: cleanInterval(c.minIntervalSec),   // at most one update to the display per this many seconds
+    rotate: c.rotate !== false,                          // cycle through the lead and the active agents
+    rotateSeconds: Number.isFinite(c.rotateSeconds) ? c.rotateSeconds : rotation.DEFAULT_ROTATE_SEC,
+    rotateCount: Number.isFinite(c.rotateCount) ? c.rotateCount : rotation.DEFAULT_CAP,
+    pin: typeof c.pin === 'string' && c.pin ? c.pin : null,   // hold the display on one agent
   };
 }
 
@@ -557,15 +716,32 @@ function setPixooStatus(status) {
   if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('pixoo-state', { ...pixooConfig(), status });
 }
 
-function pixooAnimFrames(anim) {
-  const look = leadLook();
+function pixooAnimFrames(look, anim) {
   const key = `${look && look.species}|${look && look.env}|${anim}`;
   if (!pixooFrameCache.has(key)) {
     // Cutout pets are composited onto their environment; baked sheets already contain the scene.
-    const bgPath = look && look.layout === 'cutout' ? resolveAsset('bg.png') : null;
-    pixooFrameCache.set(key, buildAnimFrames(nativeImage, resolveAsset('sprite-atlas.png'), anim, { bgPath }));
+    const opts = { char: look && look.species, env: look && look.env };
+    const bgPath = look && look.layout === 'cutout' ? resolveAsset('bg.png', opts) : null;
+    pixooFrameCache.set(key, buildAnimFrames(nativeImage, resolveAsset('sprite-atlas.png', opts), anim, { bgPath }));
   }
   return pixooFrameCache.get(key);
+}
+
+// Who the Pixoo should show now: the lead, or (when rotating) the next of the lead and the active agents. The throttle
+// below still decides WHEN the display is actually updated; this only decides what it should show next.
+const PIXOO_ANIMS = new Set(['sleeping', 'waking', 'typing', 'alarmed', 'celebrate', 'annoyed']);
+function pixooTarget(cfg, now = Date.now()) {
+  const leadPet = pets && pets.lead();
+  const leadLk = leadLook();
+  const sessions = latestSessions.sessions || [];
+  const list = rotation.selectRotation({ lead: leadPet, agents: sessions, cap: cfg.rotateCount, now });
+  if (cfg.pin && !list.includes(cfg.pin) && sessions.some((s) => s.id === cfg.pin)) list.push(cfg.pin);
+  const effective = cfg.rotate || cfg.pin ? list : list.slice(0, 1);
+  pixoo.rot = rotation.rotateStep({ list: effective, state: pixoo.rot, pin: cfg.pin, now, intervalSec: rotation.effectiveIntervalSec(cfg) });
+  const id = pixoo.rot.showing;
+  const row = id && id !== (leadPet && leadPet.id) ? sessions.find((s) => s.id === id) : null;
+  if (!row) return { id: leadPet ? leadPet.id : null, look: leadLk, anim: petAnim };
+  return { id, look: row.pet || leadLk, anim: PIXOO_ANIMS.has(row.anim) ? row.anim : (row.hot ? 'typing' : 'sleeping') };
 }
 
 function schedulePixooSync(delayMs = 300) {
@@ -574,27 +750,36 @@ function schedulePixooSync(delayMs = 300) {
 }
 
 async function runPixooSync() {
-  const { enabled, ip, look, brightness } = pixooConfig();
+  const cfg = pixooConfig();
+  const { enabled, ip, look, brightness, minIntervalSec } = cfg;
   if (!enabled || !ip) { pixoo.client = null; setPixooStatus('off'); return; }
   if (pixoo.busy) { pixoo.dirty = true; return; }
   pixoo.busy = true;
   try {
     if (!pixoo.client || pixoo.client.ip !== ip) { pixoo.client = new PixooClient(ip); pixoo.lastSig = null; }
     const sessions = latestSessions.sessions || [];
-    const lead = leadLook();
+    const target = pixooTarget(cfg);
+    const lead = target.look;
     const summary = summarizeAgents(sessions);
-    const sig = `${lead && lead.petId}|${lead && lead.tint}|${petAnim}|${look}|${brightness}|${summary.working}/${summary.idle}/${summary.attention}`;
+    const sig = `${target.id}|${lead && lead.petId}|${lead && lead.species}|${lead && lead.tint}|${target.anim}|${look}|${brightness}|${summary.working}/${summary.idle}/${summary.attention}`;
     if (sig !== pixoo.lastSig) {
-      const { frames, speedMs } = pixooAnimFrames(petAnim);
+      // Go easy on the display: hold changes back until the interval is up, then send whatever is current.
+      const wait = waitMs({ lastSentAt: pixoo.lastSentAt, now: Date.now(), minIntervalSec, force: pixoo.force });
+      if (wait > 0) { schedulePixooSync(wait); return; }
+      pixoo.force = false;
+      const { frames, speedMs } = pixooAnimFrames(lead, target.anim);
       if (brightness !== null) await pixoo.client.setBrightness(brightness);
       await pixoo.client.showAnimation(frames.map((f) => drawSummary(applyTint(applyLook(f, look), lead && lead.tintRgb, lead ? lead.tintAlpha : 0), summary)), speedMs);
       pixoo.lastSig = sig;
+      pixoo.displayed = target.id;   // what is actually on the display: voice focus follows this, not what is queued
+      pixoo.lastSentAt = Date.now();
+      console.log(`[pixoo] update sent (limit ${minIntervalSec}s)`);
     }
     setPixooStatus('connected');
   } catch (e) {
     pixoo.lastSig = null;
     setPixooStatus(`error: ${e.message}`);
-    schedulePixooSync(15000);  // device asleep / wrong IP: retry quietly
+    schedulePixooSync(Math.max(15000, minIntervalSec * 1000));  // device asleep / wrong IP: retry quietly, no faster than the update interval
   } finally {
     pixoo.busy = false;
     if (pixoo.dirty) { pixoo.dirty = false; schedulePixooSync(); }
@@ -620,11 +805,19 @@ ipcMain.handle('pixoo-set', (_e, patch) => {
   if ('enabled' in patch) next.enabled = !!patch.enabled;
   if ('look' in patch) next.look = Math.min(100, Math.max(0, Math.round(Number(patch.look) || 0)));
   if ('brightness' in patch) next.brightness = Math.min(100, Math.max(0, Math.round(Number(patch.brightness) || 0)));
+  if ('minIntervalSec' in patch) next.minIntervalSec = cleanInterval(patch.minIntervalSec);
+  if ('rotate' in patch) next.rotate = !!patch.rotate;
+  if ('rotateSeconds' in patch) next.rotateSeconds = Math.min(3600, Math.max(rotation.MIN_ROTATE_SEC, Math.round(Number(patch.rotateSeconds) || rotation.DEFAULT_ROTATE_SEC)));
+  if ('rotateCount' in patch) next.rotateCount = Math.min(20, Math.max(1, Math.round(Number(patch.rotateCount) || rotation.DEFAULT_CAP)));
+  if ('pin' in patch) next.pin = patch.pin ? String(patch.pin).slice(0, 200) : null;
   if (next.enabled && !next.ip) throw new Error('Enter the Pixoo\'s IP address first (shown in the Divoom app)');
   savePetConfig({ pixoo: next });
-  pixoo.lastSig = null;
-  setPixooStatus(next.enabled ? 'connecting\u2026' : 'off');
-  schedulePixooSync(0);
+  // A change you just made to what the display shows goes out now, not after the interval. Changing only the
+  // interval doesn't touch the display.
+  const visible = ['enabled', 'ip', 'look', 'brightness', 'pin'].some((k) => next[k] !== cur[k]);
+  if (visible) { pixoo.lastSig = null; pixoo.force = true; }
+  setPixooStatus(next.enabled ? (visible ? 'connecting\u2026' : pixoo.status) : 'off');
+  schedulePixooSync(visible ? 0 : 300);
   return { ...next, status: pixoo.status };
 });
 
@@ -650,6 +843,42 @@ function resizeCorner(w, h) {
   const next = computeCornerBounds(b, screen.getDisplayMatching(b).workArea, w, h, { min: CORNER_MIN, max: CORNER_MAX });
   if (next.width !== b.width || next.height !== b.height || next.x !== b.x || next.y !== b.y) win.setBounds(next);
 }
+
+// --- Euphonia: the user's personal assistant. The pet window has a chat button and an unread dot;
+// the conversation itself lives in its own window (chat/), which the button opens or focuses.
+let euphoniaIpc = null;
+const chatMgr = createChatWindowManager({
+  BrowserWindow,
+  file: 'chat/index.html',
+  openExternal: (url) => shell.openExternal(url),
+  getTitle: () => { try { return getEuphonia().getConfig().name; } catch { return 'Euphonia'; } },
+  webPreferences: { preload: path.join(__dirname, 'chat', 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },   // model-authored Markdown lands in this renderer: sandboxed
+  loadBounds: () => restoreBounds(loadPetConfig().chatBounds, screen.getAllDisplays().map((d) => d.workArea), { min: { w: 320, h: 360 }, max: { w: 1000, h: 1400 } }),
+  saveBounds: (b) => savePetConfig({ chatBounds: b }),
+  onActiveChange: (active) => {
+    if (euphoniaIpc) euphoniaIpc.onChatActiveChange();
+    const wc = chatMgr.webContents();
+    if (active && wc) wc.send('euphonia-chat-focus');
+  },
+});
+euphoniaIpc = registerEuphoniaIpc({
+  ipcMain,
+  getChat: { webContents: () => chatMgr.webContents(), isActive: () => chatMgr.isActive(), open: () => chatMgr.open() },
+  getPetWebContents: () => (win && !win.isDestroyed() ? win.webContents : null),
+  getSenders: () => (dashWin && !dashWin.isDestroyed() ? [dashWin.webContents] : []),
+  getService: getEuphonia,
+  onConfigChanged: () => applyEuphoniaConfig(),
+  shouldPlay: () => shouldPlayVoice(voiceFocus.EUPHONIA_ID),
+  openAccessSettings: () => {
+    openDashboard();
+    const send = () => { if (dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('dash-show-euphonia'); };
+    if (dashWin.webContents.isLoading()) dashWin.webContents.once('did-finish-load', send); else send();
+  },
+  peonDir: () => peonSound.peonDir(),
+  listPacks: () => peonPacks.listPacks(),
+  isMuted: () => soundMuted || peonSound.isMuted(),
+  getVolume: () => peonPacks.getPackState().volume,
+});
 
 ipcMain.on('corner-set-view', (e, v) => setCornerView(v, e.sender));
 ipcMain.handle('corner-get', () => cornerView);
@@ -700,6 +929,62 @@ function setArmy(on) {
 }
 
 const armyMenuItem = () => ({ label: 'Desktop army (one window per agent)', type: 'checkbox', checked: armyOn, click: (item) => setArmy(item.checked) });
+
+// --- Voice focus: one agent's voice at a time (lib/voice-focus.js) ---
+// Peon Pet itself plays only Euphonia's reply cue (and auditions you ask for). Agent event sounds come from the
+// peon-ping hook outside this app, so for those the focus is published, not enforced: see voice-focus.json below.
+const voiceMode = () => voiceFocus.cleanMode(loadPetConfig().voiceFocus);
+function voiceFacts() {
+  const sessions = latestSessions.sessions || [];
+  const lead = pets && pets.lead();
+  return {
+    pixooConnected: pixoo.status === 'connected',
+    pixooShowing: pixoo.displayed,                              // what the Pixoo is actually showing right now (follows the rotation or the pin)
+    cornerView,
+    visibleAgentId: voiceFocus.pickVisibleAgent(cornerView, sessions),
+    leadId: lead ? lead.id : null,
+    chatWindowFocused: chatMgr.isActive(),
+  };
+}
+const currentVoiceFocus = () => voiceFocus.resolveVoiceFocus(voiceFacts());
+function shouldPlayVoice(agentId) {
+  return voiceFocus.shouldPlay({ mode: voiceMode(), agentId, focus: currentVoiceFocus().agentId, chatWindowFocused: chatMgr.isActive() });
+}
+let lastVoiceSig = '';
+function voiceState() {
+  const f = currentVoiceFocus();
+  const pet = pets && pets.roster.get(f.agentId);
+  // The peon-ping hook identifies itself by its session id, so publish the hook session ids the focused agent answers to:
+  // the agent's own and its sub-agents'. A pet such as Euphonia is not a hook session and has none.
+  const rows = latestSessions.sessions || [];
+  const sessionIds = rows.filter((r) => r.id === f.agentId || r.rootId === f.agentId).map((r) => r.peonKey || r.id);
+  const row = rows.find((r) => r.id === f.agentId);
+  return { mode: voiceMode(), agentId: f.agentId, reason: f.reason, name: pet ? pet.name : (row && (row.title || row.name)) || f.agentId, sessionIds };
+}
+function publishVoiceFocus() {   // call whenever a fact changes; cheap and idempotent
+  try {
+    const st = voiceState();
+    const sig = JSON.stringify(st);
+    const changed = sig !== lastVoiceSig;
+    lastVoiceSig = sig;
+    if (changed && dashWin && !dashWin.isDestroyed()) dashWin.webContents.send('voice-focus', st);
+    // Written on every tick, changed or not: the peon-ping hook treats a file older than 30 s as "the app is not running".
+    const file = path.join(app.getPath('userData'), 'voice-focus.json');
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify({ ...st, updatedAt: new Date().toISOString() }));
+    fs.renameSync(`${file}.tmp`, file);
+  } catch { /* an indicator must never break the app */ }
+}
+ipcMain.handle('voice-focus-get', (e) => (dashWin && !dashWin.isDestroyed() && e.sender === dashWin.webContents ? voiceState() : null));
+ipcMain.handle('voice-focus-set', (e, mode) => {
+  if (!dashWin || dashWin.isDestroyed() || e.sender !== dashWin.webContents) return null;
+  savePetConfig({ voiceFocus: voiceFocus.cleanMode(mode) });
+  lastVoiceSig = '';
+  publishVoiceFocus();
+  return voiceState();
+});
+setInterval(publishVoiceFocus, 1500).unref();
+setInterval(watchCosmetics, 2500).unref();
+setInterval(() => { if (pixooConfig().enabled) schedulePixooSync(0); }, 5000).unref();   // lets the rotation advance; sends are still throttled   // catches view, pixoo and chat-focus changes without wiring each one
 
 // --- Master sound toggle (peon-ping .paused) ---
 let soundMuted = peonSound.isMuted();
@@ -799,6 +1084,16 @@ let dragOffsetX = 0;
 let dragOffsetY = 0;
 let ignoringMouse = true;  // tracks last setIgnoreMouseEvents value
 
+// While dragging, the window follows the cursor on its own ~60 Hz timer. The shared 50 ms hover poll made drags
+// visibly lag and stutter, worse when the machine is busy.
+let dragTimer = null;
+function dragTick() {
+  if (!isDragging || !win || win.isDestroyed()) { clearInterval(dragTimer); dragTimer = null; return; }
+  const { x: cx, y: cy } = screen.getCursorScreenPoint();
+  const nx = cx - dragOffsetX, ny = cy - dragOffsetY;
+  const [wx, wy] = win.getPosition();
+  if (nx !== wx || ny !== wy) win.setPosition(nx, ny);
+}
 ipcMain.on('drag-start', () => {
   if (!win || win.isDestroyed()) return;
   isDragging = true;
@@ -810,10 +1105,13 @@ ipcMain.on('drag-start', () => {
     win.setIgnoreMouseEvents(false);
     ignoringMouse = false;
   }
+  if (!dragTimer) dragTimer = setInterval(dragTick, 16);
 });
 
 ipcMain.on('drag-stop', () => {
   isDragging = false;
+  if (dragTimer) { clearInterval(dragTimer); dragTimer = null; }
+  repositionSubAgentWindows();
 });
 
 // Poll cursor position to enable mouse events only when hovering the window.
@@ -827,13 +1125,7 @@ function startMouseTrackingForWindow(targetWin) {
     }
     const { x: cx, y: cy } = screen.getCursorScreenPoint();
 
-    if (targetWin === win && isDragging) {
-      const nx = cx - dragOffsetX;
-      const ny = cy - dragOffsetY;
-      const [wx, wy] = targetWin.getPosition();
-      if (nx !== wx || ny !== wy) targetWin.setPosition(nx, ny);
-      return;
-    }
+    if (targetWin === win && isDragging) return;   // the drag timer moves the window
 
     const [wx, wy] = targetWin.getPosition();
     const [ww, wh] = targetWin.getSize();
@@ -843,9 +1135,9 @@ function startMouseTrackingForWindow(targetWin) {
         targetWin.setIgnoreMouseEvents(!inside);
         ignoringMouse = !inside;
       }
-    } else {
-      targetWin.setIgnoreMouseEvents(!inside);
     }
+    // Mini sub-agent pets stay click-through always: they sit beside the lead pet now, and making them clickable on
+    // hover stole clicks meant for the pet and for windows underneath.
   }, 50);
 }
 
@@ -986,6 +1278,7 @@ function createWindow() {
     saveBoundsTimer = setTimeout(() => { if (win && !win.isDestroyed()) savePetConfig({ winBounds: win.getBounds() }); }, 400);
   };
   win.on('move', rememberBounds);
+  win.on('moved', () => repositionSubAgentWindows());   // mini pets follow the lead pet
   win.on('resize', rememberBounds);
 
   win.setIgnoreMouseEvents(true);
@@ -1007,7 +1300,7 @@ function createWindow() {
     win.webContents.send('sound-state', { muted: soundMuted });
     sendLook(win);
     win.webContents.send('corner-view', cornerView);
-    win.webContents.send('frame-style', { id: loadPetConfig().border || 'default' });
+    win.webContents.send('frame-style', { id: leadBorder() || 'default' });
   });
 
   // Clean up sub-agent windows when main window closes
@@ -1074,11 +1367,27 @@ if (!gotLock) {
   app.quit();
 } else {
   app.whenReady().then(() => {
+    // The chat renderer never needs camera, microphone, notifications or the like.
+    session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     initPets();
     registerCharacterProtocol();
     createWindow();
+    if (euphLaunch.shouldOpenChatOnLaunch({ openChatOnLaunch: getEuphonia().getConfig().openChatOnLaunch, leadId: euphoniaLeads() ? euphLaunch.RESERVED_ID : null })) chatMgr.open();
     createTray();
     startHotReload();
   });
-  app.on('window-all-closed', () => app.quit());
+  // Say why the app is going away: a clean exit (code 0) is not restarted by launchd, so it is hard to notice otherwise.
+  // Give her CLI process a moment to end cleanly (its MCP servers with it) before the app exits.
+  let quitting = false;
+  app.on('will-quit', (e) => {
+    if (quitting || !euphonia) return;
+    quitting = true; e.preventDefault();
+    Promise.race([euphonia.shutdown(), new Promise((r) => setTimeout(r, 4000))]).catch(() => {}).then(() => app.quit());
+  });
+  app.on('before-quit', () => {
+    console.log(`[app] before-quit (${new Date().toLocaleTimeString()})`);
+    if (euphonia) euphonia.shutdown().catch(() => {});   // end Euphonia's long-lived CLI process (stdin closed, then killed)
+  });
+  for (const sig of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(sig, () => { console.log(`[app] ${sig} received, exiting`); app.quit(); });
+  app.on('window-all-closed', () => { console.log('[app] last window closed, quitting'); app.quit(); });
 }

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Euphonia (2026-10-08 review and cleanup)
+
+- **Security**: her personality file and the send-receipt log moved out of the model-writable knowledge base into her home folder (a model-writable system prompt is a persistent injection; receipts could be forged). Old kb copies are migrated once. The browser host-guard hook now fails closed (exit 2) on any error. The chat renderer runs sandboxed and denies permission requests.
+- **Approval cards**: policy-held tool calls (`ask` in the machine's managed settings) reach the owner as a card in the chat; one click, one call. Cards survive a closed window (shown on reopen), light the pet's unread dot, are cancelled by New conversation, by the CLI withdrawing the request, and by their own process ending (not by a successor's). A grant that expired mid-turn no longer approves.
+- **Policy**: the access block tells three kinds of "not now" apart (denied for everyone / needs a person at a prompt / needs a write grant) with the real remedy; servers the managed policy mentions are denied by name even before discovery; one server-name grammar across grants, policy rules and name splitting; many more write verbs in the tool classifier (`mark_read`, `search_and_replace`, `fetch_and_store`, …); grants validate `expires_at`; a kb inside the hub or a path with `,` is refused.
+- **Bridge**: `firm_file_task` and `github_list_issues` removed (The Firm's intake is Jira under PPE-2832); inbox ids with colons and paths are accepted; a refused send is reported as failed, not sent; the chat socket has a hard deadline, answers pings, parses close codes and resolves `localhost` to the loopback literal; `gh` gets the same PATH fix as `claude`; a corrupt config.json is never overwritten by a cosmetic change; declared tool levels must agree with the name classifier.
+- **Robustness**: a turn that cannot be prepared fails alone (the queue never wedges); a grant change during a turn waits for the turn; a session id that never arrived is not persisted; timeouts escalate to SIGKILL; the app waits for her process on quit; no double send from a held Enter key; a late delta cannot change a finished bubble.
+- **Prompt and docs**: one approval rule; stale "cannot answer a prompt" and Jira-via-Management sentences gone; `settings.md` in the kb is app-owned and rewritten every start; DESIGN.md updated.
+
 ### Added
 
 - **Control panel** — click the pet (or right-click / dock menu) to open it: mute/resume all sounds, global voice override, per-session voice swap, ▶ audition, volume, sound-category toggles, desktop-notification toggle (reads and writes peon-ping's own `config.json` / `.state.json`)

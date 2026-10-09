@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data:; script-src 'self'; style-src 'self' 'unsafe-inline';">
@@ -11,44 +11,54 @@
 <div id="app">
   <aside id="side">
     <div class="brand">Peon Pet</div>
-    <nav id="nav">
+    <nav id="nav" aria-label="Sections">
       <h4>Agents</h4>
-      <button data-page="overview"><i>◎</i> Overview</button>
-      <button data-page="projects"><i>◆</i> Projects</button>
+      <button data-page="overview"><i aria-hidden="true">◎</i> Overview</button>
+      <button data-page="projects"><i aria-hidden="true">◆</i> Projects</button>
       <h4>Pets</h4>
-      <button data-page="pets"><i>🐾</i> Roster</button>
-      <button data-page="species"><i>🎨</i> Species &amp; art</button>
-      <button data-page="environs"><i>🏞</i> Environments</button>
+      <button data-page="pets"><i aria-hidden="true">🐾</i> Roster</button>
+      <button data-page="species"><i aria-hidden="true">🎨</i> Species &amp; art</button>
+      <button data-page="environs"><i aria-hidden="true">🏞</i> Environments</button>
       <h4>Look &amp; sound</h4>
-      <button data-page="display"><i>▣</i> Frames &amp; Pixoo</button>
-      <button data-page="sound"><i>♪</i> Voice &amp; sound</button>
+      <button data-page="display"><i aria-hidden="true">▣</i> Frames &amp; Pixoo</button>
+      <button data-page="euphonia"><i aria-hidden="true">✦</i> Euphonia</button>
+      <button data-page="sound"><i aria-hidden="true">♪</i> Voice &amp; sound</button>
       <h4>The Firm</h4>
-      <button data-page="firm"><i>⚑</i> Connection</button>
-      <button data-page="forge"><i>⚒</i> Agent Forge</button>
+      <button data-page="firm"><i aria-hidden="true">⚑</i> Connection</button>
+      <button data-page="forge"><i aria-hidden="true">⚒</i> Agent Forge</button>
     </nav>
   </aside>
 
   <div id="content">
     <header>
-      <button id="burger" title="Menu">☰</button>
+      <button id="burger" aria-label="Menu" aria-expanded="true" aria-controls="side">☰</button>
       <h1 id="page-title">Overview</h1>
       <span class="spacer"></span>
       <button id="grid-btn" title="Open the big agent dashboard">Dashboard</button>
       <button id="mute">Mute sounds</button>
     </header>
-    <div id="error"></div>
+    <div id="error" role="alert"></div>
 
     <!-- ============ Overview ============ -->
     <main id="page-overview" class="page">
       <section class="card">
         <h2 class="first">Corner window</h2>
-        <div class="seg" id="corner-seg">
+        <div class="seg" id="corner-seg" role="group" aria-label="Corner window view">
           <button data-v="pet">Pet</button>
           <button data-v="grid">Grid</button>
           <button data-v="speaker">Speaker</button>
           <button data-v="presenter">Presenter</button>
         </div>
         <div class="help">The small window on your desktop. Hover it for the same switch, or click the pet to step through the views.</div>
+      </section>
+      <section class="card">
+        <h2 class="first">Crowding</h2>
+        <div class="row">
+          <label for="crowd-limit" class="inline">Warn when more than</label>
+          <input type="number" id="crowd-limit" min="0" max="500" step="1" style="width:70px">
+          <span class="val">agents are working at once (0 = no warning)</span>
+        </div>
+        <div class="help">The working count in the small window turns red and says how far over you are. Peon Pet only watches; ask Management to hold new work. The Firm's own cap is 20.</div>
       </section>
     <h2>Agents <span id="count" class="dim"></span></h2>
     <table>
@@ -76,9 +86,9 @@
     <section class="card">
       <h2 class="first">Add pets</h2>
       <div class="row">
-        <select id="add-species"></select>
-        <input type="text" id="add-name" placeholder="Name (optional)" maxlength="32">
-        <label class="inline">×</label>
+        <select id="add-species" aria-label="Species"></select>
+        <input type="text" id="add-name" aria-label="Pet name" placeholder="Name (optional)" maxlength="32">
+        <label class="inline" for="add-count">Count</label>
         <input type="number" id="add-count" value="1" min="1" max="24" style="width:56px">
         <button id="add-btn">Add</button>
       </div>
@@ -92,10 +102,10 @@
     <section class="card">
       <h2 class="first">New species</h2>
       <div class="row">
-        <input type="text" id="new-sp-name" placeholder="Name, e.g. Jazz Trumpet" maxlength="40" style="flex:1">
+        <input type="text" id="new-sp-name" aria-label="Species name" placeholder="Name, e.g. Jazz Trumpet" maxlength="40" style="flex:1">
         <button id="new-sp-btn">Create draft</button>
       </div>
-      <textarea id="new-sp-brief" rows="3" placeholder="Describe the character: what it looks like, its personality…"></textarea>
+      <textarea id="new-sp-brief" aria-label="Character description" rows="3" placeholder="Describe the character: what it looks like, its personality…"></textarea>
       <div class="help">A draft holds the description and generates the prompt to feed an image model. Import the sheet when you have it.</div>
     </section>
     <div id="sp-list" class="cards"></div>
@@ -112,13 +122,13 @@
       <div id="env-detail"></div>
       <h2>New environment</h2>
       <div class="row">
-        <input type="text" id="env-name" placeholder="Name, e.g. Smoky jazz club" maxlength="40" style="flex:1">
+        <input type="text" id="env-name" aria-label="Environment name" placeholder="Name, e.g. Smoky jazz club" maxlength="40" style="flex:1">
         <button id="env-import-btn">Import image…</button>
       </div>
-      <textarea id="env-desc" rows="2" placeholder="Describe the place (used for the prompt and kept as a note)…"></textarea>
+      <textarea id="env-desc" aria-label="Environment description" rows="2" placeholder="Describe the place (used for the prompt and kept as a note)…"></textarea>
       <div class="row" style="margin-top:6px"><button id="env-prompt-btn">Make prompt</button></div>
       <div id="env-prompt-box" hidden>
-        <textarea id="env-prompt" rows="9" readonly></textarea>
+        <textarea id="env-prompt" aria-label="Generated prompt" rows="9" readonly></textarea>
         <button class="copy" data-copy="env-prompt">Copy prompt</button>
       </div>
     </section>
@@ -134,9 +144,9 @@
     <section class="card" id="pixoo">
       <h2 class="first">Pixoo 64 display</h2>
       <div class="row">
-        <input type="text" id="pixoo-ip" placeholder="Device IP, e.g. 192.168.1.50" spellcheck="false">
+        <input type="text" id="pixoo-ip" aria-label="Pixoo device IP" placeholder="Device IP, e.g. 192.168.1.50" spellcheck="false">
         <label class="inline"><input type="checkbox" id="pixoo-on"> Mirror lead pet</label>
-        <span id="pixoo-status"></span>
+        <span id="pixoo-status" role="status"></span>
       </div>
       <div class="row" style="margin-top:8px">
         <label for="pixoo-bright" class="inline" style="width:88px">Brightness</label>
@@ -148,18 +158,82 @@
         <input type="range" id="pixoo-look" min="0" max="100" style="flex:1">
         <span id="pixoo-look-val" class="val">60</span>
       </div>
+      <div class="row" style="margin-top:6px">
+        <label for="pixoo-interval" class="inline" style="width:88px">Max update rate</label>
+        <input type="number" id="pixoo-interval" min="0" max="3600" step="5" style="width:80px"> <span class="val">seconds between updates (0 = no limit)</span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label class="inline"><input type="checkbox" id="pixoo-rotate"> Rotate through the lead and active agents</label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label for="pixoo-rotate-sec" class="inline" style="width:88px">Rotate every</label>
+        <input type="number" id="pixoo-rotate-sec" min="10" max="3600" step="5" style="width:80px"> <span class="val">seconds (never faster than the update limit)</span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label for="pixoo-pin" class="inline" style="width:88px">Hold on</label>
+        <select id="pixoo-pin"><option value="">(rotate)</option></select> <span class="val">pin the display to one agent; the voice follows it</span>
+      </div>
       <div class="help">IP is in the Divoom app: Device Settings → Device Info. Same Wi-Fi network required. Color match 0 = raw colors; higher pulls the LED look toward your screen.</div>
     </section>
 
     </main>
 
+    <!-- ============ Euphonia ============ -->
+    <main id="page-euphonia" class="page" hidden>
+    <section class="card" id="euph-access">
+      <h2 class="first">Euphonia: tool access</h2>
+      <div class="help" style="margin:0 0 8px">Euphonia reads your hub freely and writes only to her own notes. Anything else needs a grant here, per server.
+        <b>Read</b> allows look-up style tools (get, list, search, read, fetch, query, describe, find, view, check, analyze, preview).
+        <b>Write</b> also allows everything else, including any tool the app does not recognise. She cannot change this herself, and nothing she reads or says can.
+        Even with write access she shows you the exact text and destination in the chat and waits for your reply before each write.</div>
+      <div id="euph-access-errors" role="alert"></div>
+      <table id="euph-access-table">
+        <thead><tr><th>Server</th><th>From</th><th>Access</th><th>For</th><th>Expires</th><th></th></tr></thead>
+        <tbody id="euph-access-rows"></tbody>
+      </table>
+      <div class="row" style="margin-top:8px"><button id="euph-grant-connected" title="Read access, until revoked, on every server that is connected right now">Allow reading on all connected servers</button><button id="euph-revoke-all">Revoke all</button><span id="euph-access-note" role="status"></span></div>
+    </section>
+    </main>
+
     <!-- ============ Voice & sound ============ -->
     <main id="page-sound" class="page" hidden>
+    <section class="card" id="euphonia-voice">
+      <h2 class="first">Euphonia: name and voice</h2>
+      <div class="row">
+        <label for="euph-name">Name</label>
+        <input type="text" id="euph-name" maxlength="32" spellcheck="false" style="width:180px">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label for="euph-owner-name">Your name</label>
+        <input type="text" id="euph-owner-name" maxlength="64" spellcheck="false" style="width:180px" placeholder="how she addresses you">
+        <label for="euph-pronouns" style="margin-left:10px">Pronouns</label>
+        <input type="text" id="euph-pronouns" maxlength="32" spellcheck="false" style="width:110px" placeholder="she/her">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label for="euph-pack">Sound pack</label>
+        <select id="euph-pack"></select>
+        <button id="euph-audition" class="play" title="Audition this voice" aria-label="Audition this voice">▶</button>
+      </div>
+      <div id="euph-note" role="status" style="margin-top:6px;font-size:0.8rem"></div>
+      <div class="help">All save as soon as you change them and are read back from disk to confirm. Your name and pronouns are how Euphonia addresses you in chat (never your login); leave the name empty for "the owner". The pack plays when Euphonia finishes a reply, starting with the next one. Renaming her in the Pets tab does the same.</div>
+    </section>
+    <section class="card" id="voice-focus">
+      <h2 class="first">Whose voice is heard</h2>
+      <div class="row">
+        <label for="voice-mode">Voice focus</label>
+        <select id="voice-mode">
+          <option value="active-display">Only the agent on display (Pixoo, else the main view)</option>
+          <option value="all">All agents (no filtering)</option>
+        </select>
+      </div>
+      <div id="voice-now" role="status" style="margin-top:6px;font-size:0.85rem"></div>
+      <div class="help">With a Pixoo connected, the voice follows what it shows. Without one, it follows the main window's view (the pet view is the lead, Euphonia); her reply cue also plays while her chat window is focused. Everyone else's cue is dropped, not queued. This filters sounds Peon Pet plays itself (Euphonia's replies). Sounds from the peon-ping hook run outside this app: the current focus is published to <code>voice-focus.json</code> in the app's data folder for it to consult.</div>
+    </section>
     <section class="card" id="global">
       <div class="row">
         <label for="global-pack">Global voice</label>
         <select id="global-pack"></select>
-        <button id="audition" class="play" title="Audition this voice">▶</button>
+        <button id="audition" class="play" title="Audition this voice" aria-label="Audition this voice">▶</button>
         <button id="global-apply">Set as global</button>
       </div>
       <div class="row" style="margin-top:8px">
@@ -182,7 +256,7 @@
         <h2 class="first">Connection</h2>
         <div class="row">
           <span id="firm-status" class="chip">checking…</span>
-          <input type="text" id="firm-url" placeholder="http://127.0.0.1:8420" spellcheck="false">
+          <input type="text" id="firm-url" aria-label="Firm backend URL" placeholder="http://127.0.0.1:8420" spellcheck="false">
           <label class="inline"><input type="checkbox" id="firm-on"> Connect</label>
           <button id="firm-save">Save</button>
         </div>
@@ -195,7 +269,7 @@
     <main id="page-forge" class="page" hidden>
       <section class="card">
         <h2 class="first">Agent types</h2>
-        <div class="help" style="margin:0 0 8px">Choose which species and which full-image <b>filter</b> stand for each Firm role — the agent <i>type</i>. Projects are told apart by their plate, emoji and frame; agents of the same type within a project by shades of the project's color (a role filter replaces its shade).</div>
+        <div class="help" style="margin:0 0 8px">Choose which species and which full-image <b>filter</b> stand for each Firm role — the agent <i aria-hidden="true">type</i>. Projects are told apart by their plate, emoji and frame; agents of the same type within a project by shades of the project's color (a role filter replaces its shade).</div>
         <table id="forge-table">
           <thead><tr><th>Role</th><th>What it does</th><th>Species</th><th>Filter</th></tr></thead>
           <tbody id="forge-rows"></tbody>
@@ -204,8 +278,14 @@
       <section class="card">
         <h2 class="first">Kinds of agent</h2>
         <div class="help" style="margin:0 0 8px">A pet can serve as many kinds of agent. Each kind belongs to a Firm role and has a viewpoint (<b>personality</b>), <b>traits</b> that decide when it fits, and <b>permissions</b> it may only narrow from its role. Sub-agents are matched automatically: the type whose traits fit the agent's role, project, title and folder best wins, and ties go to the type used least so duplicates get variety. Pin a type on one agent from the Projects page. The Firm's own choice always wins.</div>
+        <div class="line"><label class="inline"><input type="checkbox" id="types-spread"> Spread copies across all pets (more variety)</label></div>
         <div class="line"><label class="inline"><input type="checkbox" id="types-auto-roots"> Also pick a type for top-level agents</label><span style="flex:1"></span><button id="types-new">New kind of agent</button></div>
         <div id="types-list"></div>
+      </section>
+      <section class="card">
+        <h2 class="first">Monitor: recent activity</h2>
+        <div class="help" style="margin:0 0 8px">Peon Pet watches what agents wearing a kind actually do. A tool call outside the kind's permissions is logged as a violation (with who should have done it); a finished task is a credit. Your own sessions are never judged. The Firm will eventually supply these events itself.</div>
+        <div id="monitor-events" class="help">Nothing yet.</div>
       </section>
       <section class="card">
         <h2 class="first">Next: build agent types together in The Firm</h2>

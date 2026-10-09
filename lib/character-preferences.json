@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "_doc": "Shipped character preferences. weight(species, kind) = kinds[kind][species] ?? default[species], times rare[species] (if any). A species in neither map, or in exclude, is never auto-picked. See docs/character-preferences.md. Shipped lists name only species whose art is in the published repo; local-only additions go in lib/character-preferences.local.json (gitignored) or the user-data file.",
+  "variety": {
+    "maxShare": 0.25,
+    "minAgentsForShare": 8,
+    "maxConsecutive": 2,
+    "repeatPenalty": 1
+  },
+  "exclude": [],
+  "rare": {
+    "orc": 0.15
+  },
+  "default": {
+    "capybara": 1,
+    "retro-robot": 1,
+    "weeping-willow": 1,
+    "bearded-dragon": 1,
+    "clipart-trumpet": 1,
+    "eighth-note": 1,
+    "lcd-creature": 1,
+    "orc": 1
+  },
+  "kinds": {
+    "lead": {
+      "bearded-dragon": 3,
+      "weeping-willow": 2,
+      "clipart-trumpet": 2
+    },
+    "management": {
+      "eighth-note": 3,
+      "clipart-trumpet": 2,
+      "weeping-willow": 2
+    },
+    "worker": {
+      "retro-robot": 3,
+      "lcd-creature": 3,
+      "capybara": 1
+    },
+    "inspector": {
+      "bearded-dragon": 3,
+      "lcd-creature": 2,
+      "retro-robot": 2
+    },
+    "scout": {
+      "capybara": 3,
+      "weeping-willow": 2,
+      "eighth-note": 1
+    },
+    "plan": {
+      "eighth-note": 3,
+      "clipart-trumpet": 2,
+      "capybara": 1
+    },
+    "critique": {
+      "clipart-trumpet": 3,
+      "lcd-creature": 2,
+      "bearded-dragon": 1
+    },
+    "review": {
+      "capybara": 2,
+      "weeping-willow": 3,
+      "eighth-note": 2
+    }
+  }
+}

@@ -1,4 +1,4 @@
-const { buildAgents, wsFromCwd } = require('../lib/agent-graph');
+const { buildAgents, wsFromCwd, isFinishedThread } = require('../lib/agent-graph');
 
 const sess = (id, extra = {}) => ({ id, cwd: `/w/${id}`, name: id, title: null, role: 'master', hot: false, warm: true, lastActive: 1000, live: true, ...extra });
 const thread = (id, role, extra = {}) => ({ id, title: id, role, status: 'running', cwd: '/f', sessionId: null, workstreamId: null, projectId: null, updatedAt: 0, ...extra });
@@ -39,12 +39,19 @@ test('Firm threads without a transcript session still appear (so Firm-launched a
     thread('t-lead', 'lead', { workstreamId: 'ws_b' }),
     thread('t-w', 'worker', { workstreamId: 'ws_b', status: 'idle' }),
     thread('t-dead', 'worker', { workstreamId: 'ws_b', status: 'error' }),
+    thread('t-done', 'inspector', { workstreamId: 'ws_b', status: 'done' }),
+    thread('t-gone', 'worker', { workstreamId: 'ws_b', status: 'disconnected' }),
+    thread('t-wait', 'worker', { workstreamId: 'ws_b', status: 'waiting' }),
   ], now: 5000 });
   const r = by(out);
   expect(Object.keys(r)).toEqual(expect.arrayContaining(['firm:management', 'firm:t-lead', 'firm:t-w']));
   expect(r['firm:management']).toMatchObject({ kind: 'firm', role: 'master', isRoot: true, hot: true, status: 'busy', groupId: 'management' });
   expect(r['firm:t-w']).toMatchObject({ hot: false, warm: true, rootId: 'firm:t-lead' });
   expect(r['firm:t-dead']).toMatchObject({ warm: false, live: false });
+  // The Firm's real vocabulary: done and disconnected are finished (they used to count as idle); waiting is alive.
+  expect(r['firm:t-done']).toMatchObject({ hot: false, warm: false, live: false });
+  expect(r['firm:t-gone']).toMatchObject({ hot: false, warm: false, live: false });
+  expect(r['firm:t-wait']).toMatchObject({ hot: false, live: true });
 });
 
 test('registry workers in a Firm worktree join the workstream group even before the Firm API answers', () => {
@@ -82,4 +89,9 @@ test('Management sorts first among masters, and a Firm title replaces the derive
   expect(out[0]).toMatchObject({ firmRole: 'management' });
   expect(out.find((r) => r.id === 'lead-s').title).toBe('Lead · Pricing CLI');
   expect(out.find((r) => r.id === 'aaa').title).toBe('Aardvark');
+});
+
+test('isFinishedThread: done, error and disconnected are finished; starting, running and waiting are not', () => {
+  for (const status of ['done', 'error', 'disconnected']) expect(isFinishedThread({ status })).toBe(true);
+  for (const status of ['starting', 'running', 'waiting']) expect(isFinishedThread({ status })).toBe(false);
 });

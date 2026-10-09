@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Euphonia</title>
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' peon-asset:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' peon-asset: data:;">
+  <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+  <div id="chat">
+    <div id="chat-head">
+      <img id="chat-avatar" alt="">
+      <div class="who"><b id="chat-name">Euphonia</b><span class="sub" id="chat-sub">loading…</span><a href="#" id="chat-access" title="Open Euphonia > Tool access in the dashboard">tool access: …</a></div>
+      <button id="chat-new" title="Start a fresh conversation (the old one is kept)">New</button>
+    </div>
+    <div id="chat-list" aria-live="polite"></div>
+    <div id="chat-cards"></div>
+    <div id="chat-status"></div>
+    <div id="chat-error" role="alert" title="Click to dismiss"></div>
+    <form id="chat-form"><textarea id="chat-input" rows="2" placeholder="Ask Euphonia… (Enter sends, Shift+Enter newline)"></textarea><button id="chat-send" type="submit">Send</button></form>
+  </div>
+  <script src="../renderer/chat-model.js"></script>
+  <script src="../node_modules/markdown-it/dist/browser/markdown-it.umd.min.js"></script>
+  <script src="../lib/euphonia/chat-links.js"></script>
+  <script src="../renderer/chat-markdown.js"></script>
+  <script type="module" src="chat-window.js"></script>
+</body>
+</html>

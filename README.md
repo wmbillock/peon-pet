@@ -8,8 +8,8 @@ Sits in the bottom-left corner of your screen, floats over all windows, and igno
 
 ## Requirements
 
-- macOS (Linux/Windows untested)
-- Node.js 18+
+- macOS 13 or later (required by Electron 44; Linux/Windows untested)
+- Node.js 20.19+ or 22 (Electron 44's installer needs it; Node 18 is enough to run the tests only)
 - [peon-ping](https://peonping.com) installed and running
 
 ## Quick start

@@ -1,0 +1,2249 @@
+{
+  "date": "2026-10-09",
+  "baseRevision": "96b8b19c63a8966f0ec51ba050429fe816248141",
+  "sheets": 64,
+  "frames": 2304,
+  "paddingInk": 0,
+  "sprites": [
+    {
+      "slug": "panther-chameleon",
+      "sourceSHA256": "6b99d7843816adec0f3a0f262972accaefca8da1e7921e0111343f3e7fa51feb",
+      "beforeSHA256": "b3cba3fac000b12bdc5636845e4d7b97c67e6eb5ab8010a5a7499c6e18127b08",
+      "sha256": "50fa3400bb92258e55021c68ce0ccf6669e30b67a81dd3010b1034e2de6646d5",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 170162,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "blue-tongue-skink",
+      "sourceSHA256": "bb6951a63ee3b8c6a5bd49d1d490e78ad44ff50ed1603ad333123dba88cc2dbf",
+      "beforeSHA256": "d116c50807bc3cd9abe5df8b077ee0f5cb21445146de0a16179d64304aa6d031",
+      "sha256": "392b903d2160cd52aa872d42584ff9a57bae0666eb7f0dc665be43e2fec79a96",
+      "size": 3072,
+      "xCuts": [
+        0,
+        230,
+        434,
+        635,
+        846,
+        1053,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.6623376623376624,
+      "populated": 36,
+      "separatorInk": 8,
+      "paddingInk": 0,
+      "recoveredComponents": 1,
+      "removed": {
+        "faint": 198990,
+        "specks": 4,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "leopard-gecko",
+      "sourceSHA256": "f5558dc99db02c40d545f39d2090041f4d372046f33fdef5e72b374b0302d3b5",
+      "beforeSHA256": "e548eb4f971ff4420999eafe2307697b60022a467fa422641f4ff48f9fc12e3d",
+      "sha256": "8c06b4f7efaaddefc925ae02edaa03eea487b68332c06e059a2e197ea1b81510",
+      "size": 3072,
+      "xCuts": [
+        0,
+        217,
+        430,
+        633,
+        846,
+        1059,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.7454545454545454,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 246972,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "dubia-roach",
+      "sourceSHA256": "81849b3db6ffae60ed907ec969675434ab1deced36c235d825161e9b948a24b5",
+      "beforeSHA256": "1f7bf090d93c416242c66a12e5e311ee5e5f395b2b4913d377f06ac03750937b",
+      "sha256": "ca48aec9674d09064e6928195021f4fcb2435c08acb3fce7f81266d60d39c813",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        419,
+        632,
+        841,
+        1046,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.794392523364486,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 176247,
+        "specks": 4,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "house-cricket",
+      "sourceSHA256": "b7f0f116e74e9aa7a029372ece0b4787051e72191441f390eb341d606ad0637d",
+      "beforeSHA256": "bc4067d47af33e3d94b9faf67994a3785397b471bfaff0e7484d3ec15f5a4fa8",
+      "sha256": "309147135a06309299bd23a25415eaa96250be5dfb3f8ea389e9ac6d53416fe1",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        421,
+        631,
+        841,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        626,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8028169014084507,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 282286,
+        "specks": 5,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "princess-peach",
+      "sourceSHA256": "fedfa107953098eea6a3196785c2be831a80765366cc6b4a9ba7934336c4e1c4",
+      "beforeSHA256": "ac08177edf325fa8e30376e154792101a99db98b71579c2ac605ddf76e4b630f",
+      "sha256": "8fd7ec0857f2d21d502afc6cb656eb6ca09c9b08a883c4156a193d13b9ed03cf",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1046,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8285714285714285,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 167613,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "ska-hepcat",
+      "sourceSHA256": "c5f3a9a9be2ae890aa4198823f42281a229aae39ab0f1b9e3ba17cd343ee9ed5",
+      "beforeSHA256": "dd86551d7aff2d6b9ef5cb0d107f629cef7814e0cf0e1f14c44eea0587657cd6",
+      "sha256": "ac4a6b4b30fff65d495e2c4e9555875364c85ed2c8aee9e087fb88ad17f506d6",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        628,
+        836,
+        1044,
+        1254
+      ],
+      "scale": 1.8285714285714285,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 194256,
+        "specks": 13,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "living-trombone",
+      "sourceSHA256": "5c3d40a748fdc6d4315235bb98087921c7d576b722528e8a69abbd4c158baa45",
+      "beforeSHA256": "8e6bd47699c20f000f075c176c05a629b1279e2c7361fca6c8adc3f5ccf50283",
+      "sha256": "6c7982b32c3fcee902ed9b9611af30bc7bb6ae171398b6d1234f6a0986614897",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 218665,
+        "specks": 11,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "living-tenor-sax",
+      "sourceSHA256": "22eaa0ac27edc78190ee97c4d54a270550091d122ecf402cf3b77b9481e1116b",
+      "beforeSHA256": "86801cea1d4a9b2588d59e9a8d15740d18b1e6382469563ae7e25c056a3ab539",
+      "sha256": "7d90f1b7605349399f1b6ed5bd83891871feb9b1a9191f0deb5ae62561853501",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 170348,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "checkerboard-bot",
+      "sourceSHA256": "fa9e7fa02be008378e83c4f0b83efc7a209ed655262b4560d46b09feef9bd297",
+      "beforeSHA256": "fe9484511363ccb91ac210fbe8352b5d667a4690825333bedfd7a2684709af8b",
+      "sha256": "e5340b55d0a4ee119d0d9c1be9424b7d38af025a755d42e20d1d3d0ddd49cc14",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        411,
+        622,
+        834,
+        1044,
+        1254
+      ],
+      "scale": 1.794392523364486,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 150923,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "offbeat-quarter-note",
+      "sourceSHA256": "db9f04e2340d79f0da1458d912b9a75744e06d8b9c09af6672e174f3c27f7d8c",
+      "beforeSHA256": "83c6237fd4c550d51d423af3f29a93d60e1f22e48395f5cc6e4a49f8d8e4f5f3",
+      "sha256": "98db26e24835bdf4d40502a1f1b08aeae0395107e3d39f885d8c3a71e659526d",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        213,
+        426,
+        627,
+        836,
+        1041,
+        1254
+      ],
+      "scale": 1.794392523364486,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 155275,
+        "specks": 7,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "we-are-the-stars",
+      "sourceSHA256": "b3445a8b28e15e4797c61dc3c8b416ebdf65b84148c8ff38baa1b681184eda35",
+      "beforeSHA256": "29738518c46e4662141a4f84bf6f9cc5b5b199b248cf6e88a3ac2826426a009c",
+      "sha256": "f0bef3f84b5517f9bab3c87d966c8a878091786ae871fe3d0d36c2c38bb036d4",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 202155,
+        "specks": 3,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "speed-of-blight",
+      "sourceSHA256": "e58093500f3cd0963997462c62d279adf81deefc8d07c2489d54799d991b61e9",
+      "beforeSHA256": "e30a973169f29c23c26e5be551b7ef5bad0d456f1fc8445338e22669099ebad1",
+      "sha256": "8364f1210ca22e65eb054913081a0ec513109018653d1dc40bfb3f85dd837ac4",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        214,
+        418,
+        627,
+        836,
+        1040,
+        1254
+      ],
+      "scale": 1.794392523364486,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 180979,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "cooler-by-the-lake",
+      "sourceSHA256": "3a139cb3a239a9056e67712eefcc2556d5bb901eb3b836c78172cf6ae59f2d64",
+      "beforeSHA256": "7505fddc11f00e23ab37dbeeaba664bea15b7e44d177bae6e89ca5d0173b12f3",
+      "sha256": "364107c39e6f1450a77405628a57130e04a7d5a79f8a86dc393cf274fdb1831e",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        211,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.819905213270142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 221011,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "camp-song",
+      "sourceSHA256": "a89f99638b3734553244663aec8023686b38423943e3d87b1b97fba2685154e8",
+      "beforeSHA256": "d282ea8c23515e43a94cd687b7c95315a2d87202309f6516a3e7dee2b9f34c07",
+      "sha256": "5950b685d2230e5e6ba3a1b31540668ec073b9f362c4ab02323a3692be557904",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1044,
+        1254
+      ],
+      "scale": 1.8285714285714285,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 129245,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "ballroom-moon",
+      "sourceSHA256": "cb129e5097260651347a425caf8955fd62890132a4f3a57116da7e13edb0cf76",
+      "beforeSHA256": "dc06caa8661dd99397b288994a83854a39413f46a5dc14e42234e072d01ff9b3",
+      "sha256": "b9d75581e25a240ea850dc35a2e005355292bcda1781af3c9fba7cd65d35b8ef",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        833,
+        1045,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 240239,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "link",
+      "sourceSHA256": "af79da77564fab3d35b972434c05dffeb0e67162c182e56d6d0c61b99451c14f",
+      "beforeSHA256": "2d48658f7bd4de96cacceee1ecefd75fcc32a451a36c8100401adfc0724ac891",
+      "sha256": "3092f18e98771271fe8f6a4ba2e0bcc3b8d1ae8eead5836027610926e0ed5042",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        220,
+        428,
+        630,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.7454545454545454,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 184492,
+        "specks": 5,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "sonic",
+      "sourceSHA256": "d61dfb49b00a3989342baefde7fd10eaddc3abba1128f00b17a700f8e3e4bcef",
+      "beforeSHA256": "6e6080d796f3e431dc0b27c8782de9411e853e80aeb8d19b5007ffa0022c5128",
+      "sha256": "27d2e2376246a95035a92fb56a983d26c4b7b26f877f3bb0707e18a5798bce01",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        210,
+        420,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.819905213270142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 161257,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "samus",
+      "sourceSHA256": "6a38517213c27866d0bd37480c63fd1106a6cff94c5a733193543bce2e493935",
+      "beforeSHA256": "196812b7be48078471d977bf8804d8dcc72d40be231d67e6f453a70cbc342292",
+      "sha256": "bf60dbdfafebc9e0927e6b9700a6ddce76bddf19ba9e91cb2796d83f2826f4e4",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 150229,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "mega-man",
+      "sourceSHA256": "8efd5a6d805f1d12a7a0da57ab503fb9c8b3ead028f40cc33004889a30fe3048",
+      "beforeSHA256": "a2c0f667d8ce31060136b0535bc9f9906fbec90b2417b66fa971bac1b1e28145",
+      "sha256": "4cd4fc99d2769014c2951b85c8d666161a1f8b9173b2ca4b0a2af20fd46de98d",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        224,
+        428,
+        636,
+        839,
+        1048,
+        1254
+      ],
+      "scale": 1.7142857142857142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 156720,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "pac-man",
+      "sourceSHA256": "f5ce91354e002d6d76aa6908a6c64248bc261cd3c05eec8185c4597f6313cc21",
+      "beforeSHA256": "bdda3e35bff5a3dc6325de06e4e2848c6f0a5684c1de8f5514c3957769ee7abe",
+      "sha256": "0506bc04045d80aa4684f1a295ccfe26bd889e3440de532d694b08296b1f433e",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        212,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 152440,
+        "specks": 3,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "arthur-dent",
+      "sourceSHA256": "80ed4049c7665ce5fdfc580b3c63ba1b26a63f62375682d50a89fc2ac9001eed",
+      "beforeSHA256": "d37bb35dc21d87b1bacd65d1625f33a89da11512d6e37d7b130d027c0f12d312",
+      "sha256": "2a1a6eb6df8029650bd7404de295e1230ce6aa1f35cba3b800c90711e64575b6",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1044,
+        1254
+      ],
+      "scale": 1.8285714285714285,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 184154,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "ford-prefect",
+      "sourceSHA256": "0d3245918b9469e1f128dfaee010609ada5c0422091331622430521f2dc892c3",
+      "beforeSHA256": "cacdfc90e19b4bb74c36073ffbd5cdad6c6ae55a6cd614cfe2da6cfbb9489582",
+      "sha256": "c0249d40dbd6d6fa3cf02a72739a805830c5cafc2f29296a47221cbabae23f8a",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        212,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 164883,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "zaphod-beeblebrox",
+      "sourceSHA256": "d28a1795b3b6c9cd9ac1172ff86cc867977d8119d53355927d4057739635c6f2",
+      "beforeSHA256": "a1984349b7de31d0f2487d89e30dab9c422c1be37600148b88d96370962c7336",
+      "sha256": "3fc6566f30a1ed6647dfd0603aa3cc83f4a909230f5e5ab58d8903d0f38005d0",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        215,
+        424,
+        631,
+        839,
+        1046,
+        1254
+      ],
+      "scale": 1.786046511627907,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 173848,
+        "specks": 3,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "trillian",
+      "sourceSHA256": "7099a761bd2d8876f34ec9ac7d4e4c3e9bdefcd29994631e5cf795f32531dfe9",
+      "beforeSHA256": "435b9251a93c6463449c4d3baa92ef3e0cb2ac9d5c3f6948a34c4dd8afe3f88e",
+      "sha256": "0cfe5b491cb2e14c0efd84ef2d61e55fd0cb169a4b910d46df29d4d30f27014a",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        832,
+        1036,
+        1254
+      ],
+      "scale": 1.761467889908257,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 109032,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "babel-fish",
+      "sourceSHA256": "0659129e0c03f755b467f991883892f44d5369fa7ed74182c5c50060acaddd42",
+      "beforeSHA256": "b82dfa3ae40c1262639dde3c237eabb2c4e8b7d97b3f010f120d4f50aecb9a8d",
+      "sha256": "2c339792ac221a3d31ce9dbc601b8ed1f69d1a462e44db5aa98c553fb486a008",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        629,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.819905213270142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 204283,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "leeloo",
+      "sourceSHA256": "dc867d9f8b3fa9b6b34f386d291784ecbb0c9963e158cffb028a1d219254c51a",
+      "beforeSHA256": "9291b731532bd7201503f6de0a253ca73e0e475313bf8db93d1f532a93d9a0c4",
+      "sha256": "8210b8c54d2e30633465c4a9ba22bbd4c67221ebe0cefe8faf102d94f420d4a0",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        210,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8285714285714285,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 212950,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "korben-dallas",
+      "sourceSHA256": "dc12e280ecc79925704e648d03c9e9b18335233c2b1d9b1479b899d55d095d76",
+      "beforeSHA256": "9fa85461677a751f5bb0a9dca9be2e439c5d5c079f3b1e82ddd188c150469af2",
+      "sha256": "42d192bd13aef7067fda4feebcb1fed89ed3f104e896ac8808d840b31a62e919",
+      "size": 3072,
+      "xCuts": [
+        0,
+        212,
+        418,
+        627,
+        836,
+        1044,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 222490,
+        "specks": 5,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "ruby-rhod",
+      "sourceSHA256": "178abe381d198c6c491e3225db0eec7f1ab25258625fbc7f47e65a219b080906",
+      "beforeSHA256": "4f3a5e81f2389cbab68bcaaef1e065dc48599bdd3114521e7b3d5a8dbf406ad7",
+      "sha256": "f14f27253715adc5b33fbb9b2e61f0964b498f8a71d64dbc5ce8c4c6ac176b9f",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        631,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        208,
+        418,
+        625,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8028169014084507,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 140770,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "diva-plavalaguna",
+      "sourceSHA256": "2d2c3a944013961982e1da70aea1ae1995a0102039be6b1056a28ca1186e8129",
+      "beforeSHA256": "47475d69fd2f80c167a9a5361eaa6e936be00f26534aa643fb6c0bb620144b76",
+      "sha256": "4b3f47638dc8c5b979232727dbbb513590847a27193f925aa89e4263cd05e373",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        633,
+        845,
+        1052,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        623,
+        828,
+        1028,
+        1254
+      ],
+      "scale": 1.6991150442477876,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 203318,
+        "specks": 6,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "mangalore",
+      "sourceSHA256": "306e925058c7d78354a6f3c9f1cdd58d10491fc445d6180b7cd9301ea37aca37",
+      "beforeSHA256": "0e0ea2420ff42cc69cbb9a09f275d7473b250a5d29b75ffb81e3f757dafb22ac",
+      "sha256": "e668052570b5a65ac5d9179f8e4710563273cd45c7f0d56893326db4a794d0dd",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        212,
+        420,
+        630,
+        838,
+        1047,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 126966,
+        "specks": 3,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "rick-hunter",
+      "sourceSHA256": "280e5854f96a26092bfd40b262ca99b050c2f9458c2d9886ad22033eaf2e82f8",
+      "beforeSHA256": "e3f492d2e7eecdcfb6853268a599bb723f90f2a581fa18506f48e7b4313d38e7",
+      "sha256": "276cfd37dbdfafdfbab3d09494a6fbf631999f89bee1800a3e19c29c9d32e445",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        212,
+        419,
+        629,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 131600,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "lisa-hayes",
+      "sourceSHA256": "46eb0cf67c9f3e848529747c709dffaad2760c80bcbcc66e962e7145c0d89068",
+      "beforeSHA256": "c1ec8c2ad53649794ab424a68c5a5bed394144438df68f42b6a847f7c33575e0",
+      "sha256": "50dffeb2a6d60669fc8d393f14bf45bb0e03a4455f65d0034e90e4fbdd90f48b",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        228,
+        434,
+        635,
+        836,
+        1042,
+        1254
+      ],
+      "scale": 1.6842105263157894,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 155776,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "lynn-minmei",
+      "sourceSHA256": "c57fbae60f6eb5eefc8ad418d7077b45addd3dc91f032e020787dda4aaa5eafe",
+      "beforeSHA256": "73790bdd22a947fde0f1421ba033b6650025926b5c2e496772c1519e596b07eb",
+      "sha256": "e61091b3a36e21526ec30e5c90100617741b2a68e70bf101db679f3ef5204f6d",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        839,
+        1048,
+        1254
+      ],
+      "yCuts": [
+        0,
+        212,
+        418,
+        624,
+        826,
+        1031,
+        1254
+      ],
+      "scale": 1.7219730941704037,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 121668,
+        "specks": 3,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "vf-1s-valkyrie",
+      "sourceSHA256": "15e188cee5bb71ec697861a5423f8f8d03c6952c085712e049166450fd98f9be",
+      "beforeSHA256": "b012aff7808e10835aa79104f2f69a7650ce9b354536294fd5991bea425f09bb",
+      "sha256": "24f1d0ae4981958bb2cbf6823baf714ddd5755a4bcbafd31c50f09f6e3acb4dc",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        215,
+        423,
+        629,
+        837,
+        1045,
+        1254
+      ],
+      "scale": 1.786046511627907,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 197713,
+        "specks": 6,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "zentraedi-battlepod",
+      "sourceSHA256": "f686ab8de55a040ce7b3676f267266df262a433873fdc1d094f81fab7548a547",
+      "beforeSHA256": "4981bd1cca2e4b76ad909d6b5b52839b619708d7168f151befc88331e63fc04c",
+      "sha256": "694a41ade5caaca395354ca1c0dd54361bd85533fead20a9bef5c7ff001a4a27",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 218014,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "willow-maestro",
+      "sourceSHA256": "92eb617107fe610e008ad8d152dd3113be4b7cba2715de366e43baa4770b1326",
+      "beforeSHA256": "2d253fc89e1eb2d0578ef2bd6a74fbc7014309c9926427f33a8bb5edb550768f",
+      "sha256": "e1ede1213d673083ee1b1beec98d2d74c6ba709b1f19900d5bcab2d0de2fed1f",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 145323,
+        "specks": 7,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "brass-scale-dragon",
+      "sourceSHA256": "3dd6c6506b7ba86c05a73ede42e5dc148a26016337ceb59e18daa6a18ac3ef3f",
+      "beforeSHA256": "142a9790ffadff7aa0b7388aadb2c5c5b358d1b19cf9e05a0eb203a0a92fa60d",
+      "sha256": "cb62d4942cd1d0a2c3f70cf967d02796fdaec44fd5d6fbc3d936b5eedf4fa5e1",
+      "size": 3072,
+      "xCuts": [
+        0,
+        210,
+        420,
+        629,
+        841,
+        1052,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.794392523364486,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 233728,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "crt-garden-spirit",
+      "sourceSHA256": "4cc31b63a9537c54a1f1aff3455933e5b937941bcc129fb379a4727d2fd4fa45",
+      "beforeSHA256": "1d8aa9e058b517f68ecf85c477c0d9896ec590784741e20f05c68d4aed28699e",
+      "sha256": "8209dc3dea2e29046022e6becff90a04c6de7133cf8582f503c3f47f1e12eb69",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 165051,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "starchart-python",
+      "sourceSHA256": "c0ef32c4b291eadd3d44a306498cdaa9ca336ef3b3053d982c2aa5ad31281c03",
+      "beforeSHA256": "08e4b6b42d052a4de65a9dfe2bf47d094638132d8d4df42042f0152172858540",
+      "sha256": "58c366c19943d192484988ab6c8f3212a9f5be3ed180f63511943770ca416d6a",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        625,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.819905213270142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 124269,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "checker-comet",
+      "sourceSHA256": "e4062c86159f7f4a8c929b6b6c0de0c4fab53d5105aa46c76ad2ed856ba913e3",
+      "beforeSHA256": "76f3af679bc347f8d40ae0b192db98ed312db648b95288192c522f558a7f3056",
+      "sha256": "0df291fdbadcdcd562102ddc3d074ff7d012c183213dbcf79391eec3411d97ef",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        426,
+        637,
+        845,
+        1060,
+        1254
+      ],
+      "yCuts": [
+        0,
+        217,
+        434,
+        645,
+        850,
+        1054,
+        1254
+      ],
+      "scale": 1.7454545454545454,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 206099,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "fire-flower",
+      "sourceSHA256": "2b05274694dc7d896cde6b7518e107949fffcf228d65094df682b2ea3e224be0",
+      "beforeSHA256": "aa3377dbe6b7732c0102485e1030c2886628b9be3a969cebf6265e190103c827",
+      "sha256": "202435b5ced24e30ef0b0be692f2175dd81b9460b740683793b7b13fde13c756",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 159698,
+        "specks": 3,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "super-star",
+      "sourceSHA256": "69da19aa9c9ba370c5717e6195cd11903533f723b40b0feb3b71cd5ee4303321",
+      "beforeSHA256": "6045709205f651eb4adbad062ef03fb0a673319a8ced8881a818fe7ee70da8c1",
+      "sha256": "0b1800aa2b687dbc47ba1bdc8fd10bcadbe1459e30a681312850cd9be76d3ba6",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        210,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8285714285714285,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 189318,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "super-mushroom",
+      "sourceSHA256": "e73caa0e5693d3e1081d3c9c44e7e976fc32c7940d41d2c30a8dcc5bed4aa760",
+      "beforeSHA256": "67cf0908959e2560d2438e537e5324907d53d65d8e74d3d2c04711dc6c8617b1",
+      "sha256": "a5525de20714fb2717487cd58f6ac273f94387b0c940e4a00b0a1b112e61e890",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        221,
+        418,
+        618,
+        817,
+        1029,
+        1254
+      ],
+      "scale": 1.7066666666666668,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 182947,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "one-up-mushroom",
+      "sourceSHA256": "6876fe20e1c9be6bde497fe5a0e2fc44545912aba67658df49268c656ea9b5bd",
+      "beforeSHA256": "3cae8d7b7917b541a4899b86b98b1fc2031aa1d65e4dbf7def0da97754524f5f",
+      "sha256": "d964bc3fa1077dba0a4673cf665e8e6c4e78d8e3d67ab5a42121edd2f7750d9e",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        216,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.7777777777777777,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 142464,
+        "specks": 1,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "the-dude",
+      "sourceSHA256": "1a966e6e38350078805c7db9264c0e95bd5b372d4a4da79a90fef30469739c27",
+      "beforeSHA256": "ff4a88defc4d9a80d85400f6286d8e6790f26d0be4faae7316aa122161277704",
+      "sha256": "976649d7054c9c949c309abe74daafff08b179f6f676eafdeb38eb6ec5877b9d",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        212,
+        420,
+        627,
+        837,
+        1045,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 182798,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "spock",
+      "sourceSHA256": "f8414f4f5ca5792338a96aa600ab791b69a97912958482e6ba34736867d943f6",
+      "beforeSHA256": "29949ce64bc2257058387596c0d5408755a18e7c5284fc21ccd3fb9dc0a8e9c8",
+      "sha256": "55dc533bc8a69b9309b10fc78a4dc15b540902a90e880e347f19a61039e7414e",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        224,
+        418,
+        627,
+        836,
+        1046,
+        1254
+      ],
+      "scale": 1.7142857142857142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 146086,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "classic-cylon",
+      "sourceSHA256": "616b53c9c96cb1bb6d73d5c5df4536efbb8ab538ccd0cedb62dc9d9be931553e",
+      "beforeSHA256": "15d37419cfb47bfb566efbccfab77562695f30eeb210df3eb5e833189599c4f0",
+      "sha256": "e140ca677e1d141efb0b7452801045c6ab49670efe64c05295274b7f57096aa5",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        212,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8113207547169812,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 243447,
+        "specks": 8,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "marvin",
+      "sourceSHA256": "8c27c14c8a0749837d80e5c460c9f53a2e9a25d730c9801584ffb3ba41433763",
+      "beforeSHA256": "fb17e0ab544d716b2946fd1103b6d55ecbab7eb23de08b9563ea73ca7ab7b7dc",
+      "sha256": "0b8ac461b0ac74bd6eac918fd4286faa65444a2494d2cff03c0d224cbe180dac",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        833,
+        1026,
+        1254
+      ],
+      "yCuts": [
+        0,
+        239,
+        436,
+        638,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.606694560669456,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 253767,
+        "specks": 6,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "french-horn",
+      "sourceSHA256": "07f89e734232ebe4e9bbd1279ebb24073076125a46659fae78f60d5cfce6da44",
+      "beforeSHA256": "239a5a170c3587df4a4f43375d28dc337545e78c1a9d081d682a7e44fa19c7fb",
+      "sha256": "bc4ff7bb187bab9e0e9d39eec9e285bfc95a8fd095efe086d48024a1a97f6755",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1043,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.819905213270142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 174813,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "sixteenth-note",
+      "sourceSHA256": "c512c840aca929a106f0b75b91b0b7f65888a7a9eddfe7268e09cd68878fef7f",
+      "beforeSHA256": "2a76896919cb6496b14d59f46c53e87d522f5c864c212ec4feb3408b8602e38b",
+      "sha256": "f521c928a3049216d5897d549d0d334dca30f87aec823363407f11cfaf68e479",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.8373205741626795,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 228732,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "red-bearded-dragon",
+      "sourceSHA256": "e77041e4c4ec78e7e88f5aff36af18a6de8ed996e371d5d05233bc0d6f903aee",
+      "beforeSHA256": "089c6eef4d4a2bd8e50c7a8498fc9c7558950898f812bdad9f9ad3491b98b963",
+      "sha256": "9b2cf4e802a9747b514de068761570f491dbaae5f989e96782d99cb72907cee4",
+      "size": 3072,
+      "xCuts": [
+        0,
+        218,
+        425,
+        635,
+        849,
+        1053,
+        1254
+      ],
+      "yCuts": [
+        0,
+        226,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.6991150442477876,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 211709,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "banana-ball-python",
+      "sourceSHA256": "19b4cf747ccc015121c804bfe17faf69bf0f6345b360cf112fcf1b3917380956",
+      "beforeSHA256": "9ce748c5b5bfc13a5d6af9ee4e2827615a316d11921e0a26e037594a42a451c7",
+      "sha256": "78de4af6788c1620f17a539b036aa54ff0738625eaa0ace0335e267aa08f0bd7",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1047,
+        1254
+      ],
+      "yCuts": [
+        0,
+        224,
+        422,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.7142857142857142,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 208942,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "kirby",
+      "sourceSHA256": "481f14d5deed3dd19c22ebf6a7a521ebd6e58c8228e52f9b4abae5bef0f29781",
+      "beforeSHA256": "8eaa2ffc65442f1d3dc02e17e11e9eb043de135bac432c998d12b253ecfef3e5",
+      "sha256": "bb976c4a0cbbcf7dfeb8f16f479da426926954fff2c7c0003ceb21c7e3f989f4",
+      "size": 3072,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        220,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 1.7454545454545454,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 174258,
+        "specks": 2,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "bearded-dragon",
+      "sourceSHA256": "afae82fe9afb4e87a18ffac898b276cb438fac5c26c9a5b0991f8c1c57ebcf75",
+      "beforeSHA256": "afae82fe9afb4e87a18ffac898b276cb438fac5c26c9a5b0991f8c1c57ebcf75",
+      "sha256": "eb22c10edbab2be00496daf1972c09d67801cffca46680c71f1a0bdcee463429",
+      "size": 1254,
+      "xCuts": [
+        0,
+        211,
+        420,
+        629,
+        838,
+        1047,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 0.9715639810426541,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 1020,
+        "specks": 7,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "capybara",
+      "sourceSHA256": "ee1f9cf81c7334c2809f7ee69b4eb81aef300f3a7c56fc2d6101043d2403f45e",
+      "beforeSHA256": "ee1f9cf81c7334c2809f7ee69b4eb81aef300f3a7c56fc2d6101043d2403f45e",
+      "sha256": "e270ef6bda070bd88254572cd5e67d804a9ed5c55bdd98db49c50306b4ce0991",
+      "size": 1254,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 0.9808612440191388,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 2098,
+        "specks": 111,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "clipart-trumpet",
+      "sourceSHA256": "dc39b4d1aa75da4affd2a247260f84c73c1f108428972fd1b26422b89bbaa95d",
+      "beforeSHA256": "dc39b4d1aa75da4affd2a247260f84c73c1f108428972fd1b26422b89bbaa95d",
+      "sha256": "31c6550ea52794391a23c5e4fe73803eb264db14fea31d73e4f5e66c5362c170",
+      "size": 1254,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        409,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 0.9403669724770642,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 1322,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "eighth-note",
+      "sourceSHA256": "83f839d128164f878e610df12d523754301b318208eccd35fae8b37c0bf507d8",
+      "beforeSHA256": "83f839d128164f878e610df12d523754301b318208eccd35fae8b37c0bf507d8",
+      "sha256": "70745bab428cb07ac42bb60ded5879027acc28dbd02c01afd6542c1a48599b02",
+      "size": 1254,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 0.9808612440191388,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 3074,
+        "specks": 4,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "hello-kitty",
+      "sourceSHA256": "cb6ee2345c2e0983a3b391fee765ae7746aee54db95e2ade4d0043aaeaa99ce6",
+      "beforeSHA256": "cb6ee2345c2e0983a3b391fee765ae7746aee54db95e2ade4d0043aaeaa99ce6",
+      "sha256": "5c0d2f1873511ff2b0769a5cc3fb76a8f8da16ea06b1df720f777fe55656f286",
+      "size": 1254,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1046,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1044,
+        1254
+      ],
+      "scale": 0.9761904761904762,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 1480,
+        "specks": 9,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "lcd-creature",
+      "sourceSHA256": "01e5982c749586154673d144438985584527aaade3c1ca71d37513556fa5555e",
+      "beforeSHA256": "01e5982c749586154673d144438985584527aaade3c1ca71d37513556fa5555e",
+      "sha256": "d27b06bb92d997ae48bd6cf5807a96a193d20febbc7725af4583e2f9b6d00b38",
+      "size": 1254,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 0.9808612440191388,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 730,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "orc",
+      "sourceSHA256": "6efd348159b785e936bb14cd48ee88e5b5eb1879c3a78ae2efd70f84e82454a5",
+      "beforeSHA256": "6efd348159b785e936bb14cd48ee88e5b5eb1879c3a78ae2efd70f84e82454a5",
+      "sha256": "de26ab9a14646abbfc104213e3a0fcb0a2f734821c663df0e0d86a151dd2aa77",
+      "size": 1254,
+      "xCuts": [
+        0,
+        210,
+        419,
+        615,
+        837,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        211,
+        419,
+        633,
+        842,
+        1051,
+        1254
+      ],
+      "scale": 0.9276018099547512,
+      "populated": 36,
+      "separatorInk": 44,
+      "paddingInk": 0,
+      "recoveredComponents": 1,
+      "removed": {
+        "faint": 1191,
+        "specks": 33,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "retro-robot",
+      "sourceSHA256": "2289de9c4c11e82df43afdafb0d536caec77016571430ea706ec39de283ff75c",
+      "beforeSHA256": "2289de9c4c11e82df43afdafb0d536caec77016571430ea706ec39de283ff75c",
+      "sha256": "7f8b9030acfaa71f6cab397979b60899ede2d725c11538bc0c5ae78beabffac7",
+      "size": 1254,
+      "xCuts": [
+        0,
+        206,
+        415,
+        623,
+        833,
+        1042,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 0.9669811320754716,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 2207,
+        "specks": 34,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "terra-ff6",
+      "sourceSHA256": "0a206f460a4892466195a6b84d113845c58ecba5d3c506db0076e0c34d39b4fd",
+      "beforeSHA256": "0a206f460a4892466195a6b84d113845c58ecba5d3c506db0076e0c34d39b4fd",
+      "sha256": "bb29c637d666070396000f0b2c2e92ab99a9bbc696c95449035cd95eed16c7f5",
+      "size": 1254,
+      "xCuts": [
+        0,
+        209,
+        418,
+        627,
+        837,
+        1045,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        836,
+        1045,
+        1254
+      ],
+      "scale": 0.9761904761904762,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 0,
+      "removed": {
+        "faint": 1422,
+        "specks": 0,
+        "edgeFragments": 0
+      }
+    },
+    {
+      "slug": "weeping-willow",
+      "sourceSHA256": "b2e6f03741886e77279f8287db407bea797f3bddcd5563f9bce93d3e6796597c",
+      "beforeSHA256": "b2e6f03741886e77279f8287db407bea797f3bddcd5563f9bce93d3e6796597c",
+      "sha256": "2e3d290383691002d10c866410b8f46eeaf7ee573539ca30ef8d6f21043ea43a",
+      "size": 1254,
+      "xCuts": [
+        0,
+        209,
+        419,
+        639,
+        848,
+        1053,
+        1254
+      ],
+      "yCuts": [
+        0,
+        209,
+        418,
+        627,
+        829,
+        1045,
+        1254
+      ],
+      "scale": 0.9111111111111111,
+      "populated": 36,
+      "separatorInk": 0,
+      "paddingInk": 0,
+      "recoveredComponents": 1,
+      "removed": {
+        "faint": 1616,
+        "specks": 13,
+        "edgeFragments": 54
+      }
+    }
+  ]
+}

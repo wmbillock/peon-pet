@@ -18,6 +18,14 @@ test('first run seeds types for every role; they persist and can be edited or re
   expect(createAgentTypeStore({ file }).get('my-type')).toBeNull();
 });
 
+test('a kind\'s border colour is a hue from 0 to 359 or blank for automatic', () => {
+  const ok = { slug: 'a', name: 'A', category: 'worker', species: 'orc' };
+  expect(cleanType({ ...ok, hue: '' }).hue).toBeNull();
+  expect(cleanType({ ...ok, hue: '120.4' }).hue).toBe(120);
+  expect(() => cleanType({ ...ok, hue: 360 })).toThrow(/hue/i);
+  expect(() => cleanType({ ...ok, hue: 'red' })).toThrow(/hue/i);
+});
+
 test('cleanType validates id, category, species, traits and filter', () => {
   const ok = { slug: 'a', name: 'A', category: 'worker', species: 'orc' };
   expect(() => cleanType({ ...ok, slug: 'Bad Id' })).toThrow(/Type id/);

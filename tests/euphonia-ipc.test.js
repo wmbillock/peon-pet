@@ -1,0 +1,76 @@
+const { registerEuphoniaIpc } = require('../lib/euphonia/ipc');
+
+function setup({ muted = false } = {}) {
+  const handlers = {};
+  const ipcMain = { handle: (ch, fn) => { handlers[ch] = fn; }, on: () => {} };
+  const pet = { isDestroyed: () => false, send: jest.fn() };
+  const chat = { isDestroyed: () => false, send: jest.fn() };
+  const dash = { id: 'dash' };
+  let listener, marker = null, cfg = { soundPack: 'p' };
+  const svc = {
+    subscribe: (fn) => { listener = fn; }, send: jest.fn(() => ({ turnId: 't1' })), history: () => [], getConfig: () => cfg,
+    getSession: () => null, setConfig: jest.fn((c) => { cfg = { ...cfg, ...c }; return cfg; }), resetSession: () => true,
+    getReadMarker: () => marker, setReadMarker: (m) => { marker = m; },
+  };
+  const play = jest.fn();
+  registerEuphoniaIpc({
+    ipcMain, getPetWebContents: () => pet, getChat: { webContents: () => chat, isActive: () => false, open: () => {} },
+    getSenders: () => [dash], getService: () => svc, peonDir: () => '/nowhere', listPacks: () => [{ name: 'p' }, { name: 'q' }], isMuted: () => muted, getVolume: () => 0.5, play,
+  });
+  return { handlers, pet, chat, dash, svc, play, emit: (ev) => listener(ev) };
+}
+
+test('only the chat window may send; the message carries origin user', async () => {
+  const t = setup();
+  expect(await t.handlers['euphonia-send']({ sender: t.dash }, 'hi')).toMatchObject({ ok: false });
+  expect(await t.handlers['euphonia-send']({ sender: t.pet }, 'hi')).toMatchObject({ ok: false });
+  expect(t.svc.send).not.toHaveBeenCalled();
+  expect(await t.handlers['euphonia-send']({ sender: t.chat }, 'hi')).toEqual({ ok: true, turnId: 't1' });
+  expect(t.svc.send).toHaveBeenCalledWith('hi', { origin: 'user' });
+});
+
+test('events go to the chat window and a cue plays on done unless muted', async () => {
+  const t = setup();
+  await t.handlers['euphonia-send']({ sender: t.chat }, 'hi');
+  t.emit({ type: 'delta', text: 'x' });
+  t.emit({ type: 'done' });
+  expect(t.chat.send).toHaveBeenCalledTimes(2);
+  expect(t.play).toHaveBeenCalledTimes(1);
+  const m = setup({ muted: true });
+  await m.handlers['euphonia-send']({ sender: m.chat }, 'hi');
+  m.emit({ type: 'done' });
+  expect(m.play).not.toHaveBeenCalled();
+});
+
+test('config: sound pack must be installed; strangers are refused', async () => {
+  const t = setup();
+  expect((await t.handlers['euphonia-set-config']({ sender: t.dash }, { soundPack: 'q' })).ok).toBe(true);
+  expect((await t.handlers['euphonia-set-config']({ sender: t.dash }, { soundPack: 'nope' })).ok).toBe(false);
+  expect((await t.handlers['euphonia-set-config']({ sender: {} }, { soundPack: 'q' })).ok).toBe(false);
+});
+
+test('"allow reading on all connected servers" is dashboard-only, grants read blanket on connected servers only, then learns tool names', async () => {
+  const t = setup();
+  const granted = [];
+  t.svc.discoverServers = () => ({ servers: [{ name: 'jira', status: 'connected' }, { name: 'atlan', status: 'needs-auth' }, { name: 'notion', status: 'connected' }], errors: [] });
+  t.svc.grants = { grant: (g) => granted.push(g), list: () => granted };
+  t.svc.learnTools = jest.fn(async () => ({ jira: 20, notion: 47 }));
+  expect(await t.handlers['euphonia-access-grant-connected']({ sender: t.chat })).toMatchObject({ ok: false });
+  expect(await t.handlers['euphonia-access-grant-connected']({ sender: t.pet })).toMatchObject({ ok: false });
+  expect(granted).toEqual([]);
+  const r = await t.handlers['euphonia-access-grant-connected']({ sender: t.dash });
+  expect(r).toMatchObject({ ok: true, granted: ['jira', 'notion'], learned: { jira: 20, notion: 47 } });
+  expect(granted.map((g) => `${g.server}:${g.level}:${g.duration}`)).toEqual(['jira:read:blanket', 'notion:read:blanket']);
+  expect(t.svc.learnTools).toHaveBeenCalledTimes(1);
+});
+
+test('how she addresses the owner (displayName, pronouns) is set from the dashboard only, like the name', async () => {
+  const t = setup();
+  expect((await t.handlers['euphonia-set-config']({ sender: t.chat }, { displayName: 'Willow' })).ok).toBe(false);
+  expect((await t.handlers['euphonia-set-config']({ sender: t.pet }, { pronouns: 'she/her' })).ok).toBe(false);
+  expect(t.svc.setConfig).not.toHaveBeenCalled();
+  const r = await t.handlers['euphonia-set-config']({ sender: t.dash }, { displayName: 'Willow', pronouns: 'she/her' });
+  expect(r.ok).toBe(true);
+  expect(t.svc.setConfig).toHaveBeenCalledWith({ displayName: 'Willow', pronouns: 'she/her' });
+  expect(r.config).toMatchObject({ displayName: 'Willow', pronouns: 'she/her' });
+});

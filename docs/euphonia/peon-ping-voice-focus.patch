@@ -1,0 +1,55 @@
+--- a/peon.sh
++++ b/peon.sh
+@@ -113,6 +113,41 @@
+   esac
+ }
+ 
++# --- Peon Pet voice focus (PEON_PET_VOICE_FOCUS_V1) ---
++# Peon Pet publishes which agent currently "holds the voice" in voice-focus.json. Returns 0 (block this cue) ONLY when
++# that file exists, is fresh (<= 30 s, the app rewrites it every ~1.5 s), is in mode "active-display", lists the hook
++# sessions of the focused agent, and THIS hook's session is not among them. Everything else fails open (returns 1 = play):
++# missing/unreadable/stale/corrupt file, mode "all", app not running, unknown session, any error.
++# Override the path with PEON_VOICE_FOCUS_FILE. Remove: restore peon.sh.bak-voice-focus.
++_peon_voice_focus_blocks() {
++  local f="${PEON_VOICE_FOCUS_FILE:-$HOME/Library/Application Support/Peon Pet/voice-focus.json}"
++  [ -f "$f" ] || return 1
++  local sid="${SESSION_ID:-}"
++  [ -n "$sid" ] || return 1
++  local now mt
++  now=$(date +%s) || return 1
++  mt=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null) || return 1
++  [ -n "$mt" ] && [ $((now - mt)) -le 30 ] || return 1
++  python3 - "$f" "$sid" <<'PEON_VF_PY' 2>/dev/null
++import json, sys, datetime
++try:
++    d = json.load(open(sys.argv[1]))
++    sid = sys.argv[2]
++    if d.get('mode') != 'active-display':
++        sys.exit(1)
++    t = datetime.datetime.strptime(str(d['updatedAt'])[:19], '%Y-%m-%dT%H:%M:%S').replace(tzinfo=datetime.timezone.utc)
++    age = (datetime.datetime.now(datetime.timezone.utc) - t).total_seconds()
++    if age > 30 or age < -30:
++        sys.exit(1)
++    ids = d.get('sessionIds')
++    if not isinstance(ids, list):
++        sys.exit(1)
++    sys.exit(1 if sid in [str(x) for x in ids] else 0)
++except Exception:
++    sys.exit(1)
++PEON_VF_PY
++}
++
+ # Detect if a macOS Focus / Do Not Disturb mode is active.
+ # Sounds (afplay/CoreAudio) and the overlay (a custom Cocoa window) bypass
+ # Notification Center entirely, so the OS Focus toggle never reaches them.
+@@ -6934,6 +6969,10 @@
+      && { [ "${FOCUS_DETECT_MODE:-all}" = "all" ] || [ "${FOCUS_DETECT_MODE:-all}" = "sound" ]; }; then
+     _skip_sound=true
+   fi
++  # Peon Pet voice focus: only the agent the owner is looking at is heard (fails open; see _peon_voice_focus_blocks)
++  if [ "$_skip_sound" = "false" ] && _peon_voice_focus_blocks; then
++    _skip_sound=true
++  fi
+   # Check suppress_sound_when_tab_focused: skip sound if tab is focused
+   if [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
+     [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
