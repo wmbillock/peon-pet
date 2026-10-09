@@ -189,8 +189,7 @@ describe('gh argument validation', () => {
   test('numbers only; no shell metacharacters; wrong repo is not an input; label is allow-listed', () => {
     for (const bad of ['12;rm -rf /', '$(id)', '1 2', '-1', '1.5', 0, -3, '', null, undefined, '`x`', 'abc', 1e9]) expect(() => gh.commands.viewPr({ number: bad })).toThrow();
     expect(gh.commands.viewPr({ number: '42' })).toEqual(['pr', 'view', '42', '--repo', 'Affirm/affirm-builders', '--json', expect.any(String)]);
-    expect(gh.commands.viewPr({ number: 42, repo: 'evil/other' })).toContain('Affirm/affirm-builders');
-    expect(gh.commands.viewPr({ number: 42, repo: 'evil/other' })).not.toContain('evil/other');
+    expect(() => gh.commands.viewPr({ number: 42, repo: 'evil/other' })).toThrow(/not on the allowed list/);
     expect(() => gh.commands.listPrs({ state: 'all; echo' })).toThrow();
     expect(() => gh.commands.listPrs({ limit: 500 })).toThrow();
     for (const f of [gh.commands.viewPr({ number: 1 }), gh.commands.listPrs(), gh.commands.prChecks({ number: 1 }), gh.commands.listFirmPrs()]) {
@@ -203,6 +202,40 @@ describe('gh argument validation', () => {
     await gh.createGhRunner({ execFileImpl: (cmd, args, o, cb) => { opts = { cmd, o }; cb(null, 'out', ''); } })(['pr', 'list']);
     expect(opts.cmd).toBe('gh'); expect(opts.o.shell).toBe(false);
     await expect(gh.createGhRunner({ execFileImpl: (c, a, o, cb) => cb(new Error('x'), '', 'not logged in\nmore') })(['pr'])).rejects.toThrow(/gh failed: not logged in/);
+  });
+});
+
+describe('github repo allowlist', () => {
+  const ALLOWED = ['Affirm/affirm-builders', 'Affirm/web-ux'];
+  test('an allowed repo works for view, list and checks; default is unchanged', () => {
+    expect(gh.commands.viewPr({ number: 41215, repo: 'Affirm/web-ux' }, ALLOWED)).toEqual(['pr', 'view', '41215', '--repo', 'Affirm/web-ux', '--json', expect.any(String)]);
+    expect(gh.commands.viewPr({ number: 1, repo: 'affirm/WEB-UX' }, ALLOWED)).toContain('Affirm/web-ux');
+    expect(gh.commands.listPrs({ repo: 'Affirm/web-ux' }, ALLOWED)).toContain('Affirm/web-ux');
+    expect(gh.commands.prChecks({ number: 2, repo: 'Affirm/web-ux' }, ALLOWED)).toContain('Affirm/web-ux');
+    expect(gh.commands.viewPr({ number: 1 }, ALLOWED)).toContain('Affirm/affirm-builders');
+    expect(gh.commands.viewPr({ number: 1 })).toContain('Affirm/affirm-builders');
+    expect(gh.commands.listFirmPrs()).toContain('Affirm/affirm-builders');
+  });
+  test('a repo off the list is refused', () => {
+    for (const f of ['viewPr', 'listPrs', 'prChecks']) expect(() => gh.commands[f]({ number: 1, repo: 'Affirm/all-the-things' }, ALLOWED)).toThrow(/not on the allowed list/);
+    expect(() => gh.commands.viewPr({ number: 1, repo: 'Affirm/web-ux' })).toThrow(/not on the allowed list/);
+  });
+  test('malformed repos are refused even when listed', () => {
+    for (const bad of ['--repo', '-x/y', 'a/b/c', 'Affirm/web-ux;id', 'Affirm/web ux', 'Affirm/$(id)', 'Affirm', '/web-ux', 'Affirm/web-ux\n--json', 42, {}, ['Affirm/web-ux']]) {
+      expect(() => gh.commands.viewPr({ number: 1, repo: bad }, [bad, ...ALLOWED])).toThrow(/owner\/name/);
+    }
+  });
+  test('through the tools: allowed repo runs, refused repo never reaches gh, no write tool names a repo', async () => {
+    const calls = [];
+    const defs = createTools({ firm: {}, ghRun: async (a) => { calls.push(a); return a[1] === 'checks' ? '[]' : '{"number":41215,"state":"OPEN"}'; }, cosmetics: () => ({}), githubRepos: () => ALLOWED });
+    const t = (n) => defs.find((d) => d.name === n);
+    const ok = JSON.parse(await t('github_check_pr').run({ number: 41215, repo: 'Affirm/web-ux' }));
+    expect(ok.pr.state).toBe('OPEN'); expect(calls.every((a) => a.includes('Affirm/web-ux'))).toBe(true);
+    await expect(t('github_check_pr').run({ number: 1, repo: 'Affirm/all-the-things' })).rejects.toThrow(/not on the allowed list/);
+    await expect(t('github_view_pr').run({ number: 1, repo: 'x/y' })).rejects.toThrow(/allowed list/);
+    expect(calls.some((a) => a.includes('Affirm/all-the-things'))).toBe(false);
+    expect(t('github_firm_pr_watch').schema).toEqual({});
+    expect(defs.filter((d) => /^github_/.test(d.name) && d.class === 'write')).toEqual([]);
   });
 });
 

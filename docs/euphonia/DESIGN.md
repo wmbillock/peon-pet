@@ -301,7 +301,7 @@ Tool results, hub text and history are never parsed.
 - **Capability row.** `euphonia-bridge` stays in the dashboard Tool access table as a built-in capability row (not an MCP server):
   none / read / write with the same durations. `bridge-audit.jsonl` records every action: cards, attempts, results, refusals, rejected blocks.
 - **Handlers** (`bridge/tools.js`, `gh.js`, `firm-http.js`, `ws-client.js`, `cosmetics.js`): fixed `gh` argv from validated values
-  for Affirm/affirm-builders only, `[Assistant] ` prefix on relayed text, cosmetics limited to name, soundPack, border, species.
+  for Affirm/affirm-builders by default; `github_view_pr`, `github_list_prs` and `github_check_pr` take an optional `repo` that must be on the owner's `githubRepos` list in config.json (read only; `github_firm_pr_watch` stays on affirm-builders), `[Assistant] ` prefix on relayed text, cosmetics limited to name, soundPack, border, species.
   **The Firm's API, as read from the live source at `acdf42c54d` (2026-10-08; an Oct 2 checkout, `a99de04fd4`, had no token and
   misled a day's reading):** loopback-only (`HOST=127.0.0.1`). Reads need no token. **Writes need the per-process token** from
   `GET /api/session` (`local_auth.py`): `X-Firm-Token` on the inbox respond POST, and on the WebSocket an allowed `Origin` plus

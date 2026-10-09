@@ -79,6 +79,10 @@ test('every turn passes the guard via --settings, and browserHosts in config is 
   expect(e.setConfig({ browserHosts: ['localhost', '*.affirm.com', 'the-firm.local'] }).browserHosts).toEqual(['localhost', '*.affirm.com', 'the-firm.local']);
   expect(() => e.setConfig({ browserHosts: ['ok.host', 'not a host'] })).toThrow(/browserHosts/);
   expect(() => e.setConfig({ browserHosts: 'localhost' })).toThrow(/browserHosts/);
+
+  expect(e.getConfig().githubRepos).toEqual(['Affirm/affirm-builders']);
+  expect(e.setConfig({ githubRepos: ['Affirm/affirm-builders', 'Affirm/web-ux', 'Affirm/web-ux'] }).githubRepos).toEqual(['Affirm/affirm-builders', 'Affirm/web-ux']);
+  for (const bad of ['Affirm/web-ux', ['--repo'], ['a/b/c'], ['Affirm/web ux']]) expect(() => e.setConfig({ githubRepos: bad })).toThrow(/githubRepos/);
 });
 
 test("the child's PATH carries nvm's node bins, so a managed server started with npx can launch under launchd", () => {
