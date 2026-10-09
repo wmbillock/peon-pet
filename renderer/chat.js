@@ -34,6 +34,12 @@ export function initChat({ onShow } = {}) {
     return box;
   }
 
+  function markdownNode(text) {
+    const body = document.createElement('div'); body.className = 'markdown-body';
+    body.innerHTML = window.EuphoniaMarkdown.render(text);
+    return body;
+  }
+
   function render() {
     // Rebuild only what changed: messages are few (capped), so a keyed rebuild is fine.
     const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 24;
@@ -43,15 +49,14 @@ export function initChat({ onShow } = {}) {
       if (!n) { n = document.createElement('div'); n.dataset.id = m.id; }
       existing.delete(m.id);
       n.className = `msg ${m.role}${m.pending ? ' pending' : ''}`;
-      // A draft for The Firm's Management (a fenced `management` block) gets a Send button. Everything is set with
-      // textContent: replies are never parsed as HTML. Rebuilt only when the text changes, so a pressed button keeps its result.
-      const draftSegs = m.role === 'assistant' ? EuphoniaChat.parseSegments(m.text).filter((x) => x.type === 'draft') : [];
-      if (draftSegs.length) {
-        if (n.dataset.raw !== m.text) {
-          n.dataset.raw = m.text;
-          n.replaceChildren(...EuphoniaChat.parseSegments(m.text).map((seg) => (seg.type === 'text' ? document.createTextNode(seg.text) : draftNode(seg.text))));
-        }
-      } else if (n.textContent !== m.text) { n.removeAttribute('data-raw'); n.textContent = m.text; }
+      // Cache the source, not rendered text: formatting changes textContent. Unchanged messages keep
+      // their draft buttons/results while other messages stream. Draft payloads remain exact plain text.
+      if (n.dataset.raw !== m.text || n.dataset.format !== m.role) {
+        n.dataset.raw = m.text; n.dataset.format = m.role;
+        if (m.role === 'assistant' && m.text) {
+          n.replaceChildren(...EuphoniaChat.parseSegments(m.text).map((seg) => (seg.type === 'text' ? markdownNode(seg.text) : draftNode(seg.text))));
+        } else { n.textContent = m.text; }
+      }
       if (list.children[i] !== n) list.insertBefore(n, list.children[i] || null);
     });
     for (const n of existing.values()) n.remove();

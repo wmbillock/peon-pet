@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const {
@@ -834,6 +834,7 @@ let euphoniaIpc = null;
 const chatMgr = createChatWindowManager({
   BrowserWindow,
   file: 'chat/index.html',
+  openExternal: (url) => shell.openExternal(url),
   getTitle: () => { try { return getEuphonia().getConfig().name; } catch { return 'Euphonia'; } },
   webPreferences: { preload: path.join(__dirname, 'chat', 'preload.js'), contextIsolation: true, nodeIntegration: false },
   loadBounds: () => restoreBounds(loadPetConfig().chatBounds, screen.getAllDisplays().map((d) => d.workArea), { min: { w: 320, h: 360 }, max: { w: 1000, h: 1400 } }),
