@@ -67,7 +67,7 @@ test('session header text', () => {
 function fakeBW() {
   const made = [];
   class BW {
-    constructor(opts) { this.opts = opts; this.handlers = {}; this.destroyed = false; this.visible = true; this.minimized = false; this.focused = false; this.bounds = { x: 1, y: 2, width: opts.width, height: opts.height }; this.focusCalls = 0; this.webContents = { id: made.length, isDestroyed: () => this.destroyed }; made.push(this); }
+    constructor(opts) { this.opts = opts; this.handlers = {}; this.destroyed = false; this.visible = true; this.minimized = false; this.focused = false; this.bounds = { x: 1, y: 2, width: opts.width, height: opts.height }; this.focusCalls = 0; this.webContents = { id: made.length, isDestroyed: () => this.destroyed, on: jest.fn(), setWindowOpenHandler: jest.fn() }; made.push(this); }
     loadFile(f) { this.file = f; }
     on(ev, fn) { (this.handlers[ev] = this.handlers[ev] || []).push(fn); }
     emit(ev) { (this.handlers[ev] || []).forEach((f) => f()); }

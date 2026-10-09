@@ -407,7 +407,10 @@ canvas.addEventListener('pointercancel', () => {
   window.peonBridge.stopDrag();
 });
 
+// Hover tooltips are off: the session list covered the pet and the views behind it (owner's call, 2026-10-08).
+const HOVER_TIPS = false;
 function handleMouseMove(e) {
+  if (!HOVER_TIPS) return;
   if (dragging) return;  // suppress tooltip during drag
   const px = e.offsetX;
   const py = e.offsetY;

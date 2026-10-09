@@ -127,7 +127,9 @@ Four stacked layers, all computed in `buildToolPolicy`:
 
 1. `--tools` leaves only Read, Grep, Glob, Edit, Write. There is no Bash or network tool in the session.
 2. `--permission-mode dontAsk` plus `--allowedTools`: anything not explicitly allowed is denied and
-   nothing ever prompts. Edit and Write are allowed only on `<home>/kb/**`.
+   nothing ever prompts. Edit and Write are allowed only on `<home>/kb/**`. (In persistent mode the mode is `default` with
+   `--permission-prompt-tool stdio`: a prompt reaches `onControl`, which denies everything except a policy-held tool the owner
+   may approve on a card; see "Policy-held tool calls".)
 3. `--disallowedTools` names the shell, network, MCP and agent tools, and denies Edit/Write/NotebookEdit
    on the hub. Deny beats allow.
 4. `--restricted` ignores the user's own Claude settings files (so their hooks, allow-rules and plugins
@@ -337,6 +339,25 @@ rule only.** `navigate` is classed read because it only loads a page; a maliciou
 **Unverified live:** that she reliably emits well-formed trailing blocks; the follow-up-message loop with `--resume`; the real Firm
 endpoints and WebSocket handshake; `gh` authentication; playwright's tool names and whether the managed policy's own allow/ask/deny lists
 still gate a granted tool.
+
+## Policy-held tool calls: approval cards through the same path (merged 2026-10-08)
+
+The machine's managed policy holds some MCP tools under `ask` (Jira create/edit/comment/transition, some Notion and Sentry
+writes). In persistent mode her process runs with `--permission-mode default --permission-prompt-tool stdio`, so instead of a
+refusal the CLI sends a `control_request` (`can_use_tool`) before such a call. `service.js onControl` answers it: a tool that is
+held by `ask` AND granted at the level it needs (`computeMcpAccess({ approvals: true }).approve`) becomes a **card in the same
+list, decided through the same `euphonia-card-decide` path and hash binding** as the app's own action cards
+(`kind: "policy"`, status `approved` / `denied` / `expired`); everything else is denied at once, as `dontAsk` would. One click,
+one call; ten minutes, then denied; an open card holds the turn's timeout; the process ending closes its cards; every decision
+is appended to `approvals.jsonl`. `deny` holds stay denied; allow and deny rules are unchanged. In per-turn mode no process can
+be asked, so those tools stay held. The access block tells her which tools are card-approved. Tool names the policy lists
+(`managed.known`) count as catalogued before the server has connected, so a slow starter is callable.
+
+Also merged: `start()` spawns her process at launch (1.5 s after init, `main.js`) and after a grant change (`ipc.js
+restartLive`), so MCP servers connect while she is idle; the process is named `--name "<name> (<displayName>)"`; a process that
+dies on its own emits `live-exit` (logged by main). Assistant replies render as Markdown (`markdown-it`, html off, images off,
+http(s) links only, opened in the browser by `chat-window.js`; `tests/euphonia-markdown.test.js`). The separate approvals DOM
+and `euphonia-approval-answer` IPC from the other branch were folded into the card renderer: one renderer, one approve path.
 
 ## Owner follow-ups
 

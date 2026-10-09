@@ -33,7 +33,9 @@
     b.style.top = `${Math.round(top)}px`;
   }
 
+  // Off by default: the tooltips covered the views (owner's call, 2026-10-08). Opt back in with <html data-tips="on">.
   function show(target) {
+    if (document.documentElement.dataset.tips !== 'on') return;
     const text = target.dataset.tip;
     if (!text) return;
     const b = ensure();

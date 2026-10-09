@@ -53,6 +53,9 @@
             background: rgba(12, 12, 20, 0.94); border: 1px solid #2a2a40; border-radius: 10px; z-index: 50; }
     body.dashing #bar { top: 5px; }
     body.dashing #dash { display: block; }
+    /* Grid, speaker and presenter in the corner window: no dark panels behind the agents, only the agents themselves. */
+    body.dashing #dash .group { background: transparent; border-color: transparent; }
+    body.dashing #dash .tile, body.dashing #dash .scene { background: transparent; }
     body.dashing canvas { display: none; }
     #dash::-webkit-scrollbar { width: 6px; height: 6px; }
     #dash::-webkit-scrollbar-thumb { background: #33334a; border-radius: 3px; }

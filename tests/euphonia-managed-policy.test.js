@@ -36,3 +36,24 @@ test('a tool the managed policy asks for is never promised to her, whatever the 
   // without a policy object nothing changes
   expect(computeMcpAccess({ grants, catalog, configured: [] }).allow).toContain('mcp__playwright__browser_navigate');
 });
+
+test('tool names the policy lists are known before the server ever connects, so a slow starter is still callable', () => {
+  const settings = JSON.stringify({ permissions: {
+    allow: ['mcp__playwright-local-verify__browser_navigate', 'mcp__playwright-local-verify__browser_snapshot', 'mcp__jira__getJiraIssue', 'mcp__weird__*', 'Read'],
+    ask: ['mcp__playwright-local-verify__browser_tabs'], deny: ['mcp__slack__slack_send_message'],
+  } });
+  const managed = readManagedPolicy({ readFile: () => settings });
+  expect(managed.known['playwright-local-verify']).toEqual(['browser_navigate', 'browser_snapshot', 'browser_tabs']);
+  expect(managed.known.jira).toEqual(['getJiraIssue']);
+  expect(managed.known.slack).toEqual(['slack_send_message']);
+  expect(managed.known.weird).toBeUndefined();
+  // her catalog knows nothing about the server yet (status pending, no tools)
+  const catalog = { servers: { 'playwright-local-verify': { status: 'pending', tools: [] } } };
+  const mcp = computeMcpAccess({ grants: [{ server: 'playwright-local-verify', level: 'read' }], catalog, configured: ['playwright-local-verify'], managed });
+  expect(mcp.allow).toEqual(['mcp__playwright-local-verify__browser_navigate', 'mcp__playwright-local-verify__browser_snapshot']);
+  expect(mcp.deny).toContain('mcp__playwright-local-verify__browser_tabs');   // held by ask
+  const s = mcp.summary[0];
+  expect(s.discovered).toBe(true);
+  expect(s.names).toEqual(['browser_navigate', 'browser_snapshot']);
+  expect(renderAccessBlock(mcp.summary)).toMatch(/Tools you may call: browser_navigate, browser_snapshot/);
+});

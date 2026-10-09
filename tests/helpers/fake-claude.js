@@ -13,7 +13,7 @@ function textOf(line) {
 // The service puts an access header above the user's text; most tests care about the text after "[Message]".
 function messageOf(full) { const mark = '\n[Message]\n'; const i = full.lastIndexOf(mark); return i >= 0 ? full.slice(i + mark.length) : full; }
 
-function fakeClaude(script, { init = null } = {}) {
+function fakeClaude(script, { init = null, onControl = null } = {}) {
   const calls = [], procs = [];
   const spawnImpl = (cmd, args, opts) => {
     const child = new EventEmitter();
@@ -34,7 +34,13 @@ function fakeClaude(script, { init = null } = {}) {
       buf += d;
       if (!persistent) return;
       let i;
-      while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (line.trim()) fire(textOf(line)); }
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        if (!line.trim()) continue;
+        let o = null; try { o = JSON.parse(line); } catch { /* not JSON */ }
+        if (o && o.type && o.type !== 'user') { proc.control = proc.control || []; proc.control.push(o); if (onControl) setImmediate(() => onControl(child, o, proc)); continue; }   // control_response etc.
+        fire(textOf(line));
+      }
     });
     child.stdin.on('end', () => { if (persistent) proc.close(0); else fire(buf); });
     child.stdin.resume();

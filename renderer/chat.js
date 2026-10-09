@@ -25,7 +25,7 @@ export function initChat({ onShow } = {}) {
       const d = describeCard(c, now);
       let el = cardEls.get(c.id);
       if (!el) { el = document.createElement('div'); cardEls.set(c.id, el); cardsBox.append(el); }
-      el.className = `card ${d.status}`;
+      el.className = `card ${d.status}${c.kind === 'policy' ? ' policy' : ''}`;
       el.replaceChildren();
       const mk = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; n.textContent = text; return n; };   // textContent only: card text is model-written
       el.append(mk('div', 'tool', c.tool), mk('div', 'dest', c.preview.destination));
@@ -50,6 +50,12 @@ export function initChat({ onShow } = {}) {
   }
   setInterval(() => { if (state.cards.some((c) => c.status === 'pending')) renderCards(); }, 15000);   // expiry shows without an event
 
+  function markdownNode(text) {
+    const body = document.createElement('div'); body.className = 'markdown-body';
+    body.innerHTML = window.EuphoniaMarkdown.render(text);
+    return body;
+  }
+
   function render() {
     renderCards();
     // Rebuild only what changed: messages are few (capped), so a keyed rebuild is fine.
@@ -60,7 +66,12 @@ export function initChat({ onShow } = {}) {
       if (!n) { n = document.createElement('div'); n.dataset.id = m.id; }
       existing.delete(m.id);
       n.className = `msg ${m.role}${m.pending ? ' pending' : ''}`;
-      if (n.textContent !== m.text) n.textContent = m.text;   // textContent: replies are never parsed as HTML
+      // Assistant replies render as Markdown (markdown-it, html off, images off, http(s) links only); everything else is
+      // textContent. The source is cached so an unchanged message is not re-rendered while another streams.
+      if (n.dataset.raw !== m.text || n.dataset.format !== m.role) {
+        n.dataset.raw = m.text; n.dataset.format = m.role;
+        if (m.role === 'assistant' && m.text && window.EuphoniaMarkdown) n.replaceChildren(markdownNode(m.text)); else n.textContent = m.text;
+      }
       if (list.children[i] !== n) list.insertBefore(n, list.children[i] || null);
     });
     for (const n of existing.values()) n.remove();

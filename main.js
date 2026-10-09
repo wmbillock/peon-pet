@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, screen, Menu, Tray, nativeImage, protocol, net, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const {
@@ -160,6 +160,8 @@ function initPets() {
   pets.seed(argCharacter || loadPetConfig().character);  // first run: one lead pet from the old setting
   try {
     pinEuphonia();   // Euphonia is always the lead pet, ahead of every agent
+    getEuphonia().subscribe((ev) => { if (ev.type === 'live-exit') console.error(`[euphonia] live session ended: ${ev.why}`); });
+    setTimeout(() => { if (getEuphonia().start()) console.log('[euphonia] live session started', JSON.stringify(getEuphonia().status())); }, 1500);
   } catch (e) { console.error('[euphonia] could not pin the lead pet:', e.message); }
   registerPetIpc({
     ipcMain, dialog, nativeImage, pets, mutate, petSnapshot, savePetConfig, reloadPetWindows, borderById,
@@ -359,15 +361,20 @@ async function readRemoteState(baseUrl) {
   }
 }
 
-function repositionSubAgentWindows() {
+// Mini pets sit beside the lead pet's window (Euphonia) on its display; with no pet window, the old bottom-left corner.
+function subAgentPosition(n) {
+  const { subAgentSlot } = require('./lib/sub-agent-layout');
+  if (win && !win.isDestroyed()) {
+    const anchor = win.getBounds();
+    return subAgentSlot(anchor, screen.getDisplayMatching(anchor).workArea, n);
+  }
   const { height } = screen.getPrimaryDisplay().workAreaSize;
+  return { x: 20, y: (height - SUB_AGENT_BASE_Y_OFFSET) - (n + 1) * 100 };
+}
+function repositionSubAgentWindows() {
   let i = 0;
   for (const [, subWin] of subAgentWindows) {
-    if (!subWin.isDestroyed()) {
-      const mainY = height - SUB_AGENT_BASE_Y_OFFSET;
-      subWin.setPosition(20, mainY - (i + 1) * 100);
-      i++;
-    }
+    if (!subWin.isDestroyed()) { const p = subAgentPosition(i); subWin.setPosition(p.x, p.y); i++; }
   }
 }
 
@@ -377,14 +384,14 @@ function createSubAgentWindow(sessionId, parentSessionId) {
   if (subAgentWindows.has(sessionId)) return;
   const parentLook = parentSessionId ? latestLooks.get(parentSessionId) : null;
 
-  const { height } = screen.getPrimaryDisplay().workAreaSize;
   const idx = subAgentWindows.size;
+  const pos = subAgentPosition(idx);
 
   const subWin = new BrowserWindow({
     width: 100,
     height: 100,
-    x: 20,
-    y: (height - SUB_AGENT_BASE_Y_OFFSET) - (idx + 1) * 100,
+    x: pos.x,
+    y: pos.y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -407,7 +414,7 @@ function createSubAgentWindow(sessionId, parentSessionId) {
     subWin.webContents.send('peon-config', { size: 100, subAgent: true });
     if (parentLook) subWin.webContents.send('pet-look', parentLook); else sendLook(subWin);
     subWin.webContents.send('peon-event', { anim: 'waking', event: 'SessionStart' });
-    startMouseTrackingForWindow(subWin);
+    // no mouse tracking: mini pets stay click-through (setIgnoreMouseEvents(true) above)
   });
 
   // Don't quit app when sub-agent window closes
@@ -827,6 +834,7 @@ let euphoniaIpc = null;
 const chatMgr = createChatWindowManager({
   BrowserWindow,
   file: 'chat/index.html',
+  openExternal: (url) => shell.openExternal(url),
   getTitle: () => { try { return getEuphonia().getConfig().name; } catch { return 'Euphonia'; } },
   webPreferences: { preload: path.join(__dirname, 'chat', 'preload.js'), contextIsolation: true, nodeIntegration: false },
   loadBounds: () => restoreBounds(loadPetConfig().chatBounds, screen.getAllDisplays().map((d) => d.workArea), { min: { w: 320, h: 360 }, max: { w: 1000, h: 1400 } }),
@@ -1060,6 +1068,16 @@ let dragOffsetX = 0;
 let dragOffsetY = 0;
 let ignoringMouse = true;  // tracks last setIgnoreMouseEvents value
 
+// While dragging, the window follows the cursor on its own ~60 Hz timer. The shared 50 ms hover poll made drags
+// visibly lag and stutter, worse when the machine is busy.
+let dragTimer = null;
+function dragTick() {
+  if (!isDragging || !win || win.isDestroyed()) { clearInterval(dragTimer); dragTimer = null; return; }
+  const { x: cx, y: cy } = screen.getCursorScreenPoint();
+  const nx = cx - dragOffsetX, ny = cy - dragOffsetY;
+  const [wx, wy] = win.getPosition();
+  if (nx !== wx || ny !== wy) win.setPosition(nx, ny);
+}
 ipcMain.on('drag-start', () => {
   if (!win || win.isDestroyed()) return;
   isDragging = true;
@@ -1071,10 +1089,13 @@ ipcMain.on('drag-start', () => {
     win.setIgnoreMouseEvents(false);
     ignoringMouse = false;
   }
+  if (!dragTimer) dragTimer = setInterval(dragTick, 16);
 });
 
 ipcMain.on('drag-stop', () => {
   isDragging = false;
+  if (dragTimer) { clearInterval(dragTimer); dragTimer = null; }
+  repositionSubAgentWindows();
 });
 
 // Poll cursor position to enable mouse events only when hovering the window.
@@ -1088,13 +1109,7 @@ function startMouseTrackingForWindow(targetWin) {
     }
     const { x: cx, y: cy } = screen.getCursorScreenPoint();
 
-    if (targetWin === win && isDragging) {
-      const nx = cx - dragOffsetX;
-      const ny = cy - dragOffsetY;
-      const [wx, wy] = targetWin.getPosition();
-      if (nx !== wx || ny !== wy) targetWin.setPosition(nx, ny);
-      return;
-    }
+    if (targetWin === win && isDragging) return;   // the drag timer moves the window
 
     const [wx, wy] = targetWin.getPosition();
     const [ww, wh] = targetWin.getSize();
@@ -1104,9 +1119,9 @@ function startMouseTrackingForWindow(targetWin) {
         targetWin.setIgnoreMouseEvents(!inside);
         ignoringMouse = !inside;
       }
-    } else {
-      targetWin.setIgnoreMouseEvents(!inside);
     }
+    // Mini sub-agent pets stay click-through always: they sit beside the lead pet now, and making them clickable on
+    // hover stole clicks meant for the pet and for windows underneath.
   }, 50);
 }
 
@@ -1247,6 +1262,7 @@ function createWindow() {
     saveBoundsTimer = setTimeout(() => { if (win && !win.isDestroyed()) savePetConfig({ winBounds: win.getBounds() }); }, 400);
   };
   win.on('move', rememberBounds);
+  win.on('moved', () => repositionSubAgentWindows());   // mini pets follow the lead pet
   win.on('resize', rememberBounds);
 
   win.setIgnoreMouseEvents(true);

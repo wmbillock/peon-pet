@@ -21,7 +21,7 @@
   function describeCard(card, now = Date.now()) {
     const expired = card.status === 'pending' && Date.parse(card.expires_at) <= now;
     const status = expired ? 'expired' : card.status;
-    const words = { pending: 'Waiting for your approval', running: 'Running...', executed: 'Done', failed: 'Failed', denied: 'Denied', expired: 'Expired (nothing was done)' };
+    const words = { pending: 'Waiting for your approval', running: 'Running...', executed: 'Done', approved: 'Approved (the call ran)', failed: 'Failed', denied: 'Denied', expired: 'Expired (nothing was done)' };
     let label = words[status] || status;
     if (status === 'executed') { const at = hhmm(card.sent_at || card.decided_at); label = at ? `sent ${at}` : 'sent'; if (card.reply && card.reply !== 'pending') label += ` · reply: ${String(card.reply).slice(0, 80)}`; else if (card.reply === 'pending') label += ' · reply pending'; }
     if (status === 'failed') label = `failed: ${card.failed_reason || 'see the result'}`;
