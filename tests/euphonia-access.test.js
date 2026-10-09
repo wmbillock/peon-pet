@@ -127,7 +127,7 @@ describe('per-turn allowlist', () => {
     const txt = renderAccessBlock(a.summary);
     expect(txt).toMatch(/- slack: read, until /);
     expect(txt).toMatch(/- jira: write \(read and write\), blanket, until the owner revokes it/);
-    expect(txt).toMatch(/- fresh: read.*learned on its first turn/);
+    expect(txt).toMatch(/- fresh: read.*has not reported its tools yet/);
     expect(renderAccessLine([{ server: 'slack', level: 'read' }, { server: 'jira', level: 'read' }, { server: 'notion', level: 'write' }])).toBe('read: slack, jira · write: notion');
     expect(renderAccessLine([])).toBe('none');
   });
@@ -262,7 +262,7 @@ test('prompt: carries the access pointer, the charter and the rules she must sta
   expect(out).toMatch(/pricing\/the-firm\/develop/);
   expect(out).toMatch(/PPE-2832/);
   expect(out).toMatch(/C0C3025VD7T/);
-  expect(out).toMatch(/held by the managed policy .*Management/s);
+  expect(out).toMatch(/Writes the managed policy holds .*approval-card.*"held".*Management/s);
   expect(out.length).toBeLessThan(11000);                         // prompt.md stays short
   expect(out).toMatch(/cannot change your own permissions/);
   expect(out).toMatch(/Euphonia > Tool access/);
@@ -314,7 +314,7 @@ describe('browser (the managed playwright server, no bridge)', () => {
     const flag = (a, f2) => a[a.indexOf(f2) + 1];
     await svc.send('one').done;                                  // the catalogue gap: grant exists, tools not yet learned
     expect(flag(replies[0].args, '--allowedTools')).not.toMatch(/mcp__playwright/);
-    expect(replies[0].full).toMatch(/learned on its first turn/);
+    expect(replies[0].full).toMatch(/has not reported its tools yet/);
     await svc.send('two').done;                                  // learned from the first turn's init event; the allowlist changed, so a new process
     expect(f.procs).toHaveLength(2);
     const allowed = flag(replies[1].args, '--allowedTools');

@@ -31,7 +31,7 @@ test('a tool the managed policy asks for is never promised to her, whatever the 
   expect(mcp.allow).not.toContain('mcp__jira__createJiraIssue');
   const pw = mcp.summary.find((s) => s.server === 'playwright');
   expect(pw.held).toEqual(['browser_navigate']);
-  expect(renderAccessBlock(mcp.summary)).toMatch(/playwright: write.*Held by this machine's managed policy.*browser_navigate/);
+  expect(renderAccessBlock(mcp.summary)).toMatch(/playwright: write.*Held by the managed policy for a person's approval.*browser_navigate/);
   expect(renderAccessBlock(mcp.summary)).not.toMatch(/playwright-local-verify: read.*Held/);
   // without a policy object nothing changes
   expect(computeMcpAccess({ grants, catalog, configured: [] }).allow).toContain('mcp__playwright__browser_navigate');

@@ -86,7 +86,7 @@ test("the child's PATH carries nvm's node bins, so a managed server started with
   expect(p).toContain('/Users/me/.nvm/versions/node/v22.1.0/bin');
   expect(p.indexOf('/Users/me/.nvm/versions/node/v22.1.0/bin')).toBeLessThan(p.indexOf('/Users/me/.nvm/versions/node/v18.0.0/bin'));
   expect(p.indexOf('/Users/me/.nvm/versions/node/v22.1.0/bin')).toBeLessThan(p.indexOf('/usr/bin'));
-  expect(childPath('/x/claude', { PATH: '/usr/bin' }, '/nohome', () => { throw new Error('ENOENT'); })).toBe('/x:/Users/me/.local/bin'.replace('/Users/me', '/nohome') + ':/opt/homebrew/bin:/usr/local/bin:/usr/bin');
+  expect(childPath('/x/claude', { PATH: '/usr/bin' }, '/nohome', () => { throw new Error('ENOENT'); })).toBe('/x:/nohome/.local/bin:/nohome/.claude/local:/nohome/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin');
 });
 
 test('the CLI child gets a two-minute MCP startup window unless the launcher set one', () => {
@@ -94,4 +94,14 @@ test('the CLI child gets a two-minute MCP startup window unless the launcher set
   expect(childEnv('/x/claude', { PATH: '/usr/bin' }).MCP_TIMEOUT).toBe(String(MCP_STARTUP_MS));
   expect(childEnv('/x/claude', { PATH: '/usr/bin', MCP_TIMEOUT: '5000' }).MCP_TIMEOUT).toBe('5000');
   expect(childEnv('/x/claude', { PATH: '/usr/bin' }).PATH.split(':')[0]).toBe('/x');
+});
+
+test('the guard fails closed: unreadable input or a crash blocks the navigation (exit 2) instead of allowing it', () => {
+  const { spawnSync } = require('child_process');
+  const bad = spawnSync(process.execPath, [GUARD, '--hosts', 'localhost'], { input: '{not json', encoding: 'utf8' });
+  expect(bad.status).toBe(2);
+  const notObj = spawnSync(process.execPath, [GUARD, '--hosts', 'localhost'], { input: '"string"', encoding: 'utf8' });
+  expect(notObj.status).toBe(2);
+  const ok = spawnSync(process.execPath, [GUARD, '--hosts', 'localhost'], { input: JSON.stringify({ tool_input: { url: 'http://localhost/' } }), encoding: 'utf8' });
+  expect(ok.status).toBe(0); expect(ok.stdout).toBe('');
 });

@@ -34,7 +34,7 @@ built; this slice is the chat bubble and a persistent session behind it.
 | Firm mirror | `lib/euphonia/firm-mirror.js` | Writes The Firm's state into `kb/firm/` every 30 s (STATUS.md, inbox.json, events.jsonl). |
 | Browser guard, managed policy, CLI lookup | `lib/euphonia/browser-guard.js`, `managed-policy.js`, `find-claude.js` | PreToolUse host guard passed through `--settings`; tools the machine's managed `ask`/`deny` holds; where `claude` and nvm's node live when launchd's PATH is minimal. |
 | Prompt | `lib/euphonia/prompt.md` | The appended system prompt. |
-| Glue | `lib/euphonia/ipc.js`, `main.js`, `preload.js` | Pet-window-only IPC; events out; cue on reply. |
+| Glue | `lib/euphonia/ipc.js`, `main.js`, `chat/preload.js` | Chat-window-only IPC for messages, cards and resets; dashboard-only IPC for grants and settings; events out; cue on reply. |
 | View | `chat/` (window), `renderer/chat.js`, `renderer/chat-model.js`, `lib/euphonia/chat-window.js`, `lib/euphonia/unread.js` | The dedicated chat window and the pet's chat button with its unread dot. The model and unread logic are pure and unit tested. |
 
 The pet is a view. The service is the core and knows nothing about windows, so a Slack transport
@@ -53,9 +53,9 @@ Default home: `~/.euphonia/<os username>` (override with `EUPHONIA_HOME`). Direc
 | `config.json` | `name`, `soundPack` (default none), `species` (default `weeping-willow`), `model` (default: CLI default), `restricted` (default `true`), `browserHosts`, `transport` (`persistent` default, or `per-turn`), **`displayName` and `pronouns`** (how she addresses the owner; the OS login is used for nothing but this directory's name). |
 | `grants.json`, `cards.json`, `tools-seen.json`, `bridge-audit.jsonl` | Tool access grants (dashboard only), approval cards, the tool catalogue learned from the CLI's init events, the action audit. |
 | `mcp-status.json` | Connection state of every MCP server at the CLI's last init (`{ updated, launch, process, servers: { name: { status, tools } } }`). |
-| `kb/identity.md` | Seeded once; **appended verbatim to the system prompt** when present, so the owner edits personality here, never `prompt.md`. |
+| `identity.md` (in `home`, NOT in `kb/`) | Owner-only personality text, **appended verbatim to the system prompt**. It lives outside the kb because the kb is the one place the model may write, and a model-writable system prompt is a persistent injection. An older `kb/identity.md` is copied up once; `kb/identity.md` stays as her own notes with no authority. |
 | `kb/firm/STATUS.md`, `inbox.json`, `events.jsonl` | The Firm's state, rewritten by the app about every 30 s (read only for her). |
-| `kb/firm/sent.jsonl` | Receipts: one line per approved write that ran (`{ id, ts, action, destination, status: delivered|failed, result, receipt, reply }`). |
+| `sent.jsonl` (in `home`, NOT in `kb/`) | Receipts: one line per approved write that ran (`{ id, ts, action, destination, status: delivered|failed, result, receipt, reply }`). Outside the kb so the model cannot forge a "delivered" line; rendered into every turn header. |
 
 `New` in the chat header calls `resetSession()`: the old `session.json` is renamed to
 `session.<ms>.old.json`, nothing is deleted, and the next message starts a fresh conversation.
@@ -112,7 +112,7 @@ CLI invocation (flags verified against `claude --help`, v2.1.289):
 
 ```
 claude -p --output-format stream-json --verbose --include-partial-messages --input-format stream-json \
-  --append-system-prompt <prompt + kb/identity.md> --system-prompt-snapshot off --permission-mode dontAsk \
+  --append-system-prompt <prompt + home/identity.md> --system-prompt-snapshot off --permission-mode default --permission-prompt-tool stdio \
   --tools Read,Grep,Glob,Edit,Write \
   --allowedTools "Read,Grep,Glob,Edit(//<kb>/**),Write(//<kb>/**)[,mcp__<server>__<tool>...]" \
   --disallowedTools "Bash,PowerShell,WebFetch,WebSearch,NotebookEdit,Task,Agent,mcp__*|mcp__<server>...,Edit(//<hub>/**),Write(//<hub>/**),NotebookEdit(//<hub>/**)" \
@@ -126,7 +126,7 @@ start under launchd) and `MCP_TIMEOUT=120000` unless the launcher set one.
 Four stacked layers, all computed in `buildToolPolicy`:
 
 1. `--tools` leaves only Read, Grep, Glob, Edit, Write. There is no Bash or network tool in the session.
-2. `--permission-mode dontAsk` plus `--allowedTools`: anything not explicitly allowed is denied and
+2. `--permission-mode default` (persistent) with `--permission-prompt-tool stdio`, or `dontAsk` (per-turn), plus `--allowedTools`: anything not explicitly allowed is denied or, in persistent mode, asked of the app (which denies everything but card-approvable tools) and
    nothing ever prompts. Edit and Write are allowed only on `<home>/kb/**`. (In persistent mode the mode is `default` with
    `--permission-prompt-tool stdio`: a prompt reaches `onControl`, which denies everything except a policy-held tool the owner
    may approve on a card; see "Policy-held tool calls".)
@@ -277,11 +277,11 @@ Four blocks run none; a bad block yields an error result she sees. The blocks ar
 Tool results, hub text and history are never parsed.
 
 - **Read actions** (`firm_get_status`, `firm_list_inbox`, `firm_get_workstream`, `firm_list_events`, `github_view_pr`, `github_list_prs`,
-  `github_list_issues`, `github_check_pr`, `github_firm_pr_watch`) run automatically when an unexpired read-or-write grant for `euphonia-bridge` exists. The
+  `github_check_pr`, `github_firm_pr_watch`) run automatically when an unexpired read-or-write grant for `euphonia-bridge` exists. The
   result goes back into the SAME session (`--resume`) as a user-role message `[tool result: <tool>]` with `origin: "tool"`; the chat
   shows it as a quiet note. Up to 6 such rounds per user message, then the app stops and says so. No grant: a refusal result names the
   capability, the level and the dashboard path.
-- **Write actions** (`firm_send_to_management`, `firm_respond_inbox`, `firm_file_task`, `pet_set_cosmetics`) never run on her say-so.
+- **Write actions** (`firm_send_to_management`, `firm_respond_inbox`, `pet_set_cosmetics`) never run on her say-so. (`firm_file_task` and `github_list_issues` were removed on 2026-10-08: The Firm's intake is Jira under PPE-2832 since 2026-10-06, and nobody reads `the-firm` GitHub issues.)
   The app creates an **approval card** (`cards.json`): tool, exact args, and for messages and issues the exact text and destination
   (messages show the `[Assistant]` prefix that will be sent). Only an Approve click in the **chat window** (`euphonia-card-decide`,
   accepted from that window only) runs it, once, bound to a SHA-256 of the exact payload: the click carries only the hash it saw, the
@@ -291,7 +291,7 @@ Tool results, hub text and history are never parsed.
   A trailing fenced block tagged `management` (the old draft form) is an **alias** for `firm_send_to_management {text}`: same
   card, same code path; the separate Send to Management button and its IPC were removed.
 - **Receipts (2026-10-07).** When an approved card runs, the app appends `{ id, ts, action, destination, status: delivered|failed,
-  result, receipt, reply }` to `kb/firm/sent.jsonl`, marks the card `sent HH:MM` (with Management's reply when it arrived within
+  result, receipt, reply }` to `home/sent.jsonl`, marks the card `sent HH:MM` (with Management's reply when it arrived within
   ~20 s, `reply pending` otherwise) or `failed: <reason>`, feeds the result back into her session as `[tool result: <tool>]` with a
   `[receipt]` line so she confirms from the record, and shows the last 24 h (10 lines) in every message header so a later turn
   answers "did that get sent?" from the log. The Firm returns no id for a chat message, so the receipt is the `user_message`
@@ -347,7 +347,7 @@ writes). In persistent mode her process runs with `--permission-mode default --p
 refusal the CLI sends a `control_request` (`can_use_tool`) before such a call. `service.js onControl` answers it: a tool that is
 held by `ask` AND granted at the level it needs (`computeMcpAccess({ approvals: true }).approve`) becomes a **card in the same
 list, decided through the same `euphonia-card-decide` path and hash binding** as the app's own action cards
-(`kind: "policy"`, status `approved` / `denied` / `expired`); everything else is denied at once, as `dontAsk` would. One click,
+(`kind: "policy"`, status `approved` / `denied` / `expired` / `cancelled`); everything else is denied at once, as `dontAsk` would. Only this process's cards close when it ends; a `control_cancel_request` cancels its card; a new conversation cancels every pending card. One click,
 one call; ten minutes, then denied; an open card holds the turn's timeout; the process ending closes its cards; every decision
 is appended to `approvals.jsonl`. `deny` holds stay denied; allow and deny rules are unchanged. In per-turn mode no process can
 be asked, so those tools stay held. The access block tells her which tools are card-approved. Tool names the policy lists
@@ -366,7 +366,7 @@ and `euphonia-approval-answer` IPC from the other branch were folded into the ca
 - **Grants to set** in the dashboard (Euphonia > Tool access) for the Firm work: `euphonia-bridge` write (cards), and read on the
   servers she should watch (jira, slack, the headless `playwright-local-verify`). Grants restart her CLI process on the next turn.
 - **Your name and pronouns** are in the dashboard (Euphonia: name and voice); `config.json` already carries `displayName: "Willow"`,
-  `pronouns: "she/her"` for the real and the smoke homes. Personality edits go in `~/.euphonia/<user>/kb/identity.md`.
+  `pronouns: "she/her"` for the real and the smoke homes. Personality edits go in `~/.euphonia/<user>/identity.md` (beside the kb, owner-only).
 - **The Firm:** the events feed exists and is used. Not available and not invented: an id or ack for a chat message sent over the
   WebSocket (the receipt is reconstructed from `/api/events`), and a `/api/now` summary (the mirror omits that section).
 - `docs/firm/EUPHONIA-IT-ALLOWLIST-REQUEST.md` asks IT to allowlist the bridge MCP server; the bridge is no longer an MCP server, so
@@ -455,11 +455,11 @@ Changing `species` or `border` through the dashboard re-pins and reloads the pet
 | Item | Note |
 |---|---|
 | Inbox reply watch | Management's reply to a card response is read once, within ~20 s; nothing re-polls a `reply: pending` later. |
-| Approval cards for MCP writes | MCP write tools rely on the prompt rule (show text, wait for "yes"); only the app's own actions have cards. |
+| Approval cards for MCP writes | Tools the managed policy holds under `ask` are card-approved (persistent mode); other MCP writes rely on the prompt rule (show text, wait for "yes"). |
 | Slack transport | A persistent per-user DM conversation. The core is transport-independent for this. |
 | Multi-tenancy | One user per machine; `home` is derived from the OS username. No per-user isolation or auth. |
 | Bounded retention | `transcript.jsonl` and the CLI session grow without limit; no compaction or pruning. |
-| Retries and cancel | No cancel button; a stuck turn ends at the 5 minute timeout. |
+| Retries and cancel | No cancel button; a stuck turn ends at the 5 minute timeout, which is held open while an approval card is pending (up to 10 more minutes). |
 
 ## Tests
 

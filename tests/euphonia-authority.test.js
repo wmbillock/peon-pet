@@ -33,11 +33,14 @@ test('rule strings: writes scoped to kb, hub write denies, no shell or network',
 
 test('kb seeding is idempotent and never overwrites', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-')) + '/kb';
-  expect(seedKb(dir, { user: 'w' }).sort()).toEqual(['INDEX.md', 'identity.md', 'log.md', 'settings.md']);
+  expect(seedKb(dir, { user: 'w' }).sort()).toEqual(['INDEX.md', 'identity.md', 'log.md']);   // settings.md is app-owned and rewritten every start, not "created"
+  expect(fs.readFileSync(path.join(dir, 'settings.md'), 'utf8')).toMatch(/written by the app on every start/);
+  fs.writeFileSync(path.join(dir, 'settings.md'), 'stale');
   fs.writeFileSync(path.join(dir, 'identity.md'), 'MINE');
   fs.appendFileSync(path.join(dir, 'log.md'), '\n- learned a thing\n');
   const log = fs.readFileSync(path.join(dir, 'log.md'), 'utf8');
   expect(seedKb(dir, { user: 'w' })).toEqual([]);
+  expect(fs.readFileSync(path.join(dir, 'settings.md'), 'utf8')).not.toBe('stale');   // the app's page is refreshed
   expect(fs.readFileSync(path.join(dir, 'identity.md'), 'utf8')).toBe('MINE');
   expect(fs.readFileSync(path.join(dir, 'log.md'), 'utf8')).toBe(log);
   fs.rmSync(path.join(dir, 'INDEX.md'));

@@ -836,7 +836,7 @@ const chatMgr = createChatWindowManager({
   file: 'chat/index.html',
   openExternal: (url) => shell.openExternal(url),
   getTitle: () => { try { return getEuphonia().getConfig().name; } catch { return 'Euphonia'; } },
-  webPreferences: { preload: path.join(__dirname, 'chat', 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  webPreferences: { preload: path.join(__dirname, 'chat', 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },   // model-authored Markdown lands in this renderer: sandboxed
   loadBounds: () => restoreBounds(loadPetConfig().chatBounds, screen.getAllDisplays().map((d) => d.workArea), { min: { w: 320, h: 360 }, max: { w: 1000, h: 1400 } }),
   saveBounds: (b) => savePetConfig({ chatBounds: b }),
   onActiveChange: (active) => {
@@ -1359,6 +1359,15 @@ if (!gotLock) {
     startHotReload();
   });
   // Say why the app is going away: a clean exit (code 0) is not restarted by launchd, so it is hard to notice otherwise.
+  // The chat renderer never needs camera, microphone, notifications or the like.
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  // Give her CLI process a moment to end cleanly (its MCP servers with it) before the app exits.
+  let quitting = false;
+  app.on('will-quit', (e) => {
+    if (quitting || !euphonia) return;
+    quitting = true; e.preventDefault();
+    Promise.race([euphonia.shutdown(), new Promise((r) => setTimeout(r, 4000))]).catch(() => {}).then(() => app.quit());
+  });
   app.on('before-quit', () => {
     console.log(`[app] before-quit (${new Date().toLocaleTimeString()})`);
     if (euphonia) euphonia.shutdown().catch(() => {});   // end Euphonia's long-lived CLI process (stdin closed, then killed)

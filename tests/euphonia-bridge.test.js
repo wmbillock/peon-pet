@@ -12,8 +12,8 @@ const { sendOnce, frame, parseFrames, GUID } = require('../lib/euphonia/bridge/w
 const { applyCosmetics } = require('../lib/euphonia/bridge/cosmetics');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'brg-'));
-const READ = ['firm_get_status', 'firm_list_inbox', 'firm_get_workstream', 'firm_list_events', 'github_view_pr', 'github_list_prs', 'github_list_issues', 'github_check_pr', 'github_firm_pr_watch'];
-const WRITE = ['firm_send_to_management', 'firm_respond_inbox', 'firm_file_task', 'pet_set_cosmetics'];
+const READ = ['firm_get_status', 'firm_list_inbox', 'firm_get_workstream', 'firm_list_events', 'github_view_pr', 'github_list_prs', 'github_check_pr', 'github_firm_pr_watch'];
+const WRITE = ['firm_send_to_management', 'firm_respond_inbox', 'pet_set_cosmetics'];
 
 test('every bridge tool name classifies as intended, so a read grant cannot reach a write tool', () => {
   for (const n of READ) expect([n, classifyTool(n), classifyTool(`mcp__euphonia-bridge__${n}`)]).toEqual([n, 'read', 'read']);
@@ -102,10 +102,9 @@ describe('tools', () => {
     expect(JSON.parse((await s.call('firm_get_workstream', { id: 'ws_1' })).text)).toEqual({ id: 'ws_1' });
     expect(JSON.parse((await s.call('github_view_pr', { number: 7 })).text)).toEqual({ number: 7, state: 'OPEN' });
     await s.call('github_list_prs', { state: 'merged', limit: 5 });
-    await s.call('github_list_issues', { label: 'the-firm' });
     const chk = JSON.parse((await s.call('github_check_pr', { number: 7 })).text);
     expect(chk).toEqual({ pr: { number: 7, state: 'OPEN' }, checks: [] });   // the PR's base/head/state come with its checks
-    expect(s.calls.gh.map((a) => a.slice(0, 2).join(' ')).sort()).toEqual(['issue list', 'pr checks', 'pr list', 'pr view', 'pr view'].sort());
+    expect(s.calls.gh.map((a) => a.slice(0, 2).join(' ')).sort()).toEqual(['pr checks', 'pr list', 'pr view', 'pr view'].sort());
     for (const cmd of [gh.commands.viewPr({ number: 1 }), gh.commands.listPrs(), gh.commands.listFirmPrs()]) {
       const fields = cmd[cmd.indexOf('--json') + 1].split(',');
       for (const f of ['baseRefName', 'headRefName', 'state', 'isDraft', 'mergeStateStatus', 'reviewDecision', 'statusCheckRollup']) expect(fields).toContain(f);
@@ -153,20 +152,21 @@ describe('tools', () => {
     const r = await createRunner({ defs: refusing, readGrants: () => G('write'), audit: s.audit })('firm_send_to_management', { text: 'x' });
     expect(r.isError).toBe(true); expect(r.text).toMatch(/refused the message: Management is busy/);
   });
-  test('firm_file_task creates a labelled issue with fixed arguments and returns the URL', async () => {
-    const s = setup({ grants: G('write'), ghOut: { 'issue:create': 'https://github.com/Affirm/affirm-builders/issues/4321\n' } });
-    const r = await s.call('firm_file_task', { title: 'Add X; $(rm -rf /) `x`', body: 'details | & > file' });
-    expect(JSON.parse(r.text)).toEqual({ url: 'https://github.com/Affirm/affirm-builders/issues/4321' });
-    const args = s.calls.gh[0];
-    expect(args.slice(0, 4)).toEqual(['issue', 'create', '--repo', 'Affirm/affirm-builders']);
-    expect(args).toContain('--label=the-firm');
-    expect(args.find((a) => a.startsWith('--title='))).toBe('--title=Add X; $(rm -rf /) `x`');   // data in one argument, never a shell string
-    expect(args.length).toBe(7);
+  test('firm_respond_inbox accepts The Firm\'s real compound ids (colons, paths) and still rejects traversal and shell text', async () => {
+    const s = setup({ grants: G('write') });
+    for (const id of ['plan_ok:ws_28b136:1', 'approval:ws_1:2', 'branch_drift:/Users/x/repo:main:warn', 'i1']) {
+      expect((await s.call('firm_respond_inbox', { id, action: 'approve' })).isError).toBe(false);
+    }
+    expect(s.calls.firm.map((c) => c[1])).toEqual(['plan_ok:ws_28b136:1', 'approval:ws_1:2', 'branch_drift:/Users/x/repo:main:warn', 'i1']);
+    for (const id of ['../x', 'a;b', 'x`y`', '', 'q?x=1', 'x'.repeat(300)]) expect((await s.call('firm_respond_inbox', { id, action: 'approve' })).isError).toBe(true);
+    expect(s.calls.firm).toHaveLength(4);
   });
-  test('no issue URL back means failure, not a claimed success', async () => {
-    const s = setup({ grants: G('write'), ghOut: { 'issue:create': 'ok' } });
-    const r = await s.call('firm_file_task', { title: 't', body: 'b' });
-    expect(r.isError).toBe(true);
+  test('the old GitHub-issue intake is gone: no firm_file_task, no github_list_issues, no issue commands', () => {
+    const defs = createTools({ firm: {}, ghRun: async () => '', cosmetics: () => ({}) });
+    const names = defs.map((d) => d.name);
+    expect(names).not.toContain('firm_file_task'); expect(names).not.toContain('github_list_issues');
+    expect(gh.commands.listIssues).toBeUndefined(); expect(gh.commands.createIssue).toBeUndefined();
+    for (const d of defs) expect([d.name, d.class]).toEqual([d.name, d.write ? 'write' : 'read']);   // declared level agrees with the name classifier
   });
   test('pet_set_cosmetics passes only the four cosmetic keys', async () => {
     const s = setup({ grants: G('write') });
@@ -191,12 +191,9 @@ describe('gh argument validation', () => {
     expect(gh.commands.viewPr({ number: '42' })).toEqual(['pr', 'view', '42', '--repo', 'Affirm/affirm-builders', '--json', expect.any(String)]);
     expect(gh.commands.viewPr({ number: 42, repo: 'evil/other' })).toContain('Affirm/affirm-builders');
     expect(gh.commands.viewPr({ number: 42, repo: 'evil/other' })).not.toContain('evil/other');
-    for (const bad of ['bug', 'the-firm;ls', '', undefined, '--all']) expect(() => gh.commands.listIssues({ label: bad })).toThrow();
     expect(() => gh.commands.listPrs({ state: 'all; echo' })).toThrow();
     expect(() => gh.commands.listPrs({ limit: 500 })).toThrow();
-    expect(() => gh.commands.createIssue({ title: '', body: 'b' })).toThrow();
-    expect(() => gh.commands.createIssue({ title: 't', body: 'x'.repeat(10001) })).toThrow();
-    for (const f of [gh.commands.viewPr({ number: 1 }), gh.commands.listPrs(), gh.commands.listIssues({ label: 'the-firm' }), gh.commands.prChecks({ number: 1 }), gh.commands.createIssue({ title: 't', body: 'b' })]) {
+    for (const f of [gh.commands.viewPr({ number: 1 }), gh.commands.listPrs(), gh.commands.prChecks({ number: 1 }), gh.commands.listFirmPrs()]) {
       expect(f).not.toContain('api');
       expect(f[0] === 'pr' || f[0] === 'issue').toBe(true);
     }
@@ -213,14 +210,13 @@ describe('audit', () => {
   test('every call is logged with a validated summary; free text by length only; no bodies', async () => {
     const s = setup({ grants: G('write'), ghOut: { 'issue:create': 'https://github.com/Affirm/affirm-builders/issues/9' } });
     await s.call('firm_send_to_management', { text: 'super secret token abc123' });
-    await s.call('firm_file_task', { title: 'secret title', body: 'secret body' });
     await s.call('github_view_pr', { number: 3 });
     s.setGrants([]);
     await s.call('firm_list_inbox');
     const lines = s.auditLines();
     expect(lines.map((l) => [l.tool, l.status])).toEqual([
       ['firm_send_to_management', 'attempt'], ['firm_send_to_management', 'ok'],
-      ['firm_file_task', 'attempt'], ['firm_file_task', 'ok'], ['github_view_pr', 'ok'], ['firm_list_inbox', 'refused'],
+      ['github_view_pr', 'ok'], ['firm_list_inbox', 'refused'],
     ]);
     expect(lines.find((l) => l.tool === 'firm_send_to_management').args).toEqual({ text: { chars: 25 } });
     expect(lines[0].args).toEqual({ text: { chars: 25 } });
@@ -381,5 +377,8 @@ describe('cosmetics', () => {
     expect(JSON.parse(fs.readFileSync(cfgFile, 'utf8'))).toEqual({ name: 'Nova', restricted: true, openChatOnLaunch: false, soundPack: 'ok', border: 'neon-pink', species: 'kirby' });
     for (const bad of [{ soundPack: 'missing' }, { soundPack: '../x' }, { species: 'nope' }, { species: '../../etc' }, { name: '' }, { name: 'x'.repeat(40) }, { border: 'a b' }]) expect(() => applyCosmetics({ ...ctx, patch: bad })).toThrow();
     expect(JSON.parse(fs.readFileSync(cfgFile, 'utf8')).restricted).toBe(true);
+    fs.writeFileSync(cfgFile, '{ not json');
+    expect(() => applyCosmetics({ ...ctx, patch: { name: 'Nova' } })).toThrow(/not valid JSON/);
+    expect(fs.readFileSync(cfgFile, 'utf8')).toBe('{ not json');   // a corrupt config is never overwritten with cosmetics only
   });
 });

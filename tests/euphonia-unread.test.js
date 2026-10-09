@@ -138,3 +138,13 @@ test('streaming goes to the chat window; the pet window receives only the unread
   active = true; ipc.onChatActiveChange();
   expect(pet.sent.at(-1)).toEqual(['euphonia-unread', { count: 0 }]);
 });
+
+test('a pending approval card counts as unread while the chat is not showing, and not while it is', () => {
+  const { createUnreadTracker } = require('../lib/euphonia/unread');
+  let marker = null; let active = false; const notes = [];
+  const service = { history: () => [], getReadMarker: () => marker, setReadMarker: (m) => { marker = m; }, cards: () => [{ status: 'pending' }, { status: 'approved' }] };
+  const t = createUnreadTracker({ service, isChatActive: () => active, notify: (n) => notes.push(n) });
+  expect(t.refresh({ force: true })).toBe(1);
+  active = true;
+  expect(t.refresh({ force: true })).toBe(0);
+});

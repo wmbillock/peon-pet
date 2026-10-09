@@ -106,6 +106,7 @@
           return { ...base, messages: place(state.messages, { id, role: 'assistant', text: '', pending: true }) };
         }
         if (ev.type === 'delta') {
+          if (state.finished.includes(ev.turnId)) return state;   // a straggler after done must not change a final bubble
           const open = markOpen(state, ev.turnId);
           const messages = has
             ? state.messages.map((m) => (m.id === id ? { ...m, text: m.text + ev.text } : m))

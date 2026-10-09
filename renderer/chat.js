@@ -85,18 +85,21 @@ export function initChat({ onShow } = {}) {
   }
   const dispatch = (a) => { state = reduce(state, a); render(); };
 
+  let sending = false;   // Enter key-repeat during the IPC round trip must not send twice
   async function send() {
     const text = input.value;
-    if (state.busy || !text.trim()) return;
-    const res = await window.peonBridge.euphoniaSend(text);
+    if (sending || state.busy || !text.trim()) return;
+    sending = true;
+    let res;
+    try { res = await window.peonBridge.euphoniaSend(text); } catch (e) { res = { ok: false, error: e.message }; } finally { sending = false; }
     if (!res || !res.ok) return dispatch({ type: 'send-failed', message: (res && res.error) || 'Could not send' });
-    input.value = '';
+    if (input.value === text) input.value = '';   // clear only what was sent; keep anything typed meanwhile
     dispatch({ type: 'sent', turnId: res.turnId, text: text.trim() });
   }
 
   $('chat-form').addEventListener('submit', (e) => { e.preventDefault(); send(); });
   input.addEventListener('keydown', (e) => {
-    const act = keyAction(e, { busy: state.busy, text: input.value });
+    const act = keyAction(e, { busy: state.busy || sending, text: input.value });
     if (act === 'send' || act === 'block') e.preventDefault();
     if (act === 'send') send();
   });
@@ -128,7 +131,7 @@ export function initChat({ onShow } = {}) {
         setName(cfg.name);
         $('chat-avatar').src = `peon-asset://dock-icon.png?char=${encodeURIComponent(cfg.species || 'weeping-willow')}`;
         sessionLine(h.session);
-        dispatch({ type: 'history', records: h.records || [], active: h.active });
+        dispatch({ type: 'history', records: h.records || [], active: h.active, cards: h.cards || [] });   // pending cards survive a closed window
       } catch (e) { dispatch({ type: 'send-failed', message: `Could not load history: ${e.message}` }); }
     }
     focusInput();
