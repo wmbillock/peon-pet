@@ -2,6 +2,20 @@ const { render } = require('../renderer/chat-markdown');
 const { webUrl } = require('../lib/euphonia/chat-links');
 const { createChatWindowManager } = require('../lib/euphonia/chat-window');
 
+test('the actual chat script tags load their browser builds and format a reply', () => {
+  const fs = require('fs'), path = require('path'), vm = require('vm');
+  const dir = path.join(__dirname, '../chat');
+  const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  const window = { URL, atob };
+  window.window = window;
+  const context = vm.createContext(window);
+  for (const match of html.matchAll(/<script src="([^"]+)"/g)) {
+    const file = path.resolve(dir, match[1]);
+    vm.runInContext(fs.readFileSync(file, 'utf8'), context, { filename: file });
+  }
+  expect(window.EuphoniaMarkdown.render('**Ready**')).toContain('<strong>Ready</strong>');
+});
+
 test('the screenshot-style reply renders bold, bullets and literal code paths', () => {
   const html = render('`Projects/Notes and Performance/example.md`\n\n- **What it says:** summary\n- **Next:** do it');
   expect(html).toContain('<code>Projects/Notes and Performance/example.md</code>');
