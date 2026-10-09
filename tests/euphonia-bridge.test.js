@@ -231,7 +231,8 @@ describe('audit', () => {
 });
 
 describe('Firm HTTP + WebSocket', () => {
-  // A fake Firm: events feed, management transcript, inbox respond. No token anywhere (the API is loopback-only and unauthenticated).
+  // A fake Firm with the live guard: reads are open; GET /api/session hands out TOKEN; a write without X-Firm-Token is 403.
+  const TOKEN = 'tok-live-1';
   function fakeFirmServer({ replyAfterMs = 0 } = {}) {
     const state = { events: [{ id: 10, ts: 't0', kind: 'bead_done', actor: 'lead:ws_1', target_agent: 'management', payload: {}, delivered_at: null, acked_at: null }], msgs: [], seen: [] };
     const fetchImpl = async (url, init = {}) => {
@@ -243,7 +244,9 @@ describe('Firm HTTP + WebSocket', () => {
         return ok(u.searchParams.get('latest') ? state.events.slice(-limit) : state.events.filter((e) => e.id > since).slice(0, limit));
       }
       if (u.pathname === '/api/threads/management/messages') return ok(state.msgs);
+      if (u.pathname === '/api/session') return ok({ token: TOKEN });
       if (u.pathname.startsWith('/api/inbox/') && u.pathname.endsWith('/respond')) {
+        if (!init.headers || init.headers['X-Firm-Token'] !== TOKEN) return { ok: false, status: 403, json: async () => ({ detail: 'missing or wrong token' }) };
         const { action, text } = JSON.parse(init.body);
         const sent = action === 'dismiss' ? null : `[Inbox] ${action}: ${text}`;
         if (sent) state.userSent(sent);
@@ -260,17 +263,18 @@ describe('Firm HTTP + WebSocket', () => {
     return { state, fetchImpl };
   }
 
-  test('reads carry no token; inbox respond posts { action, text } and returns the receipt for the message The Firm says it sent', async () => {
+  test('reads carry no token; inbox respond fetches the session token, posts { action, text } with X-Firm-Token and returns the receipt', async () => {
     const { state, fetchImpl } = fakeFirmServer();
     const f = createFirmHttp({ fetchImpl, sleep: () => new Promise((r) => setTimeout(r, 1)), receiptWaitMs: 500, receiptStepMs: 1 });
     await f.workstreams(); await f.inbox(); await f.workstream('ws_28b136'); await f.prs(); await f.events({ sinceId: 3, limit: 5 });
     expect(state.seen.map((x) => x.slice(0, 3))).toEqual([
       ['GET', '/api/workstreams', undefined], ['GET', '/api/inbox', undefined], ['GET', '/api/workstreams/ws_28b136', undefined], ['GET', '/api/prs', undefined], ['GET', '/api/events?since_id=3&limit=5', undefined],
     ]);
-    expect(state.seen.some((x) => x[1].includes('session'))).toBe(false);
+    expect(state.seen.some((x) => x[1].includes('session'))).toBe(false);   // reads never fetch a token
     const r = await f.respondInbox('item:1', 'reply', '[Assistant] hi');
     const post = state.seen.find((x) => x[0] === 'POST');
-    expect(post).toEqual(['POST', '/api/inbox/item%3A1/respond', undefined, JSON.stringify({ action: 'reply', text: '[Assistant] hi' })]);
+    expect(state.seen.slice(state.seen.indexOf(post) - 2, state.seen.indexOf(post)).map((x) => x[1])).toEqual(['/api/events?latest=1&limit=1', '/api/session']);   // events cursor, then the token, for the write only
+    expect(post).toEqual(['POST', '/api/inbox/item%3A1/respond', TOKEN, JSON.stringify({ action: 'reply', text: '[Assistant] hi' })]);
     expect(r.sent).toBe('[Inbox] reply: [Assistant] hi');
     expect(r.receipt).toMatchObject({ event_id: 11, delivered_at: 'd11' });
     expect(r.reply).toMatch(/^Noted: /);
@@ -281,15 +285,16 @@ describe('Firm HTTP + WebSocket', () => {
     await expect(bad.inbox()).rejects.toThrow(/HTTP 404: Inbox item x is no longer open/);
   });
 
-  test('sendToManagement: Origin set, no subprotocol, one message frame; the receipt is the user_message event and the reply follows', async () => {
-    const got = {};
+  // The live guard on the socket: an allowed Origin and `firm-token.<TOKEN>` among the subprotocols, else 403 before accept.
+  function firmSocketServer(state, got) {
     const server = http.createServer();
-    const { state, fetchImpl } = fakeFirmServer();
     server.on('upgrade', (req, socket) => {
       socket.on('error', () => {});
       got.origin = req.headers.origin; got.proto = req.headers['sec-websocket-protocol']; got.path = req.url;
+      const protos = String(got.proto || '').split(',').map((p) => p.trim());
+      if (!got.origin || !protos.includes(`firm-token.${TOKEN}`)) { got.refused = (got.refused || 0) + 1; socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); setTimeout(() => socket.end(), 50); return; }
       const accept = crypto.createHash('sha1').update(req.headers['sec-websocket-key'] + GUID).digest('base64');
-      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\nSec-WebSocket-Protocol: firm\r\n\r\n`);
       const serverFrame = (o) => { const b = Buffer.from(JSON.stringify(o)); return Buffer.concat([Buffer.from([0x81, b.length]), b]); };
       socket.write(serverFrame({ type: 'status' }));   // history replay + status frame come first
       let buf = Buffer.alloc(0);
@@ -302,17 +307,51 @@ describe('Firm HTTP + WebSocket', () => {
         socket.write(serverFrame({ type: 'text', role: 'user', text: got.message.text, audience: 'chat' }));
       });
     });
+    return server;
+  }
+
+  test('sendToManagement: Origin and the token subprotocol, one message frame; the receipt is the user_message event and the reply follows', async () => {
+    const got = {};
+    const { state, fetchImpl } = fakeFirmServer();
+    const server = firmSocketServer(state, got);
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
     const base = `http://127.0.0.1:${server.address().port}`;
     const f = createFirmHttp({ baseUrl: base, fetchImpl, wsSend: (o) => sendOnce({ ...o, quietMs: 60, listenMs: 250 }), sleep: () => new Promise((r) => setTimeout(r, 1)), receiptWaitMs: 500, receiptStepMs: 1 });
     const r = await f.sendToManagement('[Assistant] hello');
     server.close();
     expect(got.origin).toBe(base);
-    expect(got.proto).toBeUndefined();
+    expect(got.proto).toBe(`firm, firm-token.${TOKEN}`);
     expect(got.path).toBe('/ws/threads/management');
     expect(got.message).toEqual({ type: 'message', text: '[Assistant] hello' });
     expect(r).toMatchObject({ sent: true, notes: [], receipt: { event_id: 11, ts: 't11', delivered_at: 'd11', acked_at: null }, reply: 'Noted: [Assistant] hello' });
     expect(state.seen.filter((x) => x[1].startsWith('/api/events?since_id=10'))).not.toHaveLength(0);   // polled from the id seen before the send
+  });
+
+  test('positive control: without the token subprotocol the socket is refused with 403, nothing is sent, and the action fails with a clear message', async () => {
+    const got = {};
+    const { state, fetchImpl } = fakeFirmServer();
+    const server = firmSocketServer(state, got);
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    // the token-less client shape (what the Oct 2 reading of The Firm produced): refused before accept
+    await expect(sendOnce({ origin: base, path: '/ws/threads/management', token: 'wrong', text: 'x', quietMs: 20, listenMs: 50 })).rejects.toThrow(/refused the chat socket \(HTTP 403\): the session token or the Origin was not accepted; nothing was sent/);
+    await expect(sendOnce({ origin: base, path: '/ws/threads/management', text: 'x' })).rejects.toThrow(/needs a session token/);
+    expect(got.refused).toBe(1);
+    expect(got.message).toBeUndefined();
+    expect(state.events.some((e) => e.kind === 'user_message')).toBe(false);
+    // through the action runner: a Firm that hands out a stale token makes the write fail, audited, never "sent"
+    const stale = createFirmHttp({ baseUrl: base, fetchImpl: async (url, init) => (new URL(url).pathname === '/api/session' ? { ok: true, status: 200, json: async () => ({ token: 'stale' }) } : fetchImpl(url, init)), wsSend: (o) => sendOnce({ ...o, quietMs: 20, listenMs: 50 }) });
+    const defs = createTools({ firm: stale, ghRun: async () => '', cosmetics: () => ({}) });
+    const home = tmp();
+    const r = await createRunner({ defs, readGrants: () => G('write'), audit: createAudit({ file: path.join(home, 'a.jsonl') }) })('firm_send_to_management', { text: 'hello' });
+    server.close();
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/^Failed: The Firm refused the chat socket \(HTTP 403\)/);
+    // and the inbox respond POST without the header is 403 too
+    const bare = createFirmHttp({ fetchImpl: async (url, init) => (new URL(url).pathname === '/api/session' ? { ok: true, status: 200, json: async () => ({}) } : fetchImpl(url, init)) });
+    await expect(bare.respondInbox('i1', 'reply', 'x')).rejects.toThrow(/gave no session token/);
+    const direct = await fetchImpl(`${base}/api/inbox/i1/respond`, { method: 'POST', headers: {}, body: JSON.stringify({ action: 'reply', text: 'x' }) });
+    expect(direct.status).toBe(403);
   });
 
   test('a refusal notice after the send means no receipt; a reply that never comes stays pending', async () => {

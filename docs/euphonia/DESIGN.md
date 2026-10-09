@@ -300,14 +300,20 @@ Tool results, hub text and history are never parsed.
   none / read / write with the same durations. `bridge-audit.jsonl` records every action: cards, attempts, results, refusals, rejected blocks.
 - **Handlers** (`bridge/tools.js`, `gh.js`, `firm-http.js`, `ws-client.js`, `cosmetics.js`): fixed `gh` argv from validated values
   for Affirm/affirm-builders only, `[Assistant] ` prefix on relayed text, cosmetics limited to name, soundPack, border, species.
-  **The Firm's API, as read from its source at `a99de04fd4` (2026-10-07):** unauthenticated, loopback-only (`HOST=127.0.0.1`); there
-  is **no** token and **no** `/api/session` (the earlier handshake was removed), and **no** `/api/now`. Reads: `GET /api/workstreams`,
+  **The Firm's API, as read from the live source at `acdf42c54d` (2026-10-08; an Oct 2 checkout, `a99de04fd4`, had no token and
+  misled a day's reading):** loopback-only (`HOST=127.0.0.1`). Reads need no token. **Writes need the per-process token** from
+  `GET /api/session` (`local_auth.py`): `X-Firm-Token` on the inbox respond POST, and on the WebSocket an allowed `Origin` plus
+  the subprotocol `firm, firm-token.<token>` (`local_auth.websocket_allowed`); a missing or wrong token is refused with HTTP 403
+  before anything is sent, which is what the token-less client got live. The token is fetched per write, never cached. `/api/now`
+  exists on the live Firm; the mirror does not use it yet. Reads: `GET /api/workstreams`,
   `/api/workstreams/{id}`, `/api/inbox` (cards carry `responses[].reply` and `awaiting`), `/api/prs` (The Firm's own PR record:
   `pr_number`, `branch`, `base_branch`, `pr_state`, `merged_at`), `/api/events?since_id=N&limit=N` or `?latest=1` (cap 500; rows
   `id, ts, kind, actor, target_agent, payload, delivered_at, acked_at`; `actor` is `user`, `scheduler`, `system` or a thread id),
   `/api/threads/{id}/messages`, `/api/projects`, `/api/health`, `/api/stats`. Writes: `POST /api/inbox/{item_id}/respond
-  {action, text}` -> `{ sent: text|null, item }`; WebSocket `/ws/threads/management` with a client frame `{"type":"message","text"}`,
-  no ack and no id, a failure as `{"type":"system","text","audience":"chat"}`. `GET/PUT /api/settings` exist (restart required) and
+  {action, text}` + `X-Firm-Token` -> `{ sent: text|null, item }`; WebSocket `/ws/threads/management` (Origin + token subprotocol)
+  with a client frame `{"type":"message","text"}`, no ack and no id, a failure as `{"type":"system","text","audience":"chat"}`.
+  The test suite's fake Firm enforces the same guard, with a positive control: a send without the token is refused with 403 and
+  the action fails with a clear message. `GET/PUT /api/settings` exist (restart required) and
   are deliberately not used.
 - **GitHub reads** return `baseRefName`, `headRefName`, `state`, `isDraft`, `mergeStateStatus`, `reviewDecision` and
   `statusCheckRollup` for list and view; `github_check_pr` returns those PR fields with its checks. `github_firm_pr_watch` takes The
